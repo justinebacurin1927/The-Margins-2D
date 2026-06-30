@@ -1,0 +1,64 @@
+# Java
+*.class
+*.jar
+*.war
+*.nar
+hs_err_pid*
+replay_pid*
+
+# Maven
+target/
+pom.xml.tag
+pom.xml.releaseBackup
+pom.xml.versionsBackup
+dependency-reduced-pom.xml
+buildNumber.properties
+.mvn/timing.properties
+
+# Eclipse
+.project
+.classpath
+.settings/
+bin/
+
+# IntelliJ
+.idea/
+*.iml
+*.iws
+*.ipr
+out/
+
+# VS Code
+.vscode/
+.settings/
+*.code-workspace
+
+# OS
+.DS_Store
+Thumbs.db
+*.swp
+*.swo
+*~
+
+# libGDX / LWJGL
+*.log
+lwjgl3/target/
+
+# Sprite source files (PSD, archives)
+sprites/**/*.psd
+sprites/**/*.psb
+sprites/**/*.zip
+sprites/**/*.rar
+sprites/**/*.7z
+
+# macOS metadata
+__MACOSX
+.DS_Store
+
+# Node (opencode skills)
+node_modules/
+
+# Misc
+*.bak
+*.orig
+*.tmp
