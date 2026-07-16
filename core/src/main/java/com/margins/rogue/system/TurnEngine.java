@@ -57,6 +57,8 @@ public class TurnEngine {
             // Reprieve check after all damage this turn; added last so "Last Stand!"
             // wins the message display over combat/wait text.
             CombatSystem.checkLastStand(state, result.messages);
+            // Recompute sight from the player's (possibly new) position.
+            FovSystem.compute(state);
         }
 
         return result;

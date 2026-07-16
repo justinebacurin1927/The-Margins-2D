@@ -15,6 +15,7 @@ import com.margins.MarginsGame;
 import com.margins.asset.Assets;
 import com.margins.rogue.save.SaveService;
 import com.margins.rogue.state.RunState;
+import com.margins.rogue.system.FovSystem;
 import com.margins.rogue.system.PlayerAction;
 import com.margins.rogue.system.TurnEngine;
 import com.margins.rogue.system.TurnResult;
@@ -57,6 +58,7 @@ public class RogueGameScreen implements Screen {
         messageTimer = 0;
         state = SaveService.load();
         if (state == null) state = new RunState();
+        FovSystem.compute(state); // initial sight for the first frame (also rebuilds visible after a load)
     }
 
     @Override
@@ -92,6 +94,7 @@ public class RogueGameScreen implements Screen {
             for (int y = py - vh/2; y <= py + vh/2; y++) {
                 int t = tileMap.getTile(x, y);
                 if (t < 0) continue;
+                if (!tileMap.isVisible(x, y)) continue; // only currently-lit tiles (explored/dim: Story 2.2)
                 Texture tex = Assets.tileFloorTex;
                 if (t == RogueTile.WALL) tex = Assets.tileWallTex;
                 else if (t == RogueTile.DOOR) tex = Assets.tileDoorTex;
@@ -100,7 +103,7 @@ public class RogueGameScreen implements Screen {
             }
         }
         for (RogueEnemy e : enemies) {
-            if (e.isAlive()) {
+            if (e.isAlive() && tileMap.isVisible(e.getTileX(), e.getTileY())) {
                 batch.draw(e.getTexture(), e.getTileX() * 32f - 16f, e.getTileY() * 32f - 32f, 64f, 64f);
             }
         }
@@ -110,7 +113,7 @@ public class RogueGameScreen implements Screen {
         shapes.setProjectionMatrix(camera.combined);
         shapes.begin(ShapeRenderer.ShapeType.Filled);
         for (RogueEnemy e : enemies) {
-            if (!e.isAlive()) continue;
+            if (!e.isAlive() || !tileMap.isVisible(e.getTileX(), e.getTileY())) continue;
             float ex = e.getTileX() * 32f;
             float ey = e.getTileY() * 32f + 40f;
             float bw = 32f, bh = 4f;
@@ -190,6 +193,7 @@ public class RogueGameScreen implements Screen {
         if (gameOver) {
             if (Gdx.input.isKeyJustPressed(Input.Keys.R)) {
                 state.restart();
+                FovSystem.compute(state);
                 gameOver = false;
                 waitingForInput = true;
             }

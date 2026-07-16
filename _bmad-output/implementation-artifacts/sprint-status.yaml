@@ -59,8 +59,8 @@ development_status:
   epic-1-retrospective: done
 
   # Epic 2 — Sight & Stealth
-  epic-2: backlog
-  2-1-line-of-sight-field-of-view: ready-for-dev
+  epic-2: in-progress
+  2-1-line-of-sight-field-of-view: done
   2-2-explored-fog-memory: ready-for-dev
   2-3-enemy-patrol-while-unaware: ready-for-dev
   2-4-detection-state-machine: ready-for-dev

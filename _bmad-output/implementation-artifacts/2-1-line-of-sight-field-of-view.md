@@ -1,6 +1,6 @@
 # Story 2.1: Line-of-sight field of view
 
-Status: ready-for-dev
+Status: done
 
 ## Story
 
@@ -16,14 +16,11 @@ so that stealth and ambush have meaning.
 
 ## Tasks / Subtasks
 
-- [ ] Task 1: Add per-tile visibility to `RogueTileMap` — parallel `boolean[][] visible` and `boolean[][] explored` arrays with getters/setters and a `clearVisible()` (AC: 1)
-- [ ] Task 2: Create `system/FovSystem.java` implementing recursive shadowcasting (AC: 1, 3)
-  - [ ] Origin = player tile; radius = 8 (PRD Balance `FOV sight radius`). Blocking test = `RogueTileMap.isOpaque(x,y)` (already exists; walls opaque).
-  - [ ] Each recompute: clear `visible`, mark visible tiles, set `explored=true` for any visible tile.
-- [ ] Task 3: Run FOV in the turn pipeline — recompute after the player acts (and once at floor generation) so it reflects the new position (AC: 1). Insert into `TurnEngine` order from Story 1.2 (after PlayerAction, before/around rendering read).
-- [ ] Task 4: Gate rendering by visibility (AC: 1, 2)
-  - [ ] In `RogueGameScreen.renderWorld()`, draw a tile only if `visible` (bright) — see Story 2.2 for explored/dim handling. Draw an enemy only if its tile is `visible`. (Player always drawn.)
-- [ ] Task 5: Manual test — walls block sight; stepping through a door reveals the next room; an enemy behind a wall is not drawn.
+- [x] Task 1: Added `transient boolean[][] visible` + persisted `boolean[][] explored` to `RogueTileMap`, allocated in the public ctor, with `isVisible`/`setVisible`/`clearVisible` and `isExplored`/`setExplored` (all bounds-checked; lazily allocate so a Json-loaded map — no-arg ctor — is safe) (AC: 1).
+- [x] Task 2: Created `system/FovSystem.java` — recursive shadowcasting, radius 8, blocker = `RogueTileMap.isOpaque` (AC: 1, 3). Each `compute` clears `visible`, marks lit tiles, and sets `explored=true` for every lit tile. No libGDX types (AD-2). Added a `compute(map, px, py)` overload as the headless test seam.
+- [x] Task 3: `TurnEngine.advance()` recomputes FOV in the acted block (after the player's move resolves); `RogueGameScreen.show()` computes it once after load-or-new, and again after `restart()` (AC: 1). New-run FOV is covered by show(); floor-transition recompute will reuse the same call site when Epic 6 adds descent.
+- [x] Task 4: `renderWorld()` now skips tiles where `!isVisible` and draws an enemy (sprite + HP bar) only when its tile is visible; player always drawn (AC: 1, 2). Explored/dim rendering is deferred to Story 2.2 as noted.
+- [x] Task 5: Verified via headless occlusion test (a wall column blocks the tiles behind it while open tiles stay lit, explored accumulates only on seen tiles, radius bound holds) + clean live boot.
 
 ## Dev Notes
 
@@ -49,8 +46,24 @@ so that stealth and ambush have meaning.
 
 ### Agent Model Used
 
+claude-opus-4-8[1m] (via bmad-dev-story)
+
 ### Debug Log References
+
+- `mvn -o compile` → BUILD SUCCESS
+- Headless FOV occlusion test: origin/near/wall-face lit, tiles behind wall dark, off-shadow lit, radius bound holds, explored only on seen tiles → FOV AC PASS (9/9)
+- Launch on display :0, 8s → clean boot (no NPE from visibility gating)
 
 ### Completion Notes List
 
+- FOV is a headless model system (AD-2): `FovSystem` reads only tile data and writes `visible`/`explored` flags on `RogueTileMap`; the screen consumes those flags at draw time.
+- `visible` is transient (recomputed every pass); `explored` persists in the save (fog memory for Story 2.2, and it rides the Story 1.4 serialization root for free). After a load, `visible` is null until the first `compute`, so `show()` computes FOV right after `SaveService.load()`; `clearVisible`/setters also lazily allocate to stay null-safe.
+- Recompute sites: `TurnEngine` acted-block (in-run movement, AD-4), `show()` (new run / post-load first frame), and after `restart()`. Radius 8 per PRD Balance; doors are transparent (only WALL is opaque) so sight passes through them, satisfying "opening a door reveals the room beyond."
+- Rendering: tiles draw only when currently visible; enemies (sprite + HP bar) only when standing on a visible tile. Explored-but-not-visible dim rendering is intentionally left for Story 2.2.
+
 ### File List
+
+- ADDED: core/src/main/java/com/margins/rogue/system/FovSystem.java
+- MODIFIED: core/src/main/java/com/margins/rogue/RogueTileMap.java
+- MODIFIED: core/src/main/java/com/margins/rogue/system/TurnEngine.java
+- MODIFIED: core/src/main/java/com/margins/rogue/RogueGameScreen.java
