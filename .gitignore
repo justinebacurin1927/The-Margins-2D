@@ -58,6 +58,9 @@ __MACOSX
 # Node (opencode skills)
 node_modules/
 
+# BMAD installed skill library (regenerable via `bmad install`; large tooling)
+.claude/
+
 # Misc
 *.bak
 *.orig

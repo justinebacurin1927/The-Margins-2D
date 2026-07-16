@@ -1,0 +1,100 @@
+# generated: 2026-07-17
+# last_updated: 2026-07-17
+# project: The Margins
+# project_key: NOKEY
+# tracking_system: file-system
+# story_location: _bmad-output/implementation-artifacts
+
+# STATUS DEFINITIONS:
+# ==================
+# Epic Status:
+#   - backlog: Epic not yet started
+#   - in-progress: Epic actively being worked on
+#   - done: All stories in epic completed
+#
+# Epic Status Transitions:
+#   - backlog → in-progress: Automatically when first story is created (via create-story)
+#   - in-progress → done: Manually when all stories reach 'done' status
+#
+# Story Status:
+#   - backlog: Story only exists in epic file
+#   - ready-for-dev: Story file created in stories folder
+#   - in-progress: Developer actively working on implementation
+#   - review: Ready for code review (via Dev's code-review workflow)
+#   - done: Story completed
+#
+# Retrospective Status:
+#   - optional: Can be completed but not required
+#   - done: Retrospective has been completed
+#
+# Action Item Status:
+#   - open: Committed during a retrospective, not yet addressed
+#   - in-progress: Actively being worked on
+#   - done: Completed
+#
+# WORKFLOW NOTES:
+# ===============
+# - Epic transitions to 'in-progress' automatically when first story is created
+# - Stories can be worked in parallel if team capacity allows
+# - Developer typically creates next story after previous one is 'done' to incorporate learnings
+# - Dev moves story to 'review', then runs code-review (fresh context, different LLM recommended)
+# - Retrospective appends its action items to action_items; sprint-status surfaces open ones
+
+generated: 2026-07-17
+last_updated: 2026-07-17
+project: The Margins
+project_key: NOKEY
+tracking_system: file-system
+story_location: _bmad-output/implementation-artifacts
+
+development_status:
+  # Epic 1 — Foundation, Save & Survival
+  epic-1: in-progress
+  1-1-extract-runstate: done
+  1-2-turnengine-systems: ready-for-dev
+  1-3-seeded-rng: ready-for-dev
+  1-4-save-resume: ready-for-dev
+  1-5-permadeath-clears-save: ready-for-dev
+  1-6-last-stand: ready-for-dev
+  epic-1-retrospective: optional
+
+  # Epic 2 — Sight & Stealth
+  epic-2: backlog
+  2-1-line-of-sight-field-of-view: ready-for-dev
+  2-2-explored-fog-memory: ready-for-dev
+  2-3-enemy-patrol-while-unaware: ready-for-dev
+  2-4-detection-state-machine: ready-for-dev
+  2-5-noise-propagation: ready-for-dev
+  epic-2-retrospective: optional
+
+  # Epic 3 — Scavenged Supplies
+  epic-3: backlog
+  3-1-backpack-and-equipped-slots: backlog
+  3-2-use-and-drop-items: backlog
+  3-3-per-seed-supply-identity: backlog
+  3-4-identify-on-use-persistence: backlog
+  epic-3-retrospective: optional
+
+  # Epic 4 — Galleon at Your Side
+  epic-4: backlog
+  4-1-companion-follow-and-floor-transition: backlog
+  4-2-distraction-leverage: backlog
+  4-3-bond-tracking: backlog
+  epic-4-retrospective: optional
+
+  # Epic 5 — Voices on the Road
+  epic-5: backlog
+  5-1-branching-dialogue-that-suspends-the-turn-loop: backlog
+  5-2-instinct-gated-choices: backlog
+  5-3-scene-and-quest-flags: backlog
+  epic-5-retrospective: optional
+
+  # Epic 6 — The Caravan Road (Capstone)
+  epic-6: backlog
+  6-1-route-progression-through-procedural-floors: backlog
+  6-2-authored-story-floor: backlog
+  6-3-five-nights-again-opening-quest: backlog
+  6-4-galleon-reunion-scene: backlog
+  6-5-route-completion-end-state: backlog
+  6-6-minimum-unique-art-pass: backlog
+  epic-6-retrospective: optional
