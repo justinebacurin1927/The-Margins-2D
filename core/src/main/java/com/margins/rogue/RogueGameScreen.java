@@ -184,6 +184,7 @@ public class RogueGameScreen implements Screen {
 
         if (!player.isAlive() && !gameOver) {
             gameOver = true;
+            SaveService.deleteSave(); // permadeath: a true-dead run can't be reloaded (FR-21)
             return;
         }
         if (gameOver) {

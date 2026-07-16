@@ -41,4 +41,9 @@ public final class SaveService {
         state.restoreAfterLoad();
         return state;
     }
+
+    /** Delete the save slot — called on true death so a dead run can't be reloaded (AD-6, FR-21). */
+    public static void deleteSave() {
+        Gdx.files.local(SAVE_PATH).delete();
+    }
 }
