@@ -17,7 +17,6 @@ public class Assets {
     public static Texture tileFloorTex, tileWallTex, tileDoorTex;
 
     public static Texture milekSouth, milekNorth, milekWest, milekEast;
-    public static Texture treeTex1, treeTex2, treeTex3;
 
     public static Texture iconHp, iconHunger;
     public static Texture[] numSmall;
@@ -32,13 +31,6 @@ public class Assets {
         milekEast  = cropPixmap(milekPm, 0, 128, 64, 64);
         milekNorth = cropPixmap(milekPm, 0, 192, 64, 64);
         milekPm.dispose();
-
-        treeTex1 = new Texture("sprites/trees/PNG/Assets_separately/Trees/Tree1.png");
-        treeTex2 = new Texture("sprites/trees/PNG/Assets_separately/Trees/Tree2.png");
-        treeTex3 = new Texture("sprites/trees/PNG/Assets_separately/Trees/Tree3.png");
-        treeTex1.setFilter(Texture.TextureFilter.Nearest, Texture.TextureFilter.Nearest);
-        treeTex2.setFilter(Texture.TextureFilter.Nearest, Texture.TextureFilter.Nearest);
-        treeTex3.setFilter(Texture.TextureFilter.Nearest, Texture.TextureFilter.Nearest);
 
         Pixmap pw = new Pixmap(1, 1, Pixmap.Format.RGBA8888);
         pw.setColor(0.06f, 0.06f, 0.10f, 1f);
@@ -92,11 +84,9 @@ public class Assets {
         rogueEnemyTex = cropPixmap(cultistPm, 0, 0, 64, 64);
         cultistPm.dispose();
 
-        Pixmap tsPm = new Pixmap(Gdx.files.internal("sprites/temple/PNG/Walls_floor.png"));
-        tileFloorTex = cropPixmap(tsPm, 29, 96, 32, 32);
-        tileWallTex = cropPixmap(tsPm, 45, 176, 32, 32);
-        tileDoorTex = cropPixmap(tsPm, 93, 208, 32, 32);
-        tsPm.dispose();
+        tileFloorTex = makeColorTex(TILE, TILE, 0.80f, 0.70f, 0.55f);
+        tileWallTex = makeColorTex(TILE, TILE, 0.60f, 0.50f, 0.60f);
+        tileDoorTex = makeColorTex(TILE, TILE, 0.30f, 0.20f, 0.12f);
 
         rogueEnemyTex.setFilter(Texture.TextureFilter.Nearest, Texture.TextureFilter.Nearest);
         tileFloorTex.setFilter(Texture.TextureFilter.Nearest, Texture.TextureFilter.Nearest);
@@ -163,9 +153,6 @@ public class Assets {
         milekNorth.dispose();
         milekWest.dispose();
         milekEast.dispose();
-        treeTex1.dispose();
-        treeTex2.dispose();
-        treeTex3.dispose();
         iconHp.dispose();
         iconHunger.dispose();
         for (Texture t : numSmall) t.dispose();
