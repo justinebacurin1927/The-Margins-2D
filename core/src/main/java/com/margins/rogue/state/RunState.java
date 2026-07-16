@@ -27,6 +27,8 @@ public class RunState {
     private int floorDepth;
     private long seed;
     private transient Random rng;
+    private boolean lastStandUsed;        // persisted: one reprieve per run (FR-16/17)
+    private transient boolean lastStand;  // turn-scoped desperate flag set when the reprieve fires
 
     public RunState() {
         this(System.nanoTime());
@@ -82,6 +84,8 @@ public class RunState {
     /** Restart a fresh run from floor 1 (same seeded RNG stream continues). */
     public void restart() {
         this.floorDepth = 1;
+        this.lastStandUsed = false;
+        this.lastStand = false;
         generateFloor();
     }
 
@@ -94,4 +98,9 @@ public class RunState {
 
     /** The single seeded RNG all gameplay randomness should draw from (AD-5). */
     public Random rng() { return rng; }
+
+    public boolean isLastStandUsed() { return lastStandUsed; }
+    public void setLastStandUsed(boolean v) { lastStandUsed = v; }
+    public boolean isLastStand() { return lastStand; }
+    public void setLastStand(boolean v) { lastStand = v; }
 }

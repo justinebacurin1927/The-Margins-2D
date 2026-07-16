@@ -1,6 +1,6 @@
 # Story 1.6: Last Stand reprieve before permadeath
 
-Status: ready-for-dev
+Status: done
 
 ## Story
 
@@ -16,12 +16,12 @@ so that death feels earned, not cheap.
 
 ## Tasks / Subtasks
 
-- [ ] Task 1: Add `boolean lastStandUsed` to `RunState` (AC: 1, 3) — included in save (Story 1.4), reset on new run
-- [ ] Task 2: In `CombatSystem` damage application (extracted in Story 1.2, originally `RoguePlayer.takeDamage`), intercept lethal damage (AC: 1, 2)
-  - [ ] If resulting HP ≤ 0 and `!lastStandUsed`: set HP = 1, set `lastStandUsed = true`, set a `lastStand` desperate flag for the turn, emit message (e.g., "Last Stand!").
-  - [ ] If resulting HP ≤ 0 and `lastStandUsed`: allow death (HP ≤ 0 → permadeath path unchanged).
-- [ ] Task 3: Confirm the desperate flag is turn-scoped (cleared on cleanup step) and does not grant invulnerability beyond the single reprieve (AC: 1)
-- [ ] Task 4: Manual test — take lethal hit (survive at 1 HP once), take another (die); restart and confirm reprieve available again (AC: 1, 2, 3)
+- [x] Task 1: Added `boolean lastStandUsed` (persisted) to `RunState`; serialized by Story 1.4's Json save, and reset in `restart()` (the `R`-restart reuses the same `RunState`, so it needs an explicit reset — a fresh launch already defaults it false) (AC: 1, 3).
+- [x] Task 2: Added `CombatSystem.checkLastStand(state, messages)`, run once per turn after all damage (AC: 1, 2)
+  - [x] If HP ≤ 0 and `!lastStandUsed`: `player.reviveTo(1)`, `lastStandUsed = true`, desperate `lastStand = true`, emit `"Last Stand!"`.
+  - [x] If HP ≤ 0 and `lastStandUsed`: no revive — HP stays 0 → existing permadeath path (Story 1.5) fires next frame.
+- [x] Task 3: Desperate flag `lastStand` is transient and cleared at the start of every `TurnEngine.advance()` (turn-boundary cleanup); the reprieve is a one-time HP floor, not invulnerability — the second lethal event kills. Verified.
+- [x] Task 4: Verified via headless AC suite (12 assertions): first lethal → survive at 1 HP + flag + message; second lethal → death, no second message; `restart()` resets and reprieve is available again. Plus hunger-starvation triggers the same reprieve, and `lastStandUsed` survives save/load. Live boot clean.
 
 ## Dev Notes
 
@@ -45,8 +45,25 @@ Stories 1.1, 1.2 (CombatSystem). Feeds Story 1.5 (defines "true death").
 
 ### Agent Model Used
 
+claude-opus-4-8[1m] (via bmad-dev-story)
+
 ### Debug Log References
+
+- `mvn -o compile` → BUILD SUCCESS
+- Headless AC suite: 12/12 PASS (AC-1/2/3 + hunger source + save/load persistence) → ALL AC PASS
+- Launch on display :0, 8s → clean boot
 
 ### Completion Notes List
 
+- Last Stand state lives on `RunState` (AD-3), not the player: `lastStandUsed` is per-run (persists across floors/saves; a player-scoped flag would wrongly reset on floor transition since `generateFloor()` recreates the player), and the turn-scoped `lastStand` desperate flag is transient.
+- The reprieve is a single post-damage HP floor applied in the turn pipeline (AD-4): `TurnEngine` runs `CombatSystem.checkLastStand()` after hunger + enemy phase, so it covers ALL lethal sources — enemy hits and hunger starvation both funnel through `RoguePlayer.takeDamage` and are caught by the end-of-turn check. Existing armor/dodge/block math is untouched (Last Stand applies after final damage).
+- Message ordering: `checkLastStand` is called last in the pipeline so `"Last Stand!"` wins the last-message-wins HUD display over combat/"Wait" text.
+- Closes the Story 1.5 loop: the reprieve revives the player inside `advance()`, before the screen's next-frame `!isAlive()` game-over transition — so `SaveService.deleteSave()` only runs on TRUE death (reprieve already spent).
+- `restart()` resets `lastStandUsed`/`lastStand` because the `R` restart reuses the same `RunState` instance.
+
 ### File List
+
+- MODIFIED: core/src/main/java/com/margins/rogue/state/RunState.java
+- MODIFIED: core/src/main/java/com/margins/rogue/RoguePlayer.java
+- MODIFIED: core/src/main/java/com/margins/rogue/system/CombatSystem.java
+- MODIFIED: core/src/main/java/com/margins/rogue/system/TurnEngine.java

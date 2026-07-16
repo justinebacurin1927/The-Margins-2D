@@ -128,4 +128,7 @@ public class RoguePlayer {
 
     /** Re-inject the tilemap after a save load (map is transient — AD-6). */
     public void setMap(RogueTileMap map) { this.map = map; }
+
+    /** Set HP to a specific value (used by the Last Stand reprieve). */
+    public void reviveTo(int value) { this.hp = Math.max(0, Math.min(maxHp, value)); }
 }

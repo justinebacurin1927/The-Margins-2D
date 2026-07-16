@@ -57,6 +57,22 @@ public final class CombatSystem {
         }
     }
 
+    /**
+     * Post-damage HP floor (FR-16/17): the first lethal blow per run leaves Milek
+     * at 1 HP in a desperate state instead of dead; once Last Stand is spent, the
+     * next lethal event is allowed to kill. Runs after all damage this turn, so it
+     * covers every lethal source (enemy hits and hunger starvation).
+     */
+    public static void checkLastStand(RunState state, List<String> messages) {
+        RoguePlayer player = state.getPlayer();
+        if (player.isAlive()) return;        // survived on its own — nothing to do
+        if (state.isLastStandUsed()) return; // reprieve already spent → true death
+        player.reviveTo(1);
+        state.setLastStandUsed(true);
+        state.setLastStand(true);
+        messages.add("Last Stand!");
+    }
+
     public static RogueEnemy enemyAt(RunState state, int x, int y) {
         for (RogueEnemy e : state.getEnemies()) {
             if (e.isAlive() && e.getTileX() == x && e.getTileY() == y) return e;

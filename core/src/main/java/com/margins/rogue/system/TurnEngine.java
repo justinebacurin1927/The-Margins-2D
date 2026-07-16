@@ -17,6 +17,9 @@ public class TurnEngine {
         TurnResult result = new TurnResult();
         RoguePlayer player = state.getPlayer();
 
+        // Turn-boundary cleanup: the desperate flag only lasts the turn it fired.
+        state.setLastStand(false);
+
         // Facing updates regardless of whether the action commits a turn.
         player.setFacing(action.dir);
 
@@ -51,6 +54,9 @@ public class TurnEngine {
             if (action.kind == PlayerAction.Kind.WAIT) {
                 result.messages.add("Wait");
             }
+            // Reprieve check after all damage this turn; added last so "Last Stand!"
+            // wins the message display over combat/wait text.
+            CombatSystem.checkLastStand(state, result.messages);
         }
 
         return result;
