@@ -56,7 +56,7 @@ development_status:
   1-4-save-resume: done
   1-5-permadeath-clears-save: done
   1-6-last-stand: done
-  epic-1-retrospective: optional
+  epic-1-retrospective: done
 
   # Epic 2 — Sight & Stealth
   epic-2: backlog
@@ -98,3 +98,21 @@ development_status:
   6-5-route-completion-end-state: backlog
   6-6-minimum-unique-art-pass: backlog
   epic-6-retrospective: optional
+
+action_items:
+  - epic: 1
+    action: "Add JUnit 5 + a core test source root; port the Epic 1 round-trip/determinism/AC harnesses into committed tests"
+    owner: "Dev"
+    status: open
+  - epic: 1
+    action: "Resolve the uncommitted art-deletion changes (commit or revert) so the working tree is clean"
+    owner: "Dev"
+    status: open
+  - epic: 1
+    action: "Document build/verify quirks in project docs (reinstall core before -pl desktop exec:java; use a Lwjgl3Files harness for file-path tests)"
+    owner: "Dev"
+    status: open
+  - epic: 1
+    action: "In Epic 2, add explored/fog + detection state to RunState (not entities) to stay AD-3-consistent and inherit save persistence"
+    owner: "Dev"
+    status: open
