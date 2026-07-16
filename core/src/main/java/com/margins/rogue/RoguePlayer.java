@@ -24,7 +24,6 @@ public class RoguePlayer {
     private int voice;
 
     private boolean blocking;
-    private Random rand;
     private RogueTileMap map;
 
     public RoguePlayer(int tileX, int tileY, RogueTileMap map) {
@@ -43,7 +42,6 @@ public class RoguePlayer {
         this.voice = 3;
 
         this.blocking = false;
-        this.rand = new Random();
     }
 
     public int getTileX() { return tileX; }
@@ -85,8 +83,8 @@ public class RoguePlayer {
     public boolean isBlocking() { return blocking; }
     public void setBlocking(boolean v) { blocking = v; }
 
-    public boolean tryDodge() {
-        return rand.nextInt(100) < instinct * 3;
+    public boolean tryDodge(Random rng) {
+        return rng.nextInt(100) < instinct * 3;
     }
 
     public int getDamageReduction() {

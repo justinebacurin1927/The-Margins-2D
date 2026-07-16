@@ -40,7 +40,7 @@ public final class CombatSystem {
                 continue;
             }
             if (e.isAdjacentTo(px, py)) {
-                if (player.tryDodge()) {
+                if (player.tryDodge(state.rng())) {
                     messages.add("Dodge!");
                 } else {
                     boolean blocked = player.isBlocking();
