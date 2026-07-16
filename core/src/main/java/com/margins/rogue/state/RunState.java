@@ -2,6 +2,7 @@ package com.margins.rogue.state;
 
 import com.margins.rogue.FloorGenerator;
 import com.margins.rogue.FloorGenerator.FloorResult;
+import com.margins.rogue.NoiseEvent;
 import com.margins.rogue.RogueEnemy;
 import com.margins.rogue.RoguePlayer;
 import com.margins.rogue.RogueTileMap;
@@ -29,6 +30,8 @@ public class RunState {
     private transient Random rng;
     private boolean lastStandUsed;        // persisted: one reprieve per run (FR-16/17)
     private transient boolean lastStand;  // turn-scoped desperate flag set when the reprieve fires
+    // Transient, regenerated each turn (not saved); field initializer keeps it non-null after a Json load.
+    private transient List<NoiseEvent> noiseQueue = new ArrayList<>();
 
     public RunState() {
         this(System.nanoTime());
@@ -103,4 +106,11 @@ public class RunState {
     public void setLastStandUsed(boolean v) { lastStandUsed = v; }
     public boolean isLastStand() { return lastStand; }
     public void setLastStand(boolean v) { lastStand = v; }
+
+    /** Producer API (AD-9): queue a noise stimulus for the NoiseSystem to resolve this turn. */
+    public void emitNoise(int x, int y, int radius) {
+        noiseQueue.add(new NoiseEvent(x, y, radius));
+    }
+
+    public List<NoiseEvent> getNoiseQueue() { return noiseQueue; }
 }

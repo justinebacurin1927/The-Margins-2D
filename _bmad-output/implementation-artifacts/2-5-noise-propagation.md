@@ -1,6 +1,6 @@
 # Story 2.5: Noise propagation
 
-Status: ready-for-dev
+Status: done
 
 ## Story
 
@@ -14,14 +14,14 @@ so that noise is a tool and a risk.
 
 ## Tasks / Subtasks
 
-- [ ] Task 1: Add a Noise event type and a transient queue on `RunState` (AC: 1)
-  - [ ] `NoiseEvent { int x, int y, int radius; }`; `List<NoiseEvent> noiseQueue` on `RunState` (transient — not saved; regenerated each turn).
-- [ ] Task 2: Create `system/NoiseSystem.java` as the pipeline "Noise resolve" step (from Story 1.2's TurnEngine order) (AC: 1)
-  - [ ] For each queued Noise event, for each enemy within `radius` (Manhattan/Chebyshev — pick one, document): raise Detection toward `ALERTED` and set its move-target to the Noise origin (so `DetectionSystem`/AI heads there).
-  - [ ] Clear the queue at end of resolve (events are single-turn).
-- [ ] Task 3: Provide a producer API — `state.emitNoise(x,y,radius)` — so future features raise noise (Galleon Distraction in Story 4.2; forcing a crate). For THIS story, wire one producer to prove it: forcing/attacking generates a small noise (AC: 1)
-- [ ] Task 4: Confirm a silent move enqueues no noise (AC: 1)
-- [ ] Task 5: Manual test — make noise near a patrol; they turn toward it; move silently and they don't react.
+- [x] Task 1: Added `NoiseEvent {final int x,y,radius}` and a `transient List<NoiseEvent> noiseQueue` on `RunState` (field-initialized so it's non-null after a Json load; never serialized) (AC: 1).
+- [x] Task 2: Created `system/NoiseSystem.resolve(state)` wired into the TurnEngine's reserved Noise-resolve slot. For each queued event, every living enemy within `radius` (Euclidean, documented) is drawn to the sound; the queue is cleared at the end (AC: 1).
+- [x] Task 3: Producer API `RunState.emitNoise(x,y,radius)`; wired one producer — `CombatSystem.playerAttack` emits a radius-4 noise at the player's tile (AC: 1).
+- [x] Task 4: Confirmed silent MOVE/BLOCK/WAIT emit nothing — only `playerAttack` calls `emitNoise`, so a silent turn leaves the queue empty and `resolve` is a no-op (AC: 1).
+- [x] Task 5: Verified headless — noise draws an in-radius UNAWARE enemy to SUSPICIOUS, retargets its `lastSeen` to the origin, resets `calmTurns`, and clears the queue; an out-of-radius enemy is untouched; a silent turn is a no-op; `playerAttack` enqueues a noise event. Live boot clean; queue survives save/load.
+
+### Design note
+Noise raises enemies to **SUSPICIOUS** (not ALERTED) and points their `lastSeen` at the origin. ALERTED enemies chase the *player*, so forcing ALERTED would defeat the "draw them to the sound" intent; SUSPICIOUS enemies investigate `lastSeen`, which is exactly the lure behavior Story 4.2 (Galleon Distraction) needs. If an enemy then sees the player at the noise, DetectionSystem (2.4) escalates it to ALERTED naturally.
 
 ## Dev Notes
 
@@ -44,8 +44,26 @@ Stories 1.1/1.2 (RunState/TurnEngine), 2.4 (Detection to raise). Enables Story 4
 
 ### Agent Model Used
 
+claude-opus-4-8[1m] (via bmad-dev-story)
+
 ### Debug Log References
+
+- `mvn -o compile` → BUILD SUCCESS
+- Noise test: raise+retarget+calm-reset+queue-clear, out-of-radius untouched, silent no-op, attack emits → NOISE AC PASS (8/8)
+- Json round-trip: noiseQueue non-null + usable after load → PASS
+- Launch on display :0, 8s → clean boot
 
 ### Completion Notes List
 
+- Noise is a transient event queue on `RunState` (AD-9), produced via `emitNoise` and consumed by `NoiseSystem` in the TurnEngine's Noise-resolve step (AD-4). The queue is `transient` with a field initializer, so it's never saved and is guaranteed non-null after a Json-loaded run (verified).
+- Radius test is Euclidean (squared-distance), matching FOV/vision for consistency.
+- Producer wired: attacking emits a radius-4 noise at the player's tile. Future producers (forcing crates, Galleon Distraction radius 5) call the same `emitNoise` API.
+- Lure semantics documented above: raise to SUSPICIOUS + retarget lastSeen, not force ALERTED.
+
 ### File List
+
+- ADDED: core/src/main/java/com/margins/rogue/NoiseEvent.java
+- ADDED: core/src/main/java/com/margins/rogue/system/NoiseSystem.java
+- MODIFIED: core/src/main/java/com/margins/rogue/state/RunState.java
+- MODIFIED: core/src/main/java/com/margins/rogue/system/TurnEngine.java
+- MODIFIED: core/src/main/java/com/margins/rogue/system/CombatSystem.java

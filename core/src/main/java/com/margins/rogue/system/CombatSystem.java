@@ -27,7 +27,10 @@ public final class CombatSystem {
         } else {
             messages.add("Nothing there");
         }
+        state.emitNoise(player.getTileX(), player.getTileY(), ATTACK_NOISE_RADIUS); // the swing is loud (FR-5)
     }
+
+    private static final int ATTACK_NOISE_RADIUS = 4;
 
     /**
      * Every living enemy takes its turn. Only ALERTED enemies pursue and attack
