@@ -2,6 +2,7 @@ package com.margins.rogue;
 
 import com.badlogic.gdx.graphics.Texture;
 import com.margins.asset.Assets;
+import java.util.Random;
 
 public class RogueEnemy {
     private int tileX, tileY;
@@ -9,7 +10,11 @@ public class RogueEnemy {
     private int damage;
     private boolean alive;
     private boolean justArrived;
+    private Detection detection = Detection.UNAWARE;
     private transient RogueTileMap map;
+
+    private static final int[] WDX = {0, 0, 1, -1, 0}; // N, S, E, W, stay
+    private static final int[] WDY = {1, -1, 0, 0, 0};
 
     private RogueEnemy() {} // for libGDX Json deserialization; map re-injected via setMap
 
@@ -68,6 +73,21 @@ public class RogueEnemy {
 
     public boolean isAdjacentTo(int px, int py) {
         return Math.abs(tileX - px) + Math.abs(tileY - py) == 1;
+    }
+
+    public Detection getDetection() { return detection; }
+    public void setDetection(Detection d) { this.detection = d; }
+
+    /** Idle-wander for an unaware enemy: a random walkable step (or stay), never onto the player (AD-5). */
+    public void wander(Random rng, int avoidX, int avoidY) {
+        if (!alive) return;
+        int dir = rng.nextInt(WDX.length); // 4 directions + stay
+        int nx = tileX + WDX[dir];
+        int ny = tileY + WDY[dir];
+        if ((nx != avoidX || ny != avoidY) && map.isWalkable(nx, ny)) {
+            tileX = nx;
+            tileY = ny;
+        }
     }
 
     /** Re-inject the tilemap after a save load (map is transient — AD-6). */

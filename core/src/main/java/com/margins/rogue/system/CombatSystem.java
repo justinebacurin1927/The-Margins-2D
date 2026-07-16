@@ -1,5 +1,6 @@
 package com.margins.rogue.system;
 
+import com.margins.rogue.Detection;
 import com.margins.rogue.RogueEnemy;
 import com.margins.rogue.RoguePlayer;
 import com.margins.rogue.state.RunState;
@@ -28,13 +29,21 @@ public final class CombatSystem {
         }
     }
 
-    /** Every living enemy takes its turn: arrival-grace, attack if adjacent, else move. */
+    /**
+     * Every living enemy takes its turn. Only ALERTED enemies pursue and attack
+     * (arrival-grace, attack if adjacent, else chase); UNAWARE/SUSPICIOUS enemies
+     * idle-wander and never initiate combat (AD-9). Escalation is wired in 2.4.
+     */
     public static void enemyPhase(RunState state, List<String> messages) {
         RoguePlayer player = state.getPlayer();
         int px = player.getTileX();
         int py = player.getTileY();
         for (RogueEnemy e : state.getEnemies()) {
             if (!e.isAlive()) continue;
+            if (e.getDetection() != Detection.ALERTED) {
+                e.wander(state.rng(), px, py);
+                continue;
+            }
             if (e.hasJustArrived()) {
                 e.setJustArrived(false);
                 continue;

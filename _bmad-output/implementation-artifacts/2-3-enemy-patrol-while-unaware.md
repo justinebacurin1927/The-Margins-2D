@@ -1,6 +1,6 @@
 # Story 2.3: Enemy patrol while unaware
 
-Status: ready-for-dev
+Status: done
 
 ## Story
 
@@ -14,12 +14,10 @@ so that I can read patterns and slip past.
 
 ## Tasks / Subtasks
 
-- [ ] Task 1: Add a `Detection` enum (`UNAWARE`, `SUSPICIOUS`, `ALERTED`) field to `RogueEnemy`, default `UNAWARE` (AC: 1) — sets up Story 2.4
-- [ ] Task 2: Add unaware behavior to enemy AI (AC: 1)
-  - [ ] Simplest viable: idle-wander — while `UNAWARE`, on the enemy AI step move a random step (from `state.rng()`, AD-5) into a walkable neighbor or stay put, instead of chasing.
-  - [ ] Optional (nicer): a fixed waypoint loop per enemy. Idle-wander is acceptable for MVP.
-- [ ] Task 3: Ensure an `UNAWARE` enemy never attacks — only `ALERTED` (Story 2.4) pursues/attacks (AC: 1). The current unconditional chase in `RogueEnemy.takeTurn()` must become Detection-gated.
-- [ ] Task 4: Manual test — stay out of sight; enemies mill about and never approach/attack.
+- [x] Task 1: Added top-level `Detection` enum (`UNAWARE`, `SUSPICIOUS`, `ALERTED`) and a `detection` field on `RogueEnemy` defaulting to `UNAWARE`, with getter/setter (AC: 1). Persisted with the enemy in the save.
+- [x] Task 2: Idle-wander implemented as `RogueEnemy.wander(rng, avoidX, avoidY)` — a random walkable step (4 dirs + stay) drawn from `state.rng()` (AD-5), never stepping onto the player. Chose idle-wander (MVP-acceptable) over waypoint loops (AC: 1).
+- [x] Task 3: `CombatSystem.enemyPhase` now branches on detection: only `ALERTED` enemies run the arrival-grace + attack-if-adjacent + chase path; `UNAWARE`/`SUSPICIOUS` wander and never initiate combat (AC: 1). The `takeTurn` chase code is preserved for the alerted branch.
+- [x] Task 4: Verified headless — an UNAWARE enemy adjacent to the player deals no damage over 60 turns and doesn't self-escalate; an ALERTED adjacent enemy resolves an attack (message emitted). Live boot clean.
 
 ## Dev Notes
 
@@ -44,8 +42,22 @@ Story 1.1 (RunState/rng). Sets up Story 2.4 (state transitions) and 2.5 (noise).
 
 ### Agent Model Used
 
+claude-opus-4-8[1m] (via bmad-dev-story)
+
 ### Debug Log References
+
+- `mvn -o compile` → BUILD SUCCESS
+- Patrol test: default UNAWARE, no damage over 60 adjacent turns, no self-escalation, ALERTED resolves attack → PATROL AC PASS (4/4)
+- Launch on display :0, 8s → clean boot
 
 ### Completion Notes List
 
+- `Detection` is a top-level enum in the `rogue` package so Stories 2.4 (transitions) and 2.5 (noise) can reference it; `RogueEnemy.detection` defaults to `UNAWARE` and persists in the save.
+- Behavior is detection-gated in `CombatSystem.enemyPhase` (which owns `state.rng()` for wander), not inside `takeTurn`. Only `ALERTED` pursues/attacks; everything else idle-wanders. Since nothing sets `ALERTED` until Story 2.4, all enemies currently patrol and never aggro — the player can still fight them via `playerAttack`.
+- Wander draws from the shared seeded RNG (AD-5) and avoids the player's tile to prevent overlap; it does not set `justArrived` (that grace is only meaningful for an alerted arrival).
+
 ### File List
+
+- ADDED: core/src/main/java/com/margins/rogue/Detection.java
+- MODIFIED: core/src/main/java/com/margins/rogue/RogueEnemy.java
+- MODIFIED: core/src/main/java/com/margins/rogue/system/CombatSystem.java

@@ -62,7 +62,7 @@ development_status:
   epic-2: in-progress
   2-1-line-of-sight-field-of-view: done
   2-2-explored-fog-memory: done
-  2-3-enemy-patrol-while-unaware: ready-for-dev
+  2-3-enemy-patrol-while-unaware: done
   2-4-detection-state-machine: ready-for-dev
   2-5-noise-propagation: ready-for-dev
   epic-2-retrospective: optional
