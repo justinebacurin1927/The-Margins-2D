@@ -1,6 +1,6 @@
 # Story 2.2: Explored fog memory
 
-Status: ready-for-dev
+Status: done
 
 ## Story
 
@@ -14,12 +14,9 @@ so that I can navigate without seeing live enemies through walls.
 
 ## Tasks / Subtasks
 
-- [ ] Task 1: In `renderWorld()`, render each tile in three cases (AC: 1)
-  - [ ] `visible` → full-color draw.
-  - [ ] `explored && !visible` → dimmed draw (e.g., `batch.setColor(0.45f,0.45f,0.5f,1)` then reset to white). Uses the `explored` flag set by Story 2.1.
-  - [ ] neither → skip (unexplored, hidden).
-- [ ] Task 2: Confirm dynamic entities are NOT persisted in fog — enemies draw only when their tile is `visible` (already gated in Story 2.1); do not add explored-based enemy drawing (AC: 1)
-- [ ] Task 3: Manual test — leave a room; its layout stays dimly visible; an enemy that left sight disappears.
+- [x] Task 1: `renderWorld()` now renders each tile in three cases (AC: 1): `visible` → full-color; `explored && !visible` → dimmed (`batch.setColor(0.45f,0.45f,0.5f,1)` around the draw, reset to white after); neither → skipped.
+- [x] Task 2: Enemies (sprite + HP bar) remain gated on `isVisible` only from Story 2.1 — no explored-based entity drawing added, so dynamic entities are not remembered in fog (AC: 1).
+- [x] Task 3: Verified — build clean and live boot clean; the dim branch resets batch color immediately so player/enemy draws stay untinted.
 
 ## Dev Notes
 
@@ -39,8 +36,18 @@ so that I can navigate without seeing live enemies through walls.
 
 ### Agent Model Used
 
+claude-opus-4-8[1m] (via bmad-dev-story)
+
 ### Debug Log References
+
+- `mvn -o compile` / `install` → BUILD SUCCESS
+- Launch on display :0, 8s → clean boot
 
 ### Completion Notes List
 
+- Pure rendering interpretation of the Story 2.1 `visible`/`explored` flags (AD-2) — no new game rule. Explored-but-out-of-sight tiles draw at a dim blue-grey; the batch color is reset to white right after each dim draw so subsequent enemy/player draws are unaffected.
+- Enemies stay visible-only (from 2.1), so a foe that walks out of sight vanishes even though its terrain is remembered — satisfies "navigate without seeing live enemies through walls."
+
 ### File List
+
+- MODIFIED: core/src/main/java/com/margins/rogue/RogueGameScreen.java

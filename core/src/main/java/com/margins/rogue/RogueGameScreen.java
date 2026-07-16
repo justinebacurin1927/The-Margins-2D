@@ -94,12 +94,15 @@ public class RogueGameScreen implements Screen {
             for (int y = py - vh/2; y <= py + vh/2; y++) {
                 int t = tileMap.getTile(x, y);
                 if (t < 0) continue;
-                if (!tileMap.isVisible(x, y)) continue; // only currently-lit tiles (explored/dim: Story 2.2)
+                boolean vis = tileMap.isVisible(x, y);
+                if (!vis && !tileMap.isExplored(x, y)) continue; // unexplored → hidden
                 Texture tex = Assets.tileFloorTex;
                 if (t == RogueTile.WALL) tex = Assets.tileWallTex;
                 else if (t == RogueTile.DOOR) tex = Assets.tileDoorTex;
                 else if (t == RogueTile.STAIRS_DOWN || t == RogueTile.STAIRS_UP) tex = Assets.rogueStairs;
+                if (!vis) batch.setColor(0.45f, 0.45f, 0.5f, 1f); // explored but out of sight → dim
                 batch.draw(tex, x * 32f, y * 32f, 32f, 32f);
+                if (!vis) batch.setColor(1f, 1f, 1f, 1f);
             }
         }
         for (RogueEnemy e : enemies) {
