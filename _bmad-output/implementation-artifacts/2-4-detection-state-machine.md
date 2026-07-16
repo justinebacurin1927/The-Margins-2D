@@ -1,6 +1,6 @@
 # Story 2.4: Detection state machine
 
-Status: ready-for-dev
+Status: done
 
 ## Story
 
@@ -15,15 +15,12 @@ so that stealth is a tense, recoverable state rather than instant failure.
 
 ## Tasks / Subtasks
 
-- [ ] Task 1: Create `system/DetectionSystem.java` run each turn before enemy movement (AC: 1, 2)
-  - [ ] For each living enemy: compute whether it can see the player = within `enemy vision range` (6, PRD Balance) AND line-of-sight clear (reuse the shadowcasting/`isOpaque` line check from `FovSystem` — extract a shared `hasLineOfSight(map, x0,y0,x1,y1)` helper).
-- [ ] Task 2: Implement transitions with per-enemy counters (AC: 1)
-  - [ ] In sight: increment a `sightTurns` counter; `UNAWARE`→`SUSPICIOUS` immediately on sight; `SUSPICIOUS`→`ALERTED` after 2 consecutive in-sight turns (PRD Balance `Suspicious → Alerted`).
-- [ ] Task 3: Implement de-escalation (AC: 2)
-  - [ ] Out of sight and no noise stimulus: after 3 turns without stimulus, drop one Detection step (PRD Balance `De-escalation 1 step / 3 turns`); reset `sightTurns`.
-- [ ] Task 4: Gate movement/attack on state — `ALERTED` chases + attacks (existing chase in `RogueEnemy.takeTurn` + adjacency attack in CombatSystem); `SUSPICIOUS` may move toward last-seen tile but does not attack; `UNAWARE` wanders (Story 2.3) (AC: 1)
-- [ ] Task 5: Above-enemy Detection indicator in `renderWorld()` (small `?`/`!` marker or bar tint) — no full stealth-meter UI (AD-9) (AC: 1)
-- [ ] Task 6: Manual test — walk into view (Suspicious), stay (Alerted → chased), break LOS and wait (de-escalates).
+- [x] Task 1: Created `system/DetectionSystem.java`, run in `TurnEngine` before `CombatSystem.enemyPhase`. Per living enemy: can-see = within vision range 6 (Euclidean²) AND `FovSystem.hasLineOfSight` clear. Extracted a shared static `hasLineOfSight(map,x0,y0,x1,y1)` (Bresenham over `isOpaque`) so FOV and Detection agree (AC: 1, 2).
+- [x] Task 2: Per-enemy counters on `RogueEnemy` (`sightTurns`, `calmTurns`, `lastSeenX/Y`). In sight: reset calm, increment `sightTurns`, record last-seen; `UNAWARE`→`SUSPICIOUS` on first sight; `SUSPICIOUS`→`ALERTED` at `sightTurns >= 2` (AC: 1).
+- [x] Task 3: Out of sight: reset `sightTurns`; if not already UNAWARE, increment `calmTurns` and drop one step every 3 calm turns (AC: 2).
+- [x] Task 4: `CombatSystem.enemyPhase` gates on state — `ALERTED` chases + attacks (arrival-grace preserved); `SUSPICIOUS` moves toward its last-seen tile via `takeTurn(lastSeenX,lastSeenY)` and never attacks; `UNAWARE` wanders (AC: 1).
+- [x] Task 5: `renderWorld()` draws a red `!` over ALERTED and a yellow `?` over SUSPICIOUS enemies (only when visible) — no stealth-meter UI (AD-9) (AC: 1).
+- [x] Task 6: Verified headless — escalation UNAWARE→SUSPICIOUS→ALERTED on consecutive in-sight turns, de-escalation ALERTED→SUSPICIOUS→UNAWARE at the 3-calm-turn cadence, LOS helper blocks through walls, no underflow past UNAWARE. Live boot clean.
 
 ## Dev Notes
 
@@ -49,8 +46,27 @@ Stories 2.1 (LOS helper), 2.3 (Detection enum + wander), 1.2 (systems/TurnEngine
 
 ### Agent Model Used
 
+claude-opus-4-8[1m] (via bmad-dev-story)
+
 ### Debug Log References
+
+- `mvn -o compile` → BUILD SUCCESS
+- Detection test: LOS clear/blocked, escalate on 2 in-sight turns, de-escalate at 3-calm-turn cadence both steps, UNAWARE floor → DETECTION AC PASS (11/11)
+- Launch on display :0, 8s → clean boot
 
 ### Completion Notes List
 
+- `DetectionSystem` is a pipeline step (AD-4) running before enemy movement, on the player's post-move position. Radius + LOS only, no directional cones (AD-9). Tuning per PRD Balance: vision 6, alert at 2 consecutive in-sight turns, de-escalate 1 step / 3 calm turns.
+- Shared `FovSystem.hasLineOfSight` (Bresenham over `isOpaque`) is the single blocker test for both player FOV and enemy sight, so they can't disagree.
+- Detection counters + last-seen live on `RogueEnemy` (persist in the save). `SUSPICIOUS` enemies investigate the last-seen tile via the existing `takeTurn` chase (retargeted) and never attack; only `ALERTED` deals damage.
+- "No stimulus" currently means "not in sight" — Story 2.5 will add Noise as a second escalation stimulus that also resets `calmTurns`.
+- Indicator is a minimal glyph (`!`/`?`) over visible enemies, drawn in the world batch; font color is restored to white after each so the HUD/other draws are unaffected.
+
 ### File List
+
+- ADDED: core/src/main/java/com/margins/rogue/system/DetectionSystem.java
+- MODIFIED: core/src/main/java/com/margins/rogue/system/FovSystem.java
+- MODIFIED: core/src/main/java/com/margins/rogue/RogueEnemy.java
+- MODIFIED: core/src/main/java/com/margins/rogue/system/TurnEngine.java
+- MODIFIED: core/src/main/java/com/margins/rogue/system/CombatSystem.java
+- MODIFIED: core/src/main/java/com/margins/rogue/RogueGameScreen.java

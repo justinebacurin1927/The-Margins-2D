@@ -40,6 +40,10 @@ public final class CombatSystem {
         int py = player.getTileY();
         for (RogueEnemy e : state.getEnemies()) {
             if (!e.isAlive()) continue;
+            if (e.getDetection() == Detection.SUSPICIOUS) {
+                e.takeTurn(e.getLastSeenX(), e.getLastSeenY()); // investigate last-seen tile, no attack
+                continue;
+            }
             if (e.getDetection() != Detection.ALERTED) {
                 e.wander(state.rng(), px, py);
                 continue;

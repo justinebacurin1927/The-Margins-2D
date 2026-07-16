@@ -108,6 +108,16 @@ public class RogueGameScreen implements Screen {
         for (RogueEnemy e : enemies) {
             if (e.isAlive() && tileMap.isVisible(e.getTileX(), e.getTileY())) {
                 batch.draw(e.getTexture(), e.getTileX() * 32f - 16f, e.getTileY() * 32f - 32f, 64f, 64f);
+                Detection d = e.getDetection();
+                if (d == Detection.ALERTED) {
+                    font.setColor(1f, 0.25f, 0.25f, 1f);
+                    font.draw(batch, "!", e.getTileX() * 32f + 12f, e.getTileY() * 32f + 46f);
+                    font.setColor(1f, 1f, 1f, 1f);
+                } else if (d == Detection.SUSPICIOUS) {
+                    font.setColor(1f, 0.9f, 0.3f, 1f);
+                    font.draw(batch, "?", e.getTileX() * 32f + 12f, e.getTileY() * 32f + 46f);
+                    font.setColor(1f, 1f, 1f, 1f);
+                }
             }
         }
         batch.draw(player.getTexture(), px * 32f - 16f, py * 32f - 32f, 64f, 64f);

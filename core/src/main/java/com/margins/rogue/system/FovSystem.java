@@ -20,6 +20,26 @@ public final class FovSystem {
 
     private FovSystem() {}
 
+    /**
+     * True if nothing opaque sits strictly between the two tiles (endpoints not
+     * tested). Bresenham walk over {@link RogueTileMap#isOpaque}; shared so FOV
+     * and the detection system agree on what blocks sight.
+     */
+    public static boolean hasLineOfSight(RogueTileMap map, int x0, int y0, int x1, int y1) {
+        int dx = Math.abs(x1 - x0), dy = Math.abs(y1 - y0);
+        int sx = x0 < x1 ? 1 : -1, sy = y0 < y1 ? 1 : -1;
+        int err = dx - dy;
+        int x = x0, y = y0;
+        while (x != x1 || y != y1) {
+            int e2 = 2 * err;
+            if (e2 > -dy) { err -= dy; x += sx; }
+            if (e2 < dx) { err += dx; y += sy; }
+            if (x == x1 && y == y1) break;   // reached target; don't test it as a blocker
+            if (map.isOpaque(x, y)) return false;
+        }
+        return true;
+    }
+
     public static void compute(RunState state) {
         compute(state.getTileMap(), state.getPlayer().getTileX(), state.getPlayer().getTileY());
     }

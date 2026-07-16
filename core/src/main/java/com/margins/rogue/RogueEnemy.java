@@ -11,6 +11,10 @@ public class RogueEnemy {
     private boolean alive;
     private boolean justArrived;
     private Detection detection = Detection.UNAWARE;
+    private int sightTurns;          // consecutive turns the player has been in sight
+    private int calmTurns;           // consecutive turns without a detection stimulus
+    private int lastSeenX = -1;      // last tile the player was seen on (for suspicious investigation)
+    private int lastSeenY = -1;
     private transient RogueTileMap map;
 
     private static final int[] WDX = {0, 0, 1, -1, 0}; // N, S, E, W, stay
@@ -77,6 +81,14 @@ public class RogueEnemy {
 
     public Detection getDetection() { return detection; }
     public void setDetection(Detection d) { this.detection = d; }
+
+    public int getSightTurns() { return sightTurns; }
+    public void setSightTurns(int v) { this.sightTurns = v; }
+    public int getCalmTurns() { return calmTurns; }
+    public void setCalmTurns(int v) { this.calmTurns = v; }
+    public int getLastSeenX() { return lastSeenX; }
+    public int getLastSeenY() { return lastSeenY; }
+    public void setLastSeen(int x, int y) { this.lastSeenX = x; this.lastSeenY = y; }
 
     /** Idle-wander for an unaware enemy: a random walkable step (or stay), never onto the player (AD-5). */
     public void wander(Random rng, int avoidX, int avoidY) {

@@ -49,6 +49,7 @@ public class TurnEngine {
 
         if (acted) {
             HungerSystem.tick(player);
+            DetectionSystem.update(state); // advance awareness before enemies move (AD-4)
             CombatSystem.enemyPhase(state, result.messages);
             // Noise resolve — placeholder step (Story 2.5 fills this in).
             if (action.kind == PlayerAction.Kind.WAIT) {
