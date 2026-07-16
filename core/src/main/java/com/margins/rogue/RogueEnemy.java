@@ -9,7 +9,9 @@ public class RogueEnemy {
     private int damage;
     private boolean alive;
     private boolean justArrived;
-    private RogueTileMap map;
+    private transient RogueTileMap map;
+
+    private RogueEnemy() {} // for libGDX Json deserialization; map re-injected via setMap
 
     public RogueEnemy(int x, int y, RogueTileMap map) {
         this.tileX = x;
@@ -67,4 +69,7 @@ public class RogueEnemy {
     public boolean isAdjacentTo(int px, int py) {
         return Math.abs(tileX - px) + Math.abs(tileY - py) == 1;
     }
+
+    /** Re-inject the tilemap after a save load (map is transient — AD-6). */
+    public void setMap(RogueTileMap map) { this.map = map; }
 }

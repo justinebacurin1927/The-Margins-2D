@@ -13,6 +13,7 @@ import com.badlogic.gdx.graphics.glutils.ShapeRenderer;
 import com.badlogic.gdx.utils.viewport.FitViewport;
 import com.margins.MarginsGame;
 import com.margins.asset.Assets;
+import com.margins.rogue.save.SaveService;
 import com.margins.rogue.state.RunState;
 import com.margins.rogue.system.PlayerAction;
 import com.margins.rogue.system.TurnEngine;
@@ -54,7 +55,8 @@ public class RogueGameScreen implements Screen {
         gameOver = false;
         message = "";
         messageTimer = 0;
-        state = new RunState();
+        state = SaveService.load();
+        if (state == null) state = new RunState();
     }
 
     @Override
@@ -221,8 +223,13 @@ public class RogueGameScreen implements Screen {
     }
 
     @Override public void resize(int w, int h) { viewport.update(w, h); }
-    @Override public void pause() {}
+    @Override public void pause() { saveRun(); }
     @Override public void resume() {}
-    @Override public void hide() {}
+    @Override public void hide() { saveRun(); }
     @Override public void dispose() { batch.dispose(); font.dispose(); shapes.dispose(); }
+
+    /** Persist the current run (skipped once dead — permadeath cleanup arrives in Story 1.5). */
+    private void saveRun() {
+        if (state != null && !gameOver) SaveService.save(state);
+    }
 }

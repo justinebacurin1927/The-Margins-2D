@@ -24,7 +24,9 @@ public class RoguePlayer {
     private int voice;
 
     private boolean blocking;
-    private RogueTileMap map;
+    private transient RogueTileMap map;
+
+    private RoguePlayer() {} // for libGDX Json deserialization; map re-injected via setMap
 
     public RoguePlayer(int tileX, int tileY, RogueTileMap map) {
         this.tileX = tileX;
@@ -123,4 +125,7 @@ public class RoguePlayer {
 
     public void setTileX(int x) { this.tileX = x; }
     public void setTileY(int y) { this.tileY = y; }
+
+    /** Re-inject the tilemap after a save load (map is transient — AD-6). */
+    public void setMap(RogueTileMap map) { this.map = map; }
 }

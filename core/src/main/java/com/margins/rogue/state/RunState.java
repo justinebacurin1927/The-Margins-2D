@@ -64,6 +64,21 @@ public class RunState {
         }
     }
 
+    /**
+     * Re-wire transient fields after a libGDX Json load (AD-6): rebuild the RNG
+     * from the stored seed and re-inject the tilemap into the player and enemies
+     * (they hold it transiently so the map serializes once, under this root only).
+     * Future draws restart from the seed — AC-1 requires reproducible layout, not
+     * mid-run draw parity.
+     */
+    public void restoreAfterLoad() {
+        this.rng = new Random(seed);
+        player.setMap(tileMap);
+        for (RogueEnemy e : enemies) {
+            e.setMap(tileMap);
+        }
+    }
+
     /** Restart a fresh run from floor 1 (same seeded RNG stream continues). */
     public void restart() {
         this.floorDepth = 1;

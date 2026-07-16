@@ -1,9 +1,11 @@
 package com.margins.rogue;
 
 public class RogueTileMap {
-    private final int width;
-    private final int height;
-    private final int[][] tiles;
+    private int width;
+    private int height;
+    private int[][] tiles;
+
+    private RogueTileMap() {} // for libGDX Json deserialization
 
     public RogueTileMap(int width, int height) {
         this.width = width;

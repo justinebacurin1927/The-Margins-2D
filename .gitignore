@@ -44,6 +44,9 @@ Thumbs.db
 *.log
 lwjgl3/target/
 
+# Runtime save slot (written by the game at runtime, at repo root)
+/save/
+
 # Sprite source files (PSD, archives)
 sprites/**/*.psd
 sprites/**/*.psb
