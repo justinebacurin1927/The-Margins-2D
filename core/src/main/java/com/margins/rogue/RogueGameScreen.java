@@ -13,11 +13,9 @@ import com.badlogic.gdx.graphics.glutils.ShapeRenderer;
 import com.badlogic.gdx.utils.viewport.FitViewport;
 import com.margins.MarginsGame;
 import com.margins.asset.Assets;
-import com.margins.rogue.FloorGenerator.FloorResult;
+import com.margins.rogue.state.RunState;
 
-import java.util.ArrayList;
 import java.util.List;
-import java.util.Random;
 
 public class RogueGameScreen implements Screen {
     private MarginsGame game;
@@ -27,11 +25,7 @@ public class RogueGameScreen implements Screen {
     private BitmapFont font;
     private ShapeRenderer shapes;
 
-    private RogueTileMap tileMap;
-    private RoguePlayer player;
-    private List<RogueEnemy> enemies;
-    private Random rand;
-    private int floorDepth;
+    private RunState state;
     private boolean waitingForInput;
     private boolean gameOver;
     private String message;
@@ -52,38 +46,11 @@ public class RogueGameScreen implements Screen {
         font = new BitmapFont();
         shapes = new ShapeRenderer();
         font.getData().setScale(1f);
-        floorDepth = 1;
-        rand = new Random();
         waitingForInput = true;
         gameOver = false;
         message = "";
         messageTimer = 0;
-        generateFloor();
-    }
-
-    private void generateFloor() {
-        FloorResult result = FloorGenerator.generate(50, 50, rand, floorDepth);
-        tileMap = result.map;
-
-        int startCx = result.roomCenters.get(0)[0];
-        int startCy = result.roomCenters.get(0)[1];
-        player = new RoguePlayer(startCx, startCy, tileMap);
-
-        enemies = new ArrayList<>();
-        for (int i = 1; i < result.roomCenters.size(); i++) {
-            int cx = result.roomCenters.get(i)[0];
-            int cy = result.roomCenters.get(i)[1];
-            int count = 1 + rand.nextInt(2);
-            for (int e = 0; e < count; e++) {
-                int ex = cx + rand.nextInt(3) - 1;
-                int ey = cy + rand.nextInt(3) - 1;
-                if (tileMap.isWalkable(ex, ey) && !(ex == player.getTileX() && ey == player.getTileY())) {
-                    enemies.add(new RogueEnemy(ex, ey, tileMap));
-                }
-            }
-        }
-        waitingForInput = true;
-        gameOver = false;
+        state = new RunState();
     }
 
     @Override
@@ -91,6 +58,7 @@ public class RogueGameScreen implements Screen {
         if (messageTimer > 0) messageTimer -= delta;
         handleInput();
 
+        RoguePlayer player = state.getPlayer();
         if (player.isAlive()) {
             camera.position.set(player.getTileX() * 32f + 16f, player.getTileY() * 32f + 16f, 0);
         }
@@ -105,6 +73,10 @@ public class RogueGameScreen implements Screen {
     }
 
     private void renderWorld() {
+        RogueTileMap tileMap = state.getTileMap();
+        RoguePlayer player = state.getPlayer();
+        List<RogueEnemy> enemies = state.getEnemies();
+
         batch.setProjectionMatrix(camera.combined);
         batch.begin();
         int px = player.getTileX(), py = player.getTileY();
@@ -146,6 +118,7 @@ public class RogueGameScreen implements Screen {
     }
 
     private void renderHUD() {
+        RoguePlayer player = state.getPlayer();
         batch.getProjectionMatrix().setToOrtho2D(0, 0, WW, WH);
         batch.begin();
 
@@ -156,7 +129,7 @@ public class RogueGameScreen implements Screen {
         drawNum(player.getHunger(), 32, WH - 48, false);
 
         font.setColor(0.7f, 0.6f, 0.4f, 1);
-        font.draw(batch, "F" + floorDepth, 8, WH - 70);
+        font.draw(batch, "F" + state.getFloorDepth(), 8, WH - 70);
         font.setColor(1, 1, 1, 1);
 
         if (messageTimer > 0) {
@@ -201,12 +174,20 @@ public class RogueGameScreen implements Screen {
     }
 
     private void handleInput() {
+        RoguePlayer player = state.getPlayer();
+        List<RogueEnemy> enemies = state.getEnemies();
+        RogueTileMap tileMap = state.getTileMap();
+
         if (!player.isAlive() && !gameOver) {
             gameOver = true;
             return;
         }
         if (gameOver) {
-            if (Gdx.input.isKeyJustPressed(Input.Keys.R)) { floorDepth = 1; generateFloor(); }
+            if (Gdx.input.isKeyJustPressed(Input.Keys.R)) {
+                state.restart();
+                gameOver = false;
+                waitingForInput = true;
+            }
             else if (Gdx.input.isKeyJustPressed(Input.Keys.Q)) { Gdx.app.exit(); }
             return;
         }
@@ -284,7 +265,7 @@ public class RogueGameScreen implements Screen {
     }
 
     private RogueEnemy enemyAt(int x, int y) {
-        for (RogueEnemy e : enemies) {
+        for (RogueEnemy e : state.getEnemies()) {
             if (e.isAlive() && e.getTileX() == x && e.getTileY() == y) return e;
         }
         return null;
