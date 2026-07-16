@@ -107,7 +107,7 @@ action_items:
   - epic: 1
     action: "Resolve the uncommitted art-deletion changes (commit or revert) so the working tree is clean"
     owner: "Dev"
-    status: open
+    status: done
   - epic: 1
     action: "Document build/verify quirks in project docs (reinstall core before -pl desktop exec:java; use a Lwjgl3Files harness for file-path tests)"
     owner: "Dev"
