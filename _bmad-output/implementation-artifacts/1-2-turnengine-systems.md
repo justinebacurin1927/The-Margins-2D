@@ -1,6 +1,6 @@
 # Story 1.2: Introduce the ordered TurnEngine and extract systems
 
-Status: ready-for-dev
+Status: done
 
 ## Story
 
@@ -51,8 +51,26 @@ With rules now in systems and `RunState` render-free, a headless test can constr
 
 ### Agent Model Used
 
+claude-opus-4-8[1m] (via bmad-dev-story)
+
 ### Debug Log References
+
+- `mvn -o compile -q` → EXIT=0
+- Launch on display :0, 12s → shell_exit=124 (ran full duration, no exceptions in log)
 
 ### Completion Notes List
 
+- Added `system/` package: `PlayerAction` (MOVE/ATTACK/BLOCK/WAIT intent), `TurnResult` (ordered messages, last-wins), `TurnEngine` (ordered pipeline per AD-4), `HungerSystem`, `CombatSystem` (playerAttack + enemyPhase + enemyAt). None import libGDX render types (AD-2).
+- `TurnEngine.advance()` runs PlayerAction → Hunger → Enemy AI (Combat) → Noise-resolve placeholder → WAIT-message cleanup, in fixed order (AD-4). Enemy phase/hunger only run when the player actually acted, preserving the original "move into a wall = wasted keypress, no turn passes" behavior.
+- Reduced `RogueGameScreen.handleInput()` to: gates → `readAction()` builds a `PlayerAction` → `turnEngine.advance()` → show `result.lastMessage()`. Removed inline turn logic and the private `enemyAt` (moved to `CombatSystem`). No game rule remains in the screen (AC-3, AD-2).
+- Message semantics preserved exactly, including "Wait" emitted after the enemy phase so it wins the display, and "Brace!" being overwritten by combat results — matches the original last-setMessage-wins behavior.
+- Behavior verified: compiles clean; launches and runs the render loop without error.
+
 ### File List
+
+- ADDED: core/src/main/java/com/margins/rogue/system/PlayerAction.java
+- ADDED: core/src/main/java/com/margins/rogue/system/TurnResult.java
+- ADDED: core/src/main/java/com/margins/rogue/system/TurnEngine.java
+- ADDED: core/src/main/java/com/margins/rogue/system/HungerSystem.java
+- ADDED: core/src/main/java/com/margins/rogue/system/CombatSystem.java
+- MODIFIED: core/src/main/java/com/margins/rogue/RogueGameScreen.java

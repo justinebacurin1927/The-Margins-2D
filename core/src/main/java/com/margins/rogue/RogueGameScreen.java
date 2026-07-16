@@ -14,6 +14,9 @@ import com.badlogic.gdx.utils.viewport.FitViewport;
 import com.margins.MarginsGame;
 import com.margins.asset.Assets;
 import com.margins.rogue.state.RunState;
+import com.margins.rogue.system.PlayerAction;
+import com.margins.rogue.system.TurnEngine;
+import com.margins.rogue.system.TurnResult;
 
 import java.util.List;
 
@@ -26,6 +29,7 @@ public class RogueGameScreen implements Screen {
     private ShapeRenderer shapes;
 
     private RunState state;
+    private final TurnEngine turnEngine = new TurnEngine();
     private boolean waitingForInput;
     private boolean gameOver;
     private String message;
@@ -175,8 +179,6 @@ public class RogueGameScreen implements Screen {
 
     private void handleInput() {
         RoguePlayer player = state.getPlayer();
-        List<RogueEnemy> enemies = state.getEnemies();
-        RogueTileMap tileMap = state.getTileMap();
 
         if (!player.isAlive() && !gameOver) {
             gameOver = true;
@@ -193,81 +195,23 @@ public class RogueGameScreen implements Screen {
         }
         if (!waitingForInput) return;
 
-        int dx = 0, dy = 0, dir = player.getFacing();
-        boolean attack = false;
-        boolean acted = false;
-        boolean waitAction = false;
-        if (Gdx.input.isKeyJustPressed(Input.Keys.W) || Gdx.input.isKeyJustPressed(Input.Keys.UP)) { dy = 1; dir = 1; }
-        else if (Gdx.input.isKeyJustPressed(Input.Keys.S) || Gdx.input.isKeyJustPressed(Input.Keys.DOWN)) { dy = -1; dir = 0; }
-        else if (Gdx.input.isKeyJustPressed(Input.Keys.A) || Gdx.input.isKeyJustPressed(Input.Keys.LEFT)) { dx = -1; dir = 2; }
-        else if (Gdx.input.isKeyJustPressed(Input.Keys.D) || Gdx.input.isKeyJustPressed(Input.Keys.RIGHT)) { dx = 1; dir = 3; }
-        else if (Gdx.input.isKeyJustPressed(Input.Keys.Q)) { attack = true; }
-        else if (Gdx.input.isKeyJustPressed(Input.Keys.E)) {
-            player.setBlocking(true);
-            setMessage("Brace!");
-            acted = true;
-        }
-        else if (Gdx.input.isKeyJustPressed(Input.Keys.SPACE)) {
-            waitAction = true;
-            acted = true;
-        }
-        else return;
+        PlayerAction action = readAction(player.getFacing());
+        if (action == null) return;
 
-        player.setFacing(dir);
-
-        if (attack) {
-            int tx = player.getTileX() + (dir == 2 ? -1 : dir == 3 ? 1 : 0);
-            int ty = player.getTileY() + (dir == 1 ? 1 : dir == 0 ? -1 : 0);
-            RogueEnemy target = enemyAt(tx, ty);
-            if (target != null) {
-                target.takeDamage(player.getStr());
-                setMessage("Hit! " + target.getHp() + "/" + target.getMaxHp());
-                acted = true;
-            } else {
-                setMessage("Nothing there");
-                acted = true;
-            }
-        } else if (dx != 0 || dy != 0) {
-            int tx = player.getTileX() + dx;
-            int ty = player.getTileY() + dy;
-            if (tileMap.isWalkable(tx, ty)) {
-                player.tryMove(dx, dy);
-                acted = true;
-            }
-        }
-
-        if (acted) {
-            player.tickHunger();
-            for (RogueEnemy e : enemies) {
-                if (!e.isAlive()) continue;
-                if (e.hasJustArrived()) {
-                    e.setJustArrived(false);
-                    continue;
-                }
-                if (e.isAdjacentTo(player.getTileX(), player.getTileY())) {
-                    if (player.tryDodge()) {
-                        setMessage("Dodge!");
-                    } else {
-                        boolean blocked = player.isBlocking();
-                        int dealt = player.takeDamage(e.getDamage());
-                        if (blocked) {
-                            setMessage("Brace! Blocked " + e.getDamage() + "→" + dealt);
-                        } else {
-                            setMessage("Hit for " + dealt + "!");
-                        }
-                    }
-                } else {
-                    e.takeTurn(player.getTileX(), player.getTileY());
-                }
-            }
-            if (waitAction) setMessage("Wait");
-        }
+        TurnResult result = turnEngine.advance(state, action);
+        String msg = result.lastMessage();
+        if (msg != null) setMessage(msg);
     }
 
-    private RogueEnemy enemyAt(int x, int y) {
-        for (RogueEnemy e : state.getEnemies()) {
-            if (e.isAlive() && e.getTileX() == x && e.getTileY() == y) return e;
-        }
+    /** Map the current keypress to a player action, or null if no relevant key. */
+    private PlayerAction readAction(int facing) {
+        if (Gdx.input.isKeyJustPressed(Input.Keys.W) || Gdx.input.isKeyJustPressed(Input.Keys.UP)) return PlayerAction.move(0, 1, 1);
+        if (Gdx.input.isKeyJustPressed(Input.Keys.S) || Gdx.input.isKeyJustPressed(Input.Keys.DOWN)) return PlayerAction.move(0, -1, 0);
+        if (Gdx.input.isKeyJustPressed(Input.Keys.A) || Gdx.input.isKeyJustPressed(Input.Keys.LEFT)) return PlayerAction.move(-1, 0, 2);
+        if (Gdx.input.isKeyJustPressed(Input.Keys.D) || Gdx.input.isKeyJustPressed(Input.Keys.RIGHT)) return PlayerAction.move(1, 0, 3);
+        if (Gdx.input.isKeyJustPressed(Input.Keys.Q)) return PlayerAction.attack(facing);
+        if (Gdx.input.isKeyJustPressed(Input.Keys.E)) return PlayerAction.block(facing);
+        if (Gdx.input.isKeyJustPressed(Input.Keys.SPACE)) return PlayerAction.wait(facing);
         return null;
     }
 
