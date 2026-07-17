@@ -1,0 +1,287 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>The Margins — Survival &amp; Stealth Brainstorm</title>
+<style>
+  :root{
+    --pine:#101a15; --pine2:#16241c; --ash:#c9c2b3; --ash-dim:#8b8578;
+    --ember:#d9772f; --ember-hot:#f2a35b; --blood:#7a2b26; --bone:#e8e2d4;
+    --gold:#c8a24a; --fog:rgba(200,194,179,.08);
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  html{scroll-behavior:smooth}
+  body{
+    background:
+      radial-gradient(1200px 600px at 50% -10%, #1d2c22 0%, transparent 60%),
+      linear-gradient(180deg,#0b120e 0%, #0d1510 100%);
+    color:var(--ash);
+    font-family:'Iowan Old Style','Palatino Linotype',Palatino,Georgia,serif;
+    line-height:1.6; letter-spacing:.2px;
+    padding:0 0 6rem;
+  }
+  .wrap{max-width:940px;margin:0 auto;padding:0 1.4rem}
+  h1,h2,h3{font-weight:600;letter-spacing:.5px;color:var(--bone)}
+  .ember{color:var(--ember-hot)}
+  .dim{color:var(--ash-dim)}
+
+  /* ---- HEADER ---- */
+  header{
+    text-align:center;padding:5.5rem 1.4rem 3rem;position:relative;overflow:hidden;
+    border-bottom:1px solid rgba(201,194,179,.12);
+  }
+  header:before{
+    content:"";position:absolute;inset:0;
+    background:repeating-linear-gradient(180deg,transparent 0 3px,rgba(0,0,0,.18) 3px 4px);
+    pointer-events:none;opacity:.4;
+  }
+  .kicker{font-size:.78rem;letter-spacing:6px;text-transform:uppercase;color:var(--gold);margin-bottom:1.2rem}
+  header h1{font-size:clamp(2.6rem,7vw,4.6rem);line-height:1;margin-bottom:1.2rem;
+    text-shadow:0 0 30px rgba(217,119,47,.25)}
+  .sub{font-size:1.05rem;color:var(--ash-dim);font-style:italic;max-width:640px;margin:0 auto}
+  .epigraph{
+    margin:2.6rem auto 0;max-width:560px;padding:1.2rem 1.6rem;border-left:2px solid var(--blood);
+    text-align:left;font-style:italic;color:var(--ash);background:var(--fog)
+  }
+  .epigraph b{color:var(--ember-hot);font-style:normal}
+
+  section{padding:3.4rem 0 1rem}
+  .eyebrow{font-size:.72rem;letter-spacing:4px;text-transform:uppercase;color:var(--ember);margin-bottom:.5rem}
+  section h2{font-size:1.9rem;margin-bottom:.4rem}
+  .lede{color:var(--ash-dim);max-width:680px;margin-bottom:2rem;font-size:1.02rem}
+
+  /* ---- THE ROAD ---- */
+  .road{position:relative;margin:1rem 0 2rem;padding:1.5rem 0}
+  .road:before{content:"";position:absolute;left:0;right:0;top:50%;height:2px;
+    background:linear-gradient(90deg,var(--pine2),var(--ember) 15%,var(--gold) 85%,var(--blood));
+    box-shadow:0 0 12px rgba(217,119,47,.4)}
+  .stops{display:flex;gap:.4rem;overflow-x:auto;padding:.4rem .1rem 1rem;position:relative;z-index:2}
+  .stop{flex:1 0 120px;min-width:120px;background:linear-gradient(180deg,var(--pine2),var(--pine));
+    border:1px solid rgba(201,194,179,.14);border-radius:6px;padding:.8rem .7rem;position:relative}
+  .stop:before{content:"";position:absolute;top:-9px;left:14px;width:9px;height:9px;border-radius:50%;
+    background:var(--ember);box-shadow:0 0 8px var(--ember)}
+  .stop.mvp{border-color:var(--ember);box-shadow:0 0 0 1px rgba(217,119,47,.5),0 6px 20px rgba(0,0,0,.4)}
+  .stop.mvp:after{content:"MVP · ROUTE 1";position:absolute;bottom:-.65rem;left:0;right:0;text-align:center;
+    font-size:.55rem;letter-spacing:2px;color:var(--ember-hot)}
+  .stop .n{font-size:.62rem;letter-spacing:2px;color:var(--gold);text-transform:uppercase}
+  .stop .name{font-size:1rem;color:var(--bone);margin:.15rem 0 .4rem}
+  .stop .tag{font-size:.74rem;color:var(--ash-dim);line-height:1.35}
+  .roadnote{font-size:.85rem;color:var(--ash-dim);font-style:italic;text-align:center}
+
+  /* ---- HUNGER CLOCK ---- */
+  .clock{display:grid;grid-template-columns:1fr;gap:1.2rem;align-items:center}
+  .meter{display:flex;border-radius:8px;overflow:hidden;border:1px solid rgba(201,194,179,.18);font-size:.8rem}
+  .meter div{padding:.9rem .6rem;text-align:center;color:#0b120e;font-weight:700;letter-spacing:.5px}
+  .m1{background:#7ea36a;flex:2}
+  .m2{background:#c8a24a;flex:5}
+  .m3{background:var(--ember);flex:5}
+  .m4{background:var(--blood);color:var(--bone);flex:1.5}
+  .clock p{color:var(--ash-dim)}
+  .clock p b{color:var(--ash)}
+
+  /* ---- TECHNIQUE FORGE ---- */
+  .forge{display:grid;gap:1.1rem}
+  .tech{border:1px solid rgba(201,194,179,.13);border-radius:8px;overflow:hidden;background:var(--fog)}
+  .tech-h{display:flex;align-items:baseline;gap:.8rem;padding:.9rem 1.1rem;
+    background:linear-gradient(90deg,rgba(122,43,38,.25),transparent);border-bottom:1px solid rgba(201,194,179,.1)}
+  .tech-h .num{font-size:1.4rem;color:var(--ember-hot);font-weight:700;font-variant-numeric:tabular-nums}
+  .tech-h h3{font-size:1.15rem}
+  .tech-h .how{margin-left:auto;font-size:.72rem;color:var(--ash-dim);font-style:italic;text-align:right;max-width:230px}
+  .tech ul{list-style:none;padding:.9rem 1.1rem}
+  .tech li{padding:.5rem 0 .5rem 1.4rem;position:relative;border-bottom:1px dotted rgba(201,194,179,.1)}
+  .tech li:last-child{border-bottom:0}
+  .tech li:before{content:"◦";position:absolute;left:.2rem;color:var(--ember)}
+  .tech li b{color:var(--bone)}
+
+  /* ---- FOREST LEG ---- */
+  .forest{border:1px solid rgba(126,163,106,.3);border-radius:10px;padding:1.6rem;background:
+    radial-gradient(600px 200px at 20% 0%, rgba(126,163,106,.08), transparent)}
+  table{width:100%;border-collapse:collapse;margin:1rem 0;font-size:.9rem}
+  th,td{text-align:left;padding:.55rem .7rem;border-bottom:1px solid rgba(201,194,179,.12)}
+  th{color:var(--gold);font-size:.7rem;letter-spacing:2px;text-transform:uppercase}
+  td.node{color:var(--bone)}
+  td .food{color:var(--ember-hot)}
+  td .supply{color:#9fb98c}
+  .chain{display:flex;flex-wrap:wrap;gap:.5rem;margin-top:1.2rem}
+  .chain span{border:1px solid rgba(201,194,179,.2);border-radius:20px;padding:.3rem .8rem;font-size:.8rem;color:var(--ash)}
+  .chain .arrow{border:0;color:var(--ember);padding:.3rem .1rem}
+  .twist{margin-top:1.5rem;padding:1.1rem 1.3rem;border-left:3px solid var(--blood);background:rgba(122,43,38,.12)}
+  .twist h4{color:var(--ember-hot);font-size:1rem;margin-bottom:.3rem;letter-spacing:.5px}
+
+  /* ---- SYNTHESIS ---- */
+  .synth{margin-top:1.5rem;text-align:center;padding:3rem 1.5rem;border:1px solid rgba(200,162,74,.3);
+    border-radius:12px;background:radial-gradient(700px 300px at 50% 0%, rgba(217,119,47,.12), transparent)}
+  .synth .big{font-size:clamp(1.3rem,3.4vw,1.9rem);line-height:1.5;color:var(--bone);max-width:760px;margin:0 auto}
+  .synth .big em{color:var(--ember-hot);font-style:normal}
+  .pillars{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:1rem;margin-top:2.4rem;text-align:left}
+  .pillar{border-top:2px solid var(--ember);padding-top:.7rem}
+  .pillar .p-n{font-size:.68rem;letter-spacing:2px;color:var(--gold);text-transform:uppercase}
+  .pillar p{font-size:.86rem;color:var(--ash-dim);margin-top:.2rem}
+  .pillar p b{color:var(--ash)}
+
+  footer{margin-top:3.5rem;padding-top:2rem;border-top:1px solid rgba(201,194,179,.12);
+    font-size:.82rem;color:var(--ash-dim);text-align:center}
+  footer code{background:rgba(0,0,0,.3);padding:.15rem .45rem;border-radius:4px;color:var(--ash);font-size:.78rem}
+  .next{display:inline-block;margin-top:1rem;color:var(--ember-hot)}
+</style>
+</head>
+<body>
+
+<header>
+  <div class="wrap">
+    <div class="kicker">A Brainstorm Keepsake · 2026·07·17</div>
+    <h1>THE&nbsp;<span class="ember">MARGINS</span></h1>
+    <p class="sub">Region-by-region survival &amp; stealth — a horizontal road story where hunger is the clock and the whole game lives in the slack the system forgets to guard.</p>
+    <div class="epigraph">
+      "The difference between those who possessed Sense and those who did not was obvious — people compared them like <b>elephant and ant</b>. However there was an ant that was able to kill many elephants."
+      <div class="dim" style="margin-top:.5rem;font-size:.8rem">— epigraph, The Margins</div>
+    </div>
+  </div>
+</header>
+
+<div class="wrap">
+
+<!-- THE ROAD -->
+<section>
+  <div class="eyebrow">The Structure · not a descent</div>
+  <h2>The Road, not the Deep</h2>
+  <p class="lede">You asked for regions like a 5-floor arc — but <b>not</b> deepening-to-deepening. The novel already draws the map: Swan's slave-smuggling corridor. Progression is <em>horizontal</em>. Regions differ in <span class="ember">kind</span> — a scarcity rule and a security layer — never in depth.</p>
+
+  <div class="road">
+    <div class="stops">
+      <div class="stop"><div class="n">Origin</div><div class="name">Coneros</div><div class="tag">The margin of the map. Where it stops being safe.</div></div>
+      <div class="stop mvp"><div class="n">Wilds</div><div class="name">North Pines</div><div class="tag">Forage-rich · predators sparse. The survival vignette (Ch 3).</div></div>
+      <div class="stop"><div class="n">Lawful town</div><div class="name">Pinehurst</div><div class="tag">You CAN'T act. Watched. Caged &amp; fed on a schedule.</div></div>
+      <div class="stop"><div class="n">Gray-law</div><div class="name">Tradewick</div><div class="tag">Anything permitted. Bodies are the market. Openings everywhere.</div></div>
+      <div class="stop"><div class="n">Exposure</div><div class="name">Coastal Road</div><div class="tag">Salt-cold, open ground, mercenaries you don't know yet.</div></div>
+      <div class="stop"><div class="n">Altitude</div><div class="name">Mirko Pass</div><div class="tag">Unmapped bottleneck. Scarcity by height. Weather closes it.</div></div>
+      <div class="stop"><div class="n">End</div><div class="name">Valens</div><div class="tag">Prison. Starvation. The crack in the wall.</div></div>
+    </div>
+  </div>
+  <p class="roadnote">The convoy leaves at dawn whether you're ready or not. The clock is the road + the hunger — never "go deeper."</p>
+</section>
+
+<!-- HUNGER CLOCK -->
+<section>
+  <div class="eyebrow">The Engine · your food system</div>
+  <h2>Hunger is the Clock</h2>
+  <p class="lede">Strip out the descent and you lose the dungeon's built-in pressure — <em>unless food becomes it</em>. Your four states aren't a health bar; they're a <b>risk dial</b>. Milek only raids the enemy camp because he's starving. The story proves it: <span class="dim">"I'm still hungry. Are you not hungry?"</span></p>
+  <div class="clock">
+    <div class="meter">
+      <div class="m1">WELL&nbsp;FED</div>
+      <div class="m2">STABLE</div>
+      <div class="m3">HUNGRY</div>
+      <div class="m4">STARVING</div>
+    </div>
+    <p><b>Well-fed</b> → patience is affordable; wait for the <em>real</em> opening. &nbsp;<b>Hungry</b> → the meter pushes you toward risks you'd never take fed. &nbsp;<b>Starving</b> → forced hands, lethal &amp; systemic (two children die on the road from being "too far from the windows"). Hunger is <em>information, not emergency</em> — the forest taught Milek to read it, and so does the UI.</p>
+  </div>
+</section>
+
+<!-- TECHNIQUE FORGE -->
+<section>
+  <div class="eyebrow">The Forge · four lenses</div>
+  <h2>How the ideas were struck</h2>
+  <p class="lede">Each lens shifted the domain. The best ideas came from pressing the fiction until it turned into a mechanic.</p>
+
+  <div class="forge">
+
+    <div class="tech">
+      <div class="tech-h"><span class="num">01</span><h3>Steal &amp; Twist</h3><span class="how">mine survival roguelikes — then twist off their axis</span></div>
+      <ul>
+        <li><b>Regions = legs of a fixed itinerary</b>, not floors. Twist: you don't choose the path — the merchant does.</li>
+        <li><b>Security re-tunes per region</b>: knights escort to the border, then leave; local mercenaries take over; gray-law towns have no rules at all. The opening lives in the <b>handoff</b>.</li>
+        <li>The <b>title is the pillar</b> — "The Margins": freedom is what you do in the slack, not where you go.</li>
+      </ul>
+    </div>
+
+    <div class="tech">
+      <div class="tech-h"><span class="num">02</span><h3>First Principles</h3><span class="how">what is each system FOR in the player's head?</span></div>
+      <ul>
+        <li><b>The clock</b> is horizontal: "the caravan leaves at dawn" + hunger — never depth.</li>
+        <li><b>Regions differ in kind</b>: forage-rich wild · lawful town (can't act) · gray-law market · exposed coast · altitude scarcity · prison starvation.</li>
+        <li><b>Hunger as a resource you read</b>, not a panic bar — spend risk against it deliberately.</li>
+      </ul>
+    </div>
+
+    <div class="tech">
+      <div class="tech-h"><span class="num">03</span><h3>Morphological Mixing</h3><span class="how">cross forage × need, region × security, food × bond</span></div>
+      <ul>
+        <li><b>Forage feeds two tracks</b>: FOOD (hunger) vs CAMP-SUPPLY (survive the night).</li>
+        <li><b>Wet/dry branches couple weather to survival</b> — dry burns, rain soaks your blanket, forcing the waterproofing sub-goal.</li>
+        <li><b>Pebbles → your shipped Epic 2 systems</b>: throw to make Noise elsewhere, pull a patrol. Survival &amp; stealth share a currency.</li>
+        <li><b>The camp raid</b>: sneak an enemy camp over multiple nights, learn who sleeps lightly, greed-curve the loot — bread → rope → blanket → eggs → the waxed canvas.</li>
+      </ul>
+    </div>
+
+    <div class="tech">
+      <div class="tech-h"><span class="num">04</span><h3>Assumption Reversal</h3><span class="how">flip a load-bearing belief, see what game falls out</span></div>
+      <ul>
+        <li><b>You don't escape the convoy</b> — you ride it. "We'll come with you. No resistance." Bank intel; pick the ONE real opening.</li>
+        <li><b>Hoarding food loses</b>; <b>giving it wins</b> — Henry's bread buys loyalty. The meter you spend buys people, not just calories.</li>
+        <li><b>You can't kill the boss</b> — Spearshot intercepts the punch before it's thrown. Victory is being <em>uninteresting</em>. Stealth = social invisibility, a "notability" stat beside line-of-sight.</li>
+        <li><b>Death isn't the fail state</b> — <em>separation</em> is. Losing a companion to the auction hurts more than dying.</li>
+      </ul>
+    </div>
+
+  </div>
+</section>
+
+<!-- FOREST LEG -->
+<section>
+  <div class="eyebrow">Route 1 · already written</div>
+  <h2>The Forest Leg is Chapter 3</h2>
+  <div class="forest">
+    <p class="lede" style="margin-bottom:1rem">Your MVP isn't invented from scratch — it's an adaptation. Eight-year-old Milek and six-year-old Erik flee into the north pines, shelter in a hollow rotted trunk, and do <em>exactly</em> the survival loop you're designing. Your forage table maps 1:1 onto the prose.</p>
+
+    <table>
+      <tr><th>Environment node</th><th>Yields</th></tr>
+      <tr><td class="node">Tall Grass</td><td><span class="food">Corn · Berries</span> <span class="dim">(food)</span></td></tr>
+      <tr><td class="node">Logs</td><td><span class="food">Mushroom</span> · <span class="supply">dried moss · tinder bundle</span></td></tr>
+      <tr><td class="node">Tree</td><td><span class="supply">wet &amp; dry branches · bark</span></td></tr>
+      <tr><td class="node">Rock</td><td><span class="supply">pebbles</span> <span class="dim">(distraction tool)</span></td></tr>
+    </table>
+
+    <p class="dim" style="font-size:.9rem">Crafting recipes = the chapter's literal to-do list — <span class="ash">"we still need fire… and something waterproof."</span></p>
+    <div class="chain">
+      <span>moss → <b>warmth / bedding</b></span><span class="arrow">·</span>
+      <span>tinder + dry branch → <b>fire</b></span><span class="arrow">·</span>
+      <span>bark + waxy leaves → <b>water collector</b></span><span class="arrow">·</span>
+      <span>stolen canvas → <b>waterproofing</b></span>
+    </div>
+
+    <div class="twist">
+      <h4>The mechanic no stealth game does</h4>
+      <p>Milek "checks the mushrooms three times" before letting Erik eat — that's <b>identify-on-use</b> as a time-cost + Instinct check, and feeding an <em>unidentified</em> one to a companion is the horror version. Then, on the fifth raid, pushing deepest for the canvas, he gets <b>followed home</b>. So <b>detection isn't an alarm — it's a tail.</b> Get seen and a patient enemy trails you back to your shelter and your sleeping companion. Failure threatens <em>what you protect</em>, not just you. Lose the tail before you dare return to camp.</p>
+    </div>
+  </div>
+</section>
+
+<!-- SYNTHESIS -->
+<section>
+  <div class="eyebrow">The Synthesis · the spine</div>
+  <h2>What it all becomes</h2>
+  <div class="synth">
+    <p class="big">The Margins is a <em>horizontal survival-stealth roguelike</em> where <em>hunger</em> is the clock, forage &amp; feeding-lines are the loop, detection means being <em>trailed home to those you protect</em>, the merchant fixes the route while you work the margins — and the emotional engine is holding a <em>growing party</em> together against <em>forced separation</em>.</p>
+
+    <div class="pillars">
+      <div class="pillar"><div class="p-n">Clock</div><p><b>Hunger, not descent.</b> The road advances; the meter pushes.</p></div>
+      <div class="pillar"><div class="p-n">Loop</div><p><b>Forage &amp; feed.</b> Two tracks — eat, and survive the night.</p></div>
+      <div class="pillar"><div class="p-n">Stakes</div><p><b>The tail home.</b> Being seen endangers your companion, not just you.</p></div>
+      <div class="pillar"><div class="p-n">Agency</div><p><b>The margins.</b> A fixed route; freedom in its slack.</p></div>
+      <div class="pillar"><div class="p-n">Heart</div><p><b>Reunion.</b> Separation is the fail state; a party is the goal.</p></div>
+    </div>
+  </div>
+</section>
+
+<footer>
+  <div class="wrap">
+    <p>Canonical record of this session: <code>_bmad-output/brainstorming/brainstorm-region-survival-systems-2026-07-17/.memlog.md</code></p>
+    <p style="margin-top:.6rem">~30 story-grounded design ideas across 4 lenses · Forest leg = the buildable MVP · read against the novel's <span class="dim">Forward</span> vault.</p>
+    <span class="next">Next: distill into a brainstorm-intent doc → hand to a PRD / spec, or deep-dive any single system.</span>
+  </div>
+</footer>
+
+</div>
+</body>
+</html>

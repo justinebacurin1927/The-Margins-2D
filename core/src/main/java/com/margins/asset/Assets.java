@@ -19,6 +19,8 @@ public class Assets {
     public static Texture rogueEnemyTex;
     public static Texture tileFloorTex, tileWallTex, tileDoorTex;
     public static Texture tileGrassTex;
+    /** 9-slice forest wall tiles [row][col]; rows = N/mid/S, cols = W/mid/E, [1][1] = interior fill. */
+    public static Texture[][] forestWall;
 
     /** Walk cycles indexed by sheet row: 0=South, 1=West, 2=East, 3=North. */
     public static Animation<TextureRegion>[] milekWalk;
@@ -105,6 +107,14 @@ public class Assets {
         tileGrassTex.setWrap(Texture.TextureWrap.Repeat, Texture.TextureWrap.Repeat);
         tileGrassTex.setFilter(Texture.TextureFilter.Nearest, Texture.TextureFilter.Nearest);
 
+        // Autotiled forest wall: 9-slice tiles chosen per wall by which neighbours are open.
+        String[][] wn = {{"nw", "n", "ne"}, {"w", "fill", "e"}, {"sw", "s", "se"}};
+        forestWall = new Texture[3][3];
+        for (int r = 0; r < 3; r++) for (int c = 0; c < 3; c++) {
+            forestWall[r][c] = new Texture(Gdx.files.internal("sprites/tiles/forestwall/" + wn[r][c] + ".png"));
+            forestWall[r][c].setFilter(Texture.TextureFilter.Linear, Texture.TextureFilter.Linear);
+        }
+
         rogueEnemyTex.setFilter(Texture.TextureFilter.Nearest, Texture.TextureFilter.Nearest);
         tileFloorTex.setFilter(Texture.TextureFilter.Nearest, Texture.TextureFilter.Nearest);
         tileWallTex.setFilter(Texture.TextureFilter.Nearest, Texture.TextureFilter.Nearest);
@@ -175,6 +185,7 @@ public class Assets {
         tileWallTex.dispose();
         tileDoorTex.dispose();
         tileGrassTex.dispose();
+        for (Texture[] row : forestWall) for (Texture t : row) t.dispose();
         milekWalkSheet.dispose();
     }
 }

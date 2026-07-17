@@ -4,6 +4,8 @@ inputDocuments:
   - _bmad-output/planning-artifacts/prds/prd-The-Margins-2026-07-17/prd.md
   - _bmad-output/planning-artifacts/prds/prd-The-Margins-2026-07-17/addendum.md
   - _bmad-output/planning-artifacts/architecture/architecture-The-Margins-2026-07-17/ARCHITECTURE-SPINE.md
+  - _bmad-output/planning-artifacts/game-vision-northstar.md
+  - _bmad-output/planning-artifacts/opening-design-act0-forest.md
 ---
 
 # The Margins (MVP — Route 1 Vertical Slice) - Epic Breakdown
@@ -11,6 +13,8 @@ inputDocuments:
 ## Overview
 
 This document decomposes the PRD (21 FRs) and the Architecture Spine (AD-1..AD-12) into implementable epics and stories for the MVP: the Route 1 "The Caravan Road" vertical slice. Brownfield Java 17 + libGDX, solo developer. Epics are sequenced foundation-first because the MVP is a strangler refactor of the existing 303-line `RogueGameScreen` — most feature epics attach as *systems* to the foundation Epic 1 builds, so building it first avoids repeated churn of the same core files (per the workflow's shared-file consolidation guidance).
+
+> **Scope layering (added 2026-07-17).** Epics **1–6 remain the MVP vertical slice** and the first shippable milestone — unchanged. Epics **7+ are the North Star expansion** (`game-vision-northstar.md`): the full hybrid story + survival game, systems-first, one signature system foregrounded per region, regions mapped to the novel's road. Direction is **depth over speed — the roadmap intentionally exceeds 30 epics.** The MVP's Route-1 scaffolding (Epic 6's procedural floors / "Five Nights" opening / reunion) is a *prototype* of the road that the later Region epics (20–26) build at full fidelity and supersede. New epics below carry **story outlines**; full acceptance criteria are authored per-epic via `create-story` when each epic is scheduled (just-in-time), the same way Epics 1–6 were contexted.
 
 ## Requirements Inventory
 
@@ -37,6 +41,28 @@ This document decomposes the PRD (21 FRs) and the Architecture Spine (AD-1..AD-1
 - FR-19: Route completion end-state (completion screen).
 - FR-20: Single-run save/persistence and resume.
 - FR-21: Permadeath clears the save.
+
+#### North Star (Vision) Requirements — Epics 7+
+
+- FR-22: Day/night time-of-day cycle affecting visibility, enemy spawns, NPC schedules, and time-gated resources.
+- FR-23: Dynamic weather (rain, storm, wind, snow) affecting visibility, movement, survival meters, and resource availability.
+- FR-24: Temperature system (cold/heat) driven by weather, biome, fire, and shelter; out-of-band temperature harms the player.
+- FR-25: Fatigue system — accrues with activity/time-awake, restored by rest/sleep, degrades combat/stealth/gather performance.
+- FR-26: Wetness system — raised by rain/water crossings, lowers temperature, dried by fire/time/shelter.
+- FR-27: Fire & shelter — build/maintain campfires and shelter that mitigate temperature/wetness/fatigue and enable rest.
+- FR-28: Environmental hazards (poison, ice, heat/dust, hazardous terrain) that damage or impair.
+- FR-29: Crafting & components — combine gathered materials into tools/weapons/armor/consumables/fire/food via recipes.
+- FR-30: Treasure & loot — placed caches and drops with rarity and region-specific loot tables.
+- FR-31: Hidden resource nodes — environmental gather points (tall grass, logs, trees, rocks) yielding biome-specific materials, some time/weather-gated.
+- FR-32: Combat system — weapon-based attacks and damage; enemy variety by region and time of day.
+- FR-33: Skills system — unlockable combat and survival skills that improve abilities and gathering/crafting/exploration efficiency.
+- FR-34: Player progression — persistent stats/mastery that combat and survival draw on.
+- FR-35: Bosses & mini-bosses — per-region encounter framework supporting fightable, evasion (unwinnable-yet), and social (outmaneuver) boss types; a boss/exit gates region progression.
+- FR-36: NPC behavior & schedules — allies, neutrals, and bystanders with daily schedules, states, and interactions.
+- FR-37: Side quest system — optional quests granting loot, gear, lore, and NPC relationships.
+- FR-38: Region (Arc) progression — a multi-region horizontal world; each region has a biome, region-specific enemies, NPCs, resources, quests, a signature system, a mini-boss/boss, and an exit to the next; travel advances the story.
+- FR-39: Per-region signature-system introduction — each new region foregrounds a new mechanic rather than only raising difficulty.
+- FR-40: Main storyline adaptation — regions map to the novel's road; story beats gate and advance via quests and flags.
 
 ### NonFunctional Requirements
 
@@ -87,6 +113,25 @@ From the Architecture Spine (technical requirements shaping implementation):
 - FR-19: Epic 6 — Route completion
 - FR-20: Epic 1 — Save/resume
 - FR-21: Epic 1 — Permadeath clears save
+- FR-22: Epic 7 — Day/night cycle
+- FR-23: Epic 8 — Dynamic weather
+- FR-24: Epic 9 — Temperature
+- FR-25: Epic 9 — Fatigue
+- FR-26: Epic 9 — Wetness
+- FR-27: Epic 10 — Fire, shelter & rest
+- FR-28: Epic 11 — Environmental hazards
+- FR-29: Epic 12 — Crafting & components
+- FR-30: Epic 13 — Treasure & loot
+- FR-31: Epic 13 — Hidden resource nodes
+- FR-32: Epic 14 — Combat depth
+- FR-33: Epic 15 — Skills
+- FR-34: Epic 14 — Player progression
+- FR-35: Epic 16 — Bosses & mini-bosses
+- FR-36: Epic 17 — NPC behavior & schedules
+- FR-37: Epic 18 — Side quests
+- FR-38: Epic 19 — Region (Arc) progression framework
+- FR-39: Epic 19 — Per-region signature systems
+- FR-40: Epic 19 — Main storyline adaptation (realized in Region epics 20–26)
 
 ## Epic List
 
@@ -113,6 +158,104 @@ Authored moments interrupt the crawl: conversations with real choices, INSTINCT 
 ### Epic 6: The Caravan Road (Capstone)
 Assemble the slice into a playable Route: three procedural floors into an authored reunion, bookended by the "Five Nights, Again" opening and a completion beat — with the minimum art to make it read.
 **FRs covered:** FR-18, FR-19 (integrates all prior epics)
+
+---
+
+> **↓ North Star expansion (Epics 7+).** Post-MVP. Grouped in phases; each attaches to the Epic 1 spine as systems, then Region epics build content on top. Story outlines only until scheduled.
+
+**Phase A — Survival Simulation** (deepens the survival loop the MVP starts)
+
+### Epic 7: Time & the Day/Night Cycle
+A turn-driven clock that turns the world over: light and visibility shift, spawns and NPC schedules change, and some resources only appear at certain hours.
+**FRs covered:** FR-22
+
+### Epic 8: Dynamic Weather
+Rain, storm, wind, and snow that are never just weather — they cut visibility, drag movement, and reshape what you can gather and survive.
+**FRs covered:** FR-23
+
+### Epic 9: The Body — Temperature, Fatigue & Wetness
+Three interlocking realism meters beside Hunger. Cold and heat, exhaustion, and getting soaked — each a pressure, introduced one region at a time so the loop never becomes meter-soup.
+**FRs covered:** FR-24, FR-25, FR-26
+
+### Epic 10: Fire, Shelter & Rest
+The crafted answer to the body: campfires and shelter that warm, dry, and let you rest — and a decision about *where and when* it's safe to stop.
+**FRs covered:** FR-27
+
+### Epic 11: Environmental Hazards
+The world bites back: poison, ice, heat and dust, hazardous terrain — region-signature dangers that reward reading the ground.
+**FRs covered:** FR-28
+
+**Phase B — Gameplay Depth** (turns survival into a game with mastery)
+
+### Epic 12: Crafting & Components
+Materials become tools, weapons, armor, fire, and food through recipes — the engine that connects gathering to survival and combat.
+**FRs covered:** FR-29
+
+### Epic 13: Loot, Treasure & Hidden Resources
+Reasons to explore: environmental gather nodes (grass/logs/trees/rocks), placed caches, and region loot tables with rarity.
+**FRs covered:** FR-30, FR-31
+
+### Epic 14: Combat Depth & Progression
+Combat that's real but honest: weapon-based attacks, region- and time-varied enemies, and persistent mastery Milek grows — fighting is a tool, not always the answer.
+**FRs covered:** FR-32, FR-34
+
+### Epic 15: Skills
+Unlockable combat and survival techniques that improve fighting *and* gathering, crafting, and exploration efficiency — how the "ant" gets sharper.
+**FRs covered:** FR-33
+
+### Epic 16: Bosses & Mini-Bosses
+A per-region encounter framework for three boss kinds — **fightable** (regional threats), **evasion** (unwinnable-yet walls like Spearshot), and **social** (outmaneuver, like Swan) — one gating each region's exit.
+**FRs covered:** FR-35
+
+**Phase C — World & Content Framework**
+
+### Epic 17: NPCs, Neutrals & Schedules
+The road is peopled: allies, neutral bystanders, and benefactors with daily schedules and states you can read, help, or avoid.
+**FRs covered:** FR-36
+
+### Epic 18: Side Quests
+Optional threads that reward exploration with gear, lore, and relationships — the texture between story beats.
+**FRs covered:** FR-37
+
+### Epic 19: Region (Arc) Progression Framework
+Generalizes the Route into the novel's horizontal road: a region model with biome, enemies, NPCs, resources, quests, a signature system, a boss, and an exit — travel advances the story.
+**FRs covered:** FR-38, FR-39, FR-40
+
+**Phase D — Regions of the Road** (content epics built on the framework; each = one leg of the novel)
+
+### Epic 20: Region 0 — Coneros: The Fall
+The fully-playable Prologue→Ch2 intro (Act 0) — controls taught by loss. Realizes `opening-design-act0-forest.md`.
+**FRs covered:** FR-40 (+ integrates prior systems)
+
+### Epic 21: Region 1 — North Pines: Whispering Forest
+Act 1, the first free-play region: hunger, fire/shelter, rain, crafting, stealth, the five-night camp raid, the "trailed home" climax. Companion = Erik.
+**FRs covered:** FR-38, FR-39 (+ Phase A/B systems)
+
+### Epic 22: Region 2 — Pinehurst & The Convoy
+Captivity as a region: the gap-in-the-door observation loop, feeding-line rationing, NPC schedules. Allies: Henry, the Pack.
+**FRs covered:** FR-38, FR-36
+
+### Epic 23: Region 3 — Tradewick: Gray Law
+A lawless hub of skills and side quests, crowd-stealth and "notability." Social boss: Bulwark Swan. Separation beat.
+**FRs covered:** FR-38, FR-37, FR-35
+
+### Epic 24: Region 4 — Coastal Road to Oakdale
+Exposure and weather on open ground; the evasion wall arrives — Spearshot, whom you survive, not beat.
+**FRs covered:** FR-38, FR-24, FR-35
+
+### Epic 25: Region 5 — Mirko: The Frost Pass
+Cold, snowstorms, and fire-or-die; ice hazards and pass bandits in an unmapped bottleneck.
+**FRs covered:** FR-38, FR-24, FR-28
+
+### Epic 26: Region 6 — Valens: The Wall
+Endgame of Route 1: prison starvation, the crack in the wall, the Twilight Knight mentor, the escape gauntlet, the 7-year threshold.
+**FRs covered:** FR-38, FR-40
+
+**Phase E — Beyond Route 1** (future region-sets, not yet decomposed)
+
+### Epics 27+: The Later Arcs
+Academic · Revolution · Throne War · One Kingdom · The Heaven Fell — each becomes its own region cluster when the game reaches it. The Blackberry Troupe / Theodore recur as benefactors throughout. Placeholder; decomposed when scheduled.
+**FRs covered:** FR-38, FR-40 (future)
 
 ---
 
@@ -299,6 +442,8 @@ So that risk converts to knowledge for the rest of the run (FR-12).
 
 A companion who changes how a floor is solved and remembers how you treat him.
 
+> **Design constraint:** build this as a generic, entity-agnostic **Companion** system (follow / distraction / Bond), not Galleon-specific — Erik is the first bind (Act 0 + Forest), Galleon binds later on the road. See `opening-design-act0-forest.md`.
+
 ### Story 4.1: Companion follow and floor transition
 
 As Justine (player),
@@ -373,6 +518,8 @@ So that content can gate on what the player has done (FR-8).
 
 Assemble the slice into a playable Route with authored bookends and the minimum art to read it.
 
+> **Authoring target:** the Prologue→Ch2 intro (Act 0) and the Ch3 Forest quest (Act 1) are fully specced in `opening-design-act0-forest.md` — Stories 6.2 (authored floor) and 6.3 ("Five Nights, Again") build from it.
+
 ### Story 6.1: Route progression through procedural floors
 
 As Justine (player),
@@ -434,3 +581,235 @@ So that the slice reads as *The Margins*, not a CraftPix demo (non-code workstre
 
 **Given** the MVP cast, **When** art is done, **Then** Milek, Galleon, and the scavenger NPC each have a recognizable, distinct sprite (recolor/commission/creator-drawn — approach chosen by Justine), with everything else reusing existing packs.
 **And** this is tracked as a parallel workstream and is not a blocker for code stories.
+
+---
+
+# North Star Expansion — Epics 7+
+
+> Post-MVP. Each section carries a **story outline** (titles + intent). Full acceptance criteria are authored per-epic via `create-story` when scheduled — outlines here keep the roadmap complete without over-committing design not yet decided.
+
+## Epic 7: Time & the Day/Night Cycle
+
+A turn-driven time-of-day clock on `RunState` that changes the world as it turns over: light, spawns, schedules, and time-gated resources.
+**FRs covered:** FR-22
+
+**Story outline:**
+- 7.1 Time-of-day clock on `RunState` — advances with turns through dawn/day/dusk/night phases (seeded, save-persisted).
+- 7.2 Light & visibility by phase — sight radius and fog modulate with the hour.
+- 7.3 Time-gated spawns & resources — certain enemies and gather nodes appear only in specific phases.
+- 7.4 Wait / sleep to pass time — a rest action that advances the clock to a chosen phase.
+
+## Epic 8: Dynamic Weather
+
+A seeded weather state machine whose states are survival inputs, not decoration.
+**FRs covered:** FR-23
+
+**Story outline:**
+- 8.1 Weather state machine on `RunState` — clear/rain/storm/wind/snow with seeded transitions.
+- 8.2 Weather → visibility & movement — rain/storm cut sight; wind/snow slow travel.
+- 8.3 Weather → resource availability — nodes enabled or gated by current weather.
+- 8.4 Weather → survival hooks — exposes signals consumed by temperature/wetness (Epic 9).
+
+## Epic 9: The Body — Temperature, Fatigue & Wetness
+
+Three interlocking realism meters beside Hunger, each introduced one region at a time to avoid meter-soup.
+**FRs covered:** FR-24, FR-25, FR-26
+
+**Story outline:**
+- 9.1 Temperature meter & sources — biome/weather/fire/shelter drive it; out-of-band harms.
+- 9.2 Fatigue meter — accrues with activity/time-awake; restored by rest.
+- 9.3 Wetness meter — rain/water raise it, it lowers temperature, fire/time dry it.
+- 9.4 Meter → performance penalties — combat/stealth/gather degrade at bad levels.
+- 9.5 Per-region introduction gating — a region foregrounds one meter as its signature pressure.
+
+## Epic 10: Fire, Shelter & Rest
+
+The crafted answer to the body — and a decision about where and when it's safe to stop.
+**FRs covered:** FR-27
+
+**Story outline:**
+- 10.1 Build & fuel a campfire — consumes tinder/branches; warms and dries; emits light + noise.
+- 10.2 Shelter construction — mitigates weather/temperature and enables safe rest.
+- 10.3 Rest / sleep — restores fatigue and advances time, with risk while resting.
+- 10.4 Safety tension — fire light and noise draw enemies (ties to detection, Epic 2).
+
+## Epic 11: Environmental Hazards
+
+The world bites back with region-signature dangers that reward reading the ground.
+**FRs covered:** FR-28
+
+**Story outline:**
+- 11.1 Hazard framework — poison, ice, heat/dust, hazardous terrain as tile/effect types.
+- 11.2 Region-signature hazards — each mapped to a region's biome.
+- 11.3 Hazard mitigation — gear/crafting/skills reduce or negate.
+
+## Epic 12: Crafting & Components
+
+The engine connecting gathering to survival and combat.
+**FRs covered:** FR-29
+
+**Story outline:**
+- 12.1 Recipe & component model — materials combine into outputs.
+- 12.2 Crafting action & discovery — craft from inventory; learn recipes.
+- 12.3 Tool / weapon / armor crafting.
+- 12.4 Consumable & food crafting — feeds hunger and healing.
+- 12.5 Fire/shelter crafting hooks — shared with Epic 10.
+
+## Epic 13: Loot, Treasure & Hidden Resources
+
+Reasons to explore, matched to each biome.
+**FRs covered:** FR-30, FR-31
+
+**Story outline:**
+- 13.1 Hidden resource nodes — grass/logs/trees/rocks yield biome-specific materials.
+- 13.2 Time/weather-gated nodes — availability shifts with Epics 7–8.
+- 13.3 Placed treasure & caches — with rarity.
+- 13.4 Region loot tables & drops.
+
+## Epic 14: Combat Depth & Progression
+
+Combat that's real but honest — a tool, not always the answer.
+**FRs covered:** FR-32, FR-34
+
+**Story outline:**
+- 14.1 Weapon model & attacks — melee/ranged, damage types.
+- 14.2 Enemy variety by region & time of day.
+- 14.3 Player progression / mastery — persistent stats Milek grows.
+- 14.4 Combat ↔ survival coupling — hunger/fatigue/cold modify combat.
+
+## Epic 15: Skills
+
+How the ant gets sharper — unlockable combat and survival techniques.
+**FRs covered:** FR-33
+
+**Story outline:**
+- 15.1 Skill model & unlocks — combat and survival trees.
+- 15.2 Combat skills.
+- 15.3 Survival / gathering / crafting / exploration efficiency skills.
+- 15.4 Skill acquisition — from mentors, quests, or use (e.g., the Twilight Knight).
+
+## Epic 16: Bosses & Mini-Bosses
+
+A framework for three boss kinds, one gating each region's exit.
+**FRs covered:** FR-35
+
+**Story outline:**
+- 16.1 Boss encounter framework — type + region-exit gating.
+- 16.2 Fightable boss template — a regional threat you can beat.
+- 16.3 Evasion boss template — unwinnable-yet; objective is survive/escape (Spearshot).
+- 16.4 Social boss template — defeated by outmaneuvering via conditions/dialogue (Swan).
+
+## Epic 17: NPCs, Neutrals & Schedules
+
+The road is peopled — allies, neutrals, and benefactors you can read, help, or avoid.
+**FRs covered:** FR-36
+
+**Story outline:**
+- 17.1 NPC model & states — ally / neutral / bystander.
+- 17.2 Daily schedules — tied to Epic 7 time.
+- 17.3 Interaction hooks — talk/trade/help (reuse Epic 5 dialogue).
+- 17.4 Relationship generalization — reuse the Epic 4 companion Bond system entity-agnostically.
+
+## Epic 18: Side Quests
+
+The texture between story beats.
+**FRs covered:** FR-37
+
+**Story outline:**
+- 18.1 Side-quest model & tracking — reuse Epic 5 scene/quest flags.
+- 18.2 Quest givers & rewards — gear/lore/relationships.
+- 18.3 Region side-quest content hooks.
+
+## Epic 19: Region (Arc) Progression Framework
+
+Generalizes the Route into the novel's horizontal road.
+**FRs covered:** FR-38, FR-39, FR-40
+
+**Story outline:**
+- 19.1 Region model — biome, enemies, NPCs, resources, quests, signature system, boss, exit.
+- 19.2 Region travel & transition — horizontal, story-advancing; supersedes the MVP's procedural-floor Route.
+- 19.3 Signature-system introduction hook — each region enables its new mechanic on entry.
+- 19.4 Main-storyline flag/beat gating across regions.
+- 19.5 World-map / route representation.
+
+## Epic 20: Region 0 — Coneros: The Fall
+
+The fully-playable Prologue→Ch2 intro (Act 0). Realizes `opening-design-act0-forest.md`.
+**FRs covered:** FR-40 (+ integrates prior systems)
+
+**Story outline:**
+- 20.1 Act 0 authored sequence — river → house → flight → platform.
+- 20.2 Controls-by-loss scripting — unwinnable beats with expressive inputs.
+- 20.3 Palette shift — frost-ash intro blooms to color at the Forest.
+- 20.4 Mora handoff & quest bootstrap.
+
+## Epic 21: Region 1 — North Pines: Whispering Forest
+
+Act 1, the first free-play region. Companion = Erik.
+**FRs covered:** FR-38, FR-39 (+ Phase A/B systems)
+
+**Story outline:**
+- 21.1 Forest region build — biome, hidden-resource table, hollow-trunk camp.
+- 21.2 Survival loop instantiation — hunger/fire/rain/craft/day-night together.
+- 21.3 The Lamilla camp & five-night raid — greed-curve loot.
+- 21.4 "Trailed home" climax — detection = a tail that endangers the companion.
+- 21.5 Ashen-merchants exit / region transition.
+
+## Epic 22: Region 2 — Pinehurst & The Convoy
+
+Captivity as a region.
+**FRs covered:** FR-38, FR-36
+
+**Story outline:**
+- 22.1 Captivity region — caravan interior; the gap-in-the-door observation loop.
+- 22.2 Feeding-line rationing — position decides who eats; starvation is lethal.
+- 22.3 NPC allies — Henry and the Pack, with schedules.
+- 22.4 Intel / "opening" meter — observation unlocks progression.
+
+## Epic 23: Region 3 — Tradewick: Gray Law
+
+A lawless hub of skills and side quests.
+**FRs covered:** FR-38, FR-37, FR-35
+
+**Story outline:**
+- 23.1 Gray-law hub — crowd-stealth and a "notability" pressure.
+- 23.2 Skills & side-quest content.
+- 23.3 Social boss — Bulwark Swan (outmaneuver, don't fight).
+- 23.4 Separation beat — the auction; the party splits.
+
+## Epic 24: Region 4 — Coastal Road to Oakdale
+
+Exposure and weather on open ground; the first evasion wall.
+**FRs covered:** FR-38, FR-24, FR-35
+
+**Story outline:**
+- 24.1 Coastal exposure region — temperature/wind/storm.
+- 24.2 Open-ground stealth.
+- 24.3 Evasion boss — Spearshot (survive, not beat).
+
+## Epic 25: Region 5 — Mirko: The Frost Pass
+
+Cold, snowstorms, and fire-or-die.
+**FRs covered:** FR-38, FR-24, FR-28
+
+**Story outline:**
+- 25.1 Frost region — cold/snowstorm pressure.
+- 25.2 Ice hazards.
+- 25.3 Pass bandits / hunting-beast mini-boss.
+- 25.4 Weather-closed-pass gating.
+
+## Epic 26: Region 6 — Valens: The Wall
+
+The endgame of Route 1.
+**FRs covered:** FR-38, FR-40
+
+**Story outline:**
+- 26.1 Prison region — starvation and the crack in the wall.
+- 26.2 The Twilight Knight mentor — skills and story.
+- 26.3 Escape gauntlet boss.
+- 26.4 The 7-year threshold / Route 1 end-state.
+
+## Epics 27+: The Later Arcs (future)
+
+Academic · Revolution · Throne War · One Kingdom · The Heaven Fell. Each becomes its own region cluster when the game reaches it; the Blackberry Troupe / Theodore recur as benefactors. Placeholder — decomposed when scheduled.
+**FRs covered:** FR-38, FR-40 (future)

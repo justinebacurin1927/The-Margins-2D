@@ -100,26 +100,38 @@ public class RogueGameScreen implements Screen {
         int px = player.getTileX(), py = player.getTileY();
         int vw = (int)(viewport.getWorldWidth() / 32f) + 3;
         int vh = (int)(viewport.getWorldHeight() / 32f) + 3;
+        // Pass 1 — ground: grass under everything (incl. wall bases), plus doors/stairs
         for (int x = px - vw/2; x <= px + vw/2; x++) {
             for (int y = py - vh/2; y <= py + vh/2; y++) {
                 int t = tileMap.getTile(x, y);
                 if (t < 0) continue;
                 boolean vis = tileMap.isVisible(x, y);
                 if (!vis && !tileMap.isExplored(x, y)) continue; // unexplored → hidden
-                Texture tex = Assets.tileFloorTex;
-                boolean isFloor = true;
-                if (t == RogueTile.WALL) { tex = Assets.tileWallTex; isFloor = false; }
-                else if (t == RogueTile.DOOR) { tex = Assets.tileDoorTex; isFloor = false; }
-                else if (t == RogueTile.STAIRS_DOWN || t == RogueTile.STAIRS_UP) { tex = Assets.rogueStairs; isFloor = false; }
                 if (!vis) batch.setColor(0.45f, 0.45f, 0.5f, 1f); // explored but out of sight → dim
-                if (isFloor) {
-                    // sample a 32px slice of the seamless grass by world position so it tiles across the map
-                    float ts = Assets.tileGrassTex.getWidth();
-                    float u = x * 32f / ts, v = y * 32f / ts;
-                    batch.draw(Assets.tileGrassTex, x * 32f, y * 32f, 32f, 32f, u, v, u + 32f / ts, v + 32f / ts);
+                if (t == RogueTile.DOOR) {
+                    batch.draw(Assets.tileDoorTex, x * 32f, y * 32f, 32f, 32f);
+                } else if (t == RogueTile.STAIRS_DOWN || t == RogueTile.STAIRS_UP) {
+                    batch.draw(Assets.rogueStairs, x * 32f, y * 32f, 32f, 32f);
                 } else {
-                    batch.draw(tex, x * 32f, y * 32f, 32f, 32f);
+                    drawWrapped(Assets.tileGrassTex, x, y);       // floor and wall bases
                 }
+                if (!vis) batch.setColor(1f, 1f, 1f, 1f);
+            }
+        }
+        // Pass 2 — autotiled forest walls: the 9-slice piece is chosen from which neighbours are open (not walls)
+        for (int x = px - vw/2; x <= px + vw/2; x++) {
+            for (int y = py - vh/2; y <= py + vh/2; y++) {
+                if (tileMap.getTile(x, y) != RogueTile.WALL) continue;
+                boolean vis = tileMap.isVisible(x, y);
+                if (!vis && !tileMap.isExplored(x, y)) continue;
+                boolean openN = !isWall(tileMap, x, y + 1);
+                boolean openS = !isWall(tileMap, x, y - 1);
+                boolean openW = !isWall(tileMap, x - 1, y);
+                boolean openE = !isWall(tileMap, x + 1, y);
+                int row = openN ? 0 : openS ? 2 : 1;   // top edge / bottom (rock face) / interior
+                int col = openW ? 0 : openE ? 2 : 1;
+                if (!vis) batch.setColor(0.45f, 0.45f, 0.5f, 1f);
+                batch.draw(Assets.forestWall[row][col], x * 32f, y * 32f, 32f, 32f);
                 if (!vis) batch.setColor(1f, 1f, 1f, 1f);
             }
         }
@@ -161,6 +173,19 @@ public class RogueGameScreen implements Screen {
             shapes.rect(ex, ey, bw * ratio, bh);
         }
         shapes.end();
+    }
+
+    /** A wall tile for autotiling — off-map counts as wall so the map border stays solid. */
+    private boolean isWall(RogueTileMap m, int x, int y) {
+        int t = m.getTile(x, y);
+        return t == RogueTile.WALL || t < 0;
+    }
+
+    /** Draw a repeat-wrapped tile texture, sampling a 32px world-position slice so it tiles seamlessly. */
+    private void drawWrapped(Texture tex, int x, int y) {
+        float ts = tex.getWidth();
+        float u = x * 32f / ts, v = y * 32f / ts;
+        batch.draw(tex, x * 32f, y * 32f, 32f, 32f, u, v, u + 32f / ts, v + 32f / ts);
     }
 
     private void renderHUD() {
