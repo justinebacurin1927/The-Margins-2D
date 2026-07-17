@@ -3,6 +3,9 @@ package com.margins.asset;
 import com.badlogic.gdx.Gdx;
 import com.badlogic.gdx.graphics.Pixmap;
 import com.badlogic.gdx.graphics.Texture;
+import com.badlogic.gdx.graphics.g2d.Animation;
+import com.badlogic.gdx.graphics.g2d.TextureRegion;
+import com.badlogic.gdx.utils.Array;
 
 public class Assets {
     public static Texture playerTex;
@@ -15,8 +18,11 @@ public class Assets {
     public static Texture rogueWall, rogueFloor, rogueDoor, rogueStairs, rogueWhite, rogueEnemy;
     public static Texture rogueEnemyTex;
     public static Texture tileFloorTex, tileWallTex, tileDoorTex;
+    public static Texture tileGrassTex;
 
-    public static Texture milekSouth, milekNorth, milekWest, milekEast;
+    /** Walk cycles indexed by sheet row: 0=South, 1=West, 2=East, 3=North. */
+    public static Animation<TextureRegion>[] milekWalk;
+    public static Texture milekWalkSheet;
 
     public static Texture iconHp, iconHunger;
     public static Texture[] numSmall;
@@ -25,12 +31,17 @@ public class Assets {
     public static final int TILE = 32;
 
     public static void load() {
-        Pixmap milekPm = new Pixmap(Gdx.files.internal("sprites/swordsman/PNG/Swordsman_lvl1/With_shadow/Swordsman_lvl1_Idle_with_shadow.png"));
-        milekSouth = cropPixmap(milekPm, 0, 0, 64, 64);
-        milekWest  = cropPixmap(milekPm, 0, 64, 64, 64);
-        milekEast  = cropPixmap(milekPm, 0, 128, 64, 64);
-        milekNorth = cropPixmap(milekPm, 0, 192, 64, 64);
-        milekPm.dispose();
+        // Milek walk cycle: 6 frames x 4 directions (rows S,W,E,N) packed to a shared bbox.
+        milekWalkSheet = new Texture(Gdx.files.internal("sprites/player/milek_walk.png"));
+        milekWalkSheet.setFilter(Texture.TextureFilter.Linear, Texture.TextureFilter.Linear);
+        int wCols = 6, wRows = 4;
+        int fw = milekWalkSheet.getWidth() / wCols, fh = milekWalkSheet.getHeight() / wRows;
+        TextureRegion[][] wgrid = TextureRegion.split(milekWalkSheet, fw, fh); // [row][col]
+        @SuppressWarnings("unchecked")
+        Animation<TextureRegion>[] walks = new Animation[wRows];
+        for (int d = 0; d < wRows; d++)
+            walks[d] = new Animation<>(0.11f, new Array<>(wgrid[d]), Animation.PlayMode.LOOP);
+        milekWalk = walks;
 
         Pixmap pw = new Pixmap(1, 1, Pixmap.Format.RGBA8888);
         pw.setColor(0.06f, 0.06f, 0.10f, 1f);
@@ -87,6 +98,12 @@ public class Assets {
         tileFloorTex = makeColorTex(TILE, TILE, 0.80f, 0.70f, 0.55f);
         tileWallTex = makeColorTex(TILE, TILE, 0.60f, 0.50f, 0.60f);
         tileDoorTex = makeColorTex(TILE, TILE, 0.30f, 0.20f, 0.12f);
+
+        // Seamless grass ground: Repeat wrap lets each floor tile sample a 32px
+        // slice by world-position UVs, so the texture tiles across the map.
+        tileGrassTex = new Texture(Gdx.files.internal("sprites/tiles/grass-tiles.png"));
+        tileGrassTex.setWrap(Texture.TextureWrap.Repeat, Texture.TextureWrap.Repeat);
+        tileGrassTex.setFilter(Texture.TextureFilter.Nearest, Texture.TextureFilter.Nearest);
 
         rogueEnemyTex.setFilter(Texture.TextureFilter.Nearest, Texture.TextureFilter.Nearest);
         tileFloorTex.setFilter(Texture.TextureFilter.Nearest, Texture.TextureFilter.Nearest);
@@ -149,10 +166,6 @@ public class Assets {
         rogueStairs.dispose();
         rogueWhite.dispose();
         rogueEnemy.dispose();
-        milekSouth.dispose();
-        milekNorth.dispose();
-        milekWest.dispose();
-        milekEast.dispose();
         iconHp.dispose();
         iconHunger.dispose();
         for (Texture t : numSmall) t.dispose();
@@ -161,5 +174,7 @@ public class Assets {
         tileFloorTex.dispose();
         tileWallTex.dispose();
         tileDoorTex.dispose();
+        tileGrassTex.dispose();
+        milekWalkSheet.dispose();
     }
 }

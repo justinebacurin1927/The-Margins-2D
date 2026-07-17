@@ -1,7 +1,5 @@
 package com.margins.rogue;
 
-import com.badlogic.gdx.graphics.Texture;
-import com.margins.asset.Assets;
 import java.util.Random;
 
 public class RoguePlayer {
@@ -56,16 +54,6 @@ public class RoguePlayer {
     public int getInstinct() { return instinct; }
     public int getGrit() { return grit; }
     public int getVoice() { return voice; }
-
-    public Texture getTexture() {
-        return switch (facing) {
-            case SOUTH -> Assets.milekSouth;
-            case NORTH -> Assets.milekNorth;
-            case WEST -> Assets.milekWest;
-            case EAST -> Assets.milekEast;
-            default -> Assets.milekSouth;
-        };
-    }
 
     public boolean tryMove(int dx, int dy) {
         int nx = tileX + dx;

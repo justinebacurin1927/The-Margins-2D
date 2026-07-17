@@ -9,6 +9,7 @@ import com.badlogic.gdx.graphics.Texture;
 import com.badlogic.gdx.graphics.g2d.BitmapFont;
 import com.badlogic.gdx.graphics.g2d.GlyphLayout;
 import com.badlogic.gdx.graphics.g2d.SpriteBatch;
+import com.badlogic.gdx.graphics.g2d.TextureRegion;
 import com.badlogic.gdx.graphics.glutils.ShapeRenderer;
 import com.badlogic.gdx.utils.viewport.FitViewport;
 import com.margins.MarginsGame;
@@ -37,6 +38,14 @@ public class RogueGameScreen implements Screen {
     private String message;
     private float messageTimer;
 
+    private int walkFrame = 0;      // current walk frame (0..5) while stepping
+    private float sinceMove = 999f; // seconds since the last step; ≥ WALK_HOLD → idle
+    private static final float WALK_HOLD = 0.22f;
+    /** facing (SOUTH=0,NORTH=1,WEST=2,EAST=3) → walk-sheet row (S=0,W=1,E=2,N=3). */
+    private static final int[] FACING_ROW = {0, 3, 1, 2};
+    /** per-row standing frame (feet planted) used when idle, by sheet row S,W,E,N. */
+    private static final int[] IDLE_COL = {2, 2, 2, 5};
+
     private static final int WW = 640;
     private static final int WH = 480;
 
@@ -64,6 +73,7 @@ public class RogueGameScreen implements Screen {
     @Override
     public void render(float delta) {
         if (messageTimer > 0) messageTimer -= delta;
+        sinceMove += delta;
         handleInput();
 
         RoguePlayer player = state.getPlayer();
@@ -97,11 +107,19 @@ public class RogueGameScreen implements Screen {
                 boolean vis = tileMap.isVisible(x, y);
                 if (!vis && !tileMap.isExplored(x, y)) continue; // unexplored → hidden
                 Texture tex = Assets.tileFloorTex;
-                if (t == RogueTile.WALL) tex = Assets.tileWallTex;
-                else if (t == RogueTile.DOOR) tex = Assets.tileDoorTex;
-                else if (t == RogueTile.STAIRS_DOWN || t == RogueTile.STAIRS_UP) tex = Assets.rogueStairs;
+                boolean isFloor = true;
+                if (t == RogueTile.WALL) { tex = Assets.tileWallTex; isFloor = false; }
+                else if (t == RogueTile.DOOR) { tex = Assets.tileDoorTex; isFloor = false; }
+                else if (t == RogueTile.STAIRS_DOWN || t == RogueTile.STAIRS_UP) { tex = Assets.rogueStairs; isFloor = false; }
                 if (!vis) batch.setColor(0.45f, 0.45f, 0.5f, 1f); // explored but out of sight → dim
-                batch.draw(tex, x * 32f, y * 32f, 32f, 32f);
+                if (isFloor) {
+                    // sample a 32px slice of the seamless grass by world position so it tiles across the map
+                    float ts = Assets.tileGrassTex.getWidth();
+                    float u = x * 32f / ts, v = y * 32f / ts;
+                    batch.draw(Assets.tileGrassTex, x * 32f, y * 32f, 32f, 32f, u, v, u + 32f / ts, v + 32f / ts);
+                } else {
+                    batch.draw(tex, x * 32f, y * 32f, 32f, 32f);
+                }
                 if (!vis) batch.setColor(1f, 1f, 1f, 1f);
             }
         }
@@ -120,7 +138,13 @@ public class RogueGameScreen implements Screen {
                 }
             }
         }
-        batch.draw(player.getTexture(), px * 32f - 16f, py * 32f - 32f, 64f, 64f);
+        // walk frame while stepping; snap to this direction's standing frame the moment we stop
+        int prow = FACING_ROW[player.getFacing()];
+        int fi = (sinceMove < WALK_HOLD) ? walkFrame : IDLE_COL[prow];
+        TextureRegion frame = Assets.milekWalk[prow].getKeyFrames()[fi];
+        float ph = 60f;                                    // ~2 tiles tall
+        float pw = ph * frame.getRegionWidth() / frame.getRegionHeight();
+        batch.draw(frame, px * 32f + 16f - pw / 2f, py * 32f, pw, ph);
         batch.end();
 
         shapes.setProjectionMatrix(camera.combined);
@@ -218,7 +242,12 @@ public class RogueGameScreen implements Screen {
         PlayerAction action = readAction(player.getFacing());
         if (action == null) return;
 
+        int bx = player.getTileX(), by = player.getTileY();
         TurnResult result = turnEngine.advance(state, action);
+        if (player.getTileX() != bx || player.getTileY() != by) { // stepped → advance the walk cycle
+            walkFrame = (walkFrame + 1) % 6;
+            sinceMove = 0f;
+        }
         String msg = result.lastMessage();
         if (msg != null) setMessage(msg);
     }
