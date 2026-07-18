@@ -6,6 +6,9 @@ import com.margins.rogue.NoiseEvent;
 import com.margins.rogue.RogueEnemy;
 import com.margins.rogue.RoguePlayer;
 import com.margins.rogue.RogueTileMap;
+import com.margins.rogue.item.FloorItem;
+import com.margins.rogue.item.Inventory;
+import com.margins.rogue.item.Supply;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -25,6 +28,9 @@ public class RunState {
     private RogueTileMap tileMap;
     private RoguePlayer player;
     private List<RogueEnemy> enemies;
+    // Field-initialized so it's non-null even when a save predating this field is loaded (Json skips the constructor).
+    private Inventory inventory = new Inventory();  // finite carry: 8 backpack stacks + 2 equipped slots (FR-9, AD-12)
+    private List<FloorItem> floorItems = new ArrayList<>(); // items lying on tiles; persisted so drops survive save/load (FR-10)
     private int floorDepth;
     private long seed;
     private transient Random rng;
@@ -67,6 +73,26 @@ public class RunState {
                 }
             }
         }
+
+        // Scatter a few supplies for this floor, drawn from the seeded RNG so a
+        // seed reproduces the floor's items (AD-5). Cleared here so each generated
+        // floor starts fresh; a loaded run keeps its saved floorItems (no regen).
+        floorItems.clear();
+        if (result.roomCenters.size() > 1) {
+            int supplyCount = 2 + rng.nextInt(3); // 2..4
+            int placed = 0, attempts = 0;
+            while (placed < supplyCount && attempts < 100) {
+                attempts++;
+                int[] c = result.roomCenters.get(1 + rng.nextInt(result.roomCenters.size() - 1));
+                int ix = c[0] + rng.nextInt(3) - 1;
+                int iy = c[1] + rng.nextInt(3) - 1;
+                if (tileMap.isWalkable(ix, iy)
+                        && !(ix == player.getTileX() && iy == player.getTileY())) {
+                    floorItems.add(new FloorItem(rng.nextInt(Supply.count()), 1, ix, iy));
+                    placed++;
+                }
+            }
+        }
     }
 
     /**
@@ -95,6 +121,37 @@ public class RunState {
     public RogueTileMap getTileMap() { return tileMap; }
     public RoguePlayer getPlayer() { return player; }
     public List<RogueEnemy> getEnemies() { return enemies; }
+
+    /** The finite carry container (FR-9): plain int arrays, so it saves/loads under this root for free (AD-6). */
+    public Inventory getInventory() { return inventory; }
+
+    /** Items lying on floor tiles (FR-10). */
+    public List<FloorItem> getFloorItems() { return floorItems; }
+
+    /** Place an item stack on a tile (a drop, or the return of a failed pickup). */
+    public void addFloorItem(int type, int count, int x, int y) {
+        floorItems.add(new FloorItem(type, count, x, y));
+    }
+
+    /** Remove and return the first item stack on the given tile, or null if none. */
+    public FloorItem takeItemAt(int x, int y) {
+        for (int i = 0; i < floorItems.size(); i++) {
+            FloorItem it = floorItems.get(i);
+            if (it.x == x && it.y == y) {
+                floorItems.remove(i);
+                return it;
+            }
+        }
+        return null;
+    }
+
+    /** Whether any item stack sits on the given tile (screen uses this to gate pickup). */
+    public boolean hasItemAt(int x, int y) {
+        for (FloorItem it : floorItems) {
+            if (it.x == x && it.y == y) return true;
+        }
+        return false;
+    }
     public int getFloorDepth() { return floorDepth; }
     public void setFloorDepth(int floorDepth) { this.floorDepth = floorDepth; }
     public long getSeed() { return seed; }

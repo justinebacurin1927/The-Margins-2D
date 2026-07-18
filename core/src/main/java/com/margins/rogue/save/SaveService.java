@@ -5,6 +5,7 @@ import com.badlogic.gdx.files.FileHandle;
 import com.badlogic.gdx.utils.Json;
 import com.badlogic.gdx.utils.JsonWriter;
 import com.margins.rogue.RogueEnemy;
+import com.margins.rogue.item.FloorItem;
 import com.margins.rogue.state.RunState;
 
 /**
@@ -22,6 +23,7 @@ public final class SaveService {
         Json json = new Json();
         json.setOutputType(JsonWriter.OutputType.json);
         json.setElementType(RunState.class, "enemies", RogueEnemy.class);
+        json.setElementType(RunState.class, "floorItems", FloorItem.class);
         return json;
     }
 

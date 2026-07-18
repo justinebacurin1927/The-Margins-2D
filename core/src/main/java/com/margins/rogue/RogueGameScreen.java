@@ -14,6 +14,9 @@ import com.badlogic.gdx.graphics.glutils.ShapeRenderer;
 import com.badlogic.gdx.utils.viewport.FitViewport;
 import com.margins.MarginsGame;
 import com.margins.asset.Assets;
+import com.margins.rogue.item.FloorItem;
+import com.margins.rogue.item.Inventory;
+import com.margins.rogue.item.Supply;
 import com.margins.rogue.save.SaveService;
 import com.margins.rogue.state.RunState;
 import com.margins.rogue.system.FovSystem;
@@ -35,6 +38,12 @@ public class RogueGameScreen implements Screen {
     private final TurnEngine turnEngine = new TurnEngine();
     private boolean waitingForInput;
     private boolean gameOver;
+
+    /** Modal UI states that suspend normal turn play (AD-2: rules stay in the model). */
+    private enum UiMode { PLAY, INVENTORY, DROP_PROMPT }
+    private UiMode uiMode = UiMode.PLAY;
+    private int cursor;          // highlighted backpack stack in the inventory panel
+    private boolean makeRoom;    // inventory opened from the drop-or-leave prompt to free a slot
     private String message;
     private float messageTimer;
 
@@ -87,6 +96,8 @@ public class RogueGameScreen implements Screen {
 
         renderWorld();
         renderHUD();
+        if (uiMode == UiMode.INVENTORY) renderInventoryPanel();
+        if (uiMode == UiMode.DROP_PROMPT) renderDropPrompt();
         if (gameOver) renderDeathScreen();
     }
 
@@ -161,6 +172,12 @@ public class RogueGameScreen implements Screen {
 
         shapes.setProjectionMatrix(camera.combined);
         shapes.begin(ShapeRenderer.ShapeType.Filled);
+        // Floor items: a placeholder gold marker on visible tiles (dedicated supply art is a later pass).
+        for (FloorItem it : state.getFloorItems()) {
+            if (!tileMap.isVisible(it.x, it.y)) continue;
+            shapes.setColor(0.9f, 0.75f, 0.2f, 1f);
+            shapes.rect(it.x * 32f + 11f, it.y * 32f + 11f, 10f, 10f);
+        }
         for (RogueEnemy e : enemies) {
             if (!e.isAlive() || !tileMap.isVisible(e.getTileX(), e.getTileY())) continue;
             float ex = e.getTileX() * 32f;
@@ -207,7 +224,7 @@ public class RogueGameScreen implements Screen {
             font.draw(batch, message, 100, WH - 10);
         }
 
-        font.draw(batch, "WASD move   Q attack   E block   SPACE wait", 10, 18);
+        font.draw(batch, "WASD move  Q atk  E block  SPACE wait  G pick up  I items", 10, 18);
 
         batch.end();
     }
@@ -244,6 +261,57 @@ public class RogueGameScreen implements Screen {
         batch.end();
     }
 
+    private void renderInventoryPanel() {
+        Inventory inv = state.getInventory();
+        int[] slots = occupiedSlots();
+
+        batch.getProjectionMatrix().setToOrtho2D(0, 0, WW, WH);
+        batch.begin();
+        batch.setColor(0, 0, 0, 0.82f);
+        batch.draw(Assets.rogueWhite, 60, 60, WW - 120, WH - 120);
+        batch.setColor(1, 1, 1, 1);
+
+        font.draw(batch, makeRoom ? "BACKPACK  (drop a stack to make room)" : "BACKPACK", 80, WH - 80);
+
+        float y = WH - 110;
+        if (slots.length == 0) {
+            font.draw(batch, "(empty)", 92, y);
+            y -= 20;
+        }
+        for (int i = 0; i < slots.length; i++) {
+            int type = inv.backpackType(slots[i]);
+            Supply s = Supply.byOrdinal(type);
+            String name = s != null ? s.displayName() : "Item " + type;
+            font.draw(batch, (i == cursor ? "> " : "  ") + name + "   x" + inv.backpackCount(slots[i]), 92, y);
+            y -= 20;
+        }
+
+        y -= 12;
+        font.draw(batch, "Equipped:", 80, y);
+        y -= 20;
+        for (int slot = 0; slot < Inventory.EQUIPPED_SLOTS; slot++) {
+            int et = inv.equippedType(slot);
+            Supply s = et >= 0 ? Supply.byOrdinal(et) : null;
+            String label = et < 0 ? "empty" : (s != null ? s.displayName() : "Item " + et);
+            font.draw(batch, "  [" + label + "]", 92, y);
+            y -= 20;
+        }
+
+        font.draw(batch, makeRoom ? "X drop to make room    ESC cancel"
+                                  : "U use    X drop    W/S select    I/ESC close", 80, 92);
+        batch.end();
+    }
+
+    private void renderDropPrompt() {
+        batch.getProjectionMatrix().setToOrtho2D(0, 0, WW, WH);
+        batch.begin();
+        batch.setColor(0, 0, 0, 0.78f);
+        batch.draw(Assets.rogueWhite, 110, WH / 2f - 34, WW - 220, 68);
+        batch.setColor(1, 1, 1, 1);
+        font.draw(batch, "Backpack full  —  [D] drop a stack    [L] leave it", 140, WH / 2f + 8);
+        batch.end();
+    }
+
     private void handleInput() {
         RoguePlayer player = state.getPlayer();
 
@@ -262,11 +330,23 @@ public class RogueGameScreen implements Screen {
             else if (Gdx.input.isKeyJustPressed(Input.Keys.Q)) { Gdx.app.exit(); }
             return;
         }
+
+        if (uiMode == UiMode.INVENTORY) { handleInventoryInput(); return; }
+        if (uiMode == UiMode.DROP_PROMPT) { handleDropPromptInput(); return; }
+
         if (!waitingForInput) return;
+
+        if (Gdx.input.isKeyJustPressed(Input.Keys.I)) { uiMode = UiMode.INVENTORY; cursor = 0; return; }
+        if (Gdx.input.isKeyJustPressed(Input.Keys.G)) { handlePickupKey(player); return; }
 
         PlayerAction action = readAction(player.getFacing());
         if (action == null) return;
+        submitTurn(action);
+    }
 
+    /** Advance one turn from a player action, updating the walk cycle and message HUD. */
+    private void submitTurn(PlayerAction action) {
+        RoguePlayer player = state.getPlayer();
         int bx = player.getTileX(), by = player.getTileY();
         TurnResult result = turnEngine.advance(state, action);
         if (player.getTileX() != bx || player.getTileY() != by) { // stepped → advance the walk cycle
@@ -275,6 +355,96 @@ public class RogueGameScreen implements Screen {
         }
         String msg = result.lastMessage();
         if (msg != null) setMessage(msg);
+    }
+
+    /** [G]: pick up the item on Milek's tile, or open the drop-or-leave prompt if the backpack is full. */
+    private void handlePickupKey(RoguePlayer player) {
+        int type = topItemTypeAt(player.getTileX(), player.getTileY());
+        if (type < 0) return; // nothing here → no turn spent
+        Inventory inv = state.getInventory();
+        if (inv.isBackpackFull() && inv.count(type) == 0) { // no room and no matching stack (FR-9)
+            uiMode = UiMode.DROP_PROMPT;
+            return;
+        }
+        submitTurn(PlayerAction.pickup(player.getFacing()));
+    }
+
+    /** Type of the first floor item on a tile, or -1 if none. */
+    private int topItemTypeAt(int x, int y) {
+        for (FloorItem it : state.getFloorItems()) {
+            if (it.x == x && it.y == y) return it.type;
+        }
+        return -1;
+    }
+
+    private void handleDropPromptInput() {
+        if (Gdx.input.isKeyJustPressed(Input.Keys.L) || Gdx.input.isKeyJustPressed(Input.Keys.ESCAPE)) {
+            uiMode = UiMode.PLAY; // leave it
+            return;
+        }
+        if (Gdx.input.isKeyJustPressed(Input.Keys.D)) {
+            uiMode = UiMode.INVENTORY; // pick a stack to drop, then auto-pick-up
+            cursor = 0;
+            makeRoom = true;
+        }
+    }
+
+    private void handleInventoryInput() {
+        int[] slots = occupiedSlots();
+        if (Gdx.input.isKeyJustPressed(Input.Keys.I) || Gdx.input.isKeyJustPressed(Input.Keys.ESCAPE)) {
+            closeInventory();
+            return;
+        }
+        if (slots.length == 0) return;
+        if (cursor >= slots.length) cursor = slots.length - 1;
+
+        if (Gdx.input.isKeyJustPressed(Input.Keys.W) || Gdx.input.isKeyJustPressed(Input.Keys.UP)) {
+            cursor = (cursor - 1 + slots.length) % slots.length;
+            return;
+        }
+        if (Gdx.input.isKeyJustPressed(Input.Keys.S) || Gdx.input.isKeyJustPressed(Input.Keys.DOWN)) {
+            cursor = (cursor + 1) % slots.length;
+            return;
+        }
+
+        int type = state.getInventory().backpackType(slots[cursor]);
+        int facing = state.getPlayer().getFacing();
+
+        if (makeRoom) { // drop-to-make-room flow: drop the stack, then grab the ground item
+            if (Gdx.input.isKeyJustPressed(Input.Keys.X)) {
+                submitTurn(PlayerAction.drop(type, facing));
+                // Only grab the ground item if the drop turn didn't kill Milek — otherwise a
+                // second turn would run on a dead player (death is detected next frame).
+                if (state.getPlayer().isAlive()) submitTurn(PlayerAction.pickup(facing));
+                closeInventory();
+            }
+            return;
+        }
+        if (Gdx.input.isKeyJustPressed(Input.Keys.U)) {
+            submitTurn(PlayerAction.use(type, facing));
+            closeInventory();
+            return;
+        }
+        if (Gdx.input.isKeyJustPressed(Input.Keys.X)) {
+            submitTurn(PlayerAction.drop(type, facing));
+            closeInventory();
+        }
+    }
+
+    private void closeInventory() {
+        uiMode = UiMode.PLAY;
+        makeRoom = false;
+    }
+
+    /** Backpack slot indices that currently hold a stack, in slot order. */
+    private int[] occupiedSlots() {
+        Inventory inv = state.getInventory();
+        int n = 0;
+        for (int i = 0; i < Inventory.BACKPACK_STACKS; i++) if (inv.backpackType(i) >= 0) n++;
+        int[] out = new int[n];
+        int k = 0;
+        for (int i = 0; i < Inventory.BACKPACK_STACKS; i++) if (inv.backpackType(i) >= 0) out[k++] = i;
+        return out;
     }
 
     /** Map the current keypress to a player action, or null if no relevant key. */

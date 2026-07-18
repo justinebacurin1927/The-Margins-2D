@@ -1,6 +1,9 @@
 package com.margins.rogue.system;
 
 import com.margins.rogue.RoguePlayer;
+import com.margins.rogue.item.FloorItem;
+import com.margins.rogue.item.Inventory;
+import com.margins.rogue.item.Supply;
 import com.margins.rogue.state.RunState;
 
 /**
@@ -45,6 +48,47 @@ public class TurnEngine {
             case WAIT:
                 acted = true;
                 break;
+            case USE: {
+                Supply s = Supply.byOrdinal(action.itemType);
+                if (s != null && state.getInventory().count(action.itemType) > 0) {
+                    s.apply(player);
+                    if (s.isConsumedOnUse()) {
+                        state.getInventory().remove(action.itemType, 1);
+                        result.messages.add("Used " + s.displayName());
+                        acted = true;
+                    } else {
+                        // Inert item (e.g. the unreadable Sealed Letter): a no-op costs no turn,
+                        // matching the empty-pickup / walk-into-wall precedent.
+                        result.messages.add("Milek can't read it.");
+                    }
+                }
+                break;
+            }
+            case DROP: {
+                Supply s = Supply.byOrdinal(action.itemType);
+                int n = state.getInventory().count(action.itemType);
+                if (s != null && n > 0 && state.getInventory().drop(action.itemType)) {
+                    state.addFloorItem(action.itemType, n, player.getTileX(), player.getTileY());
+                    result.messages.add("Dropped " + s.displayName());
+                    acted = true;
+                }
+                break;
+            }
+            case PICKUP: {
+                FloorItem it = state.takeItemAt(player.getTileX(), player.getTileY());
+                if (it != null) {
+                    if (state.getInventory().tryAdd(it.type, it.count) == Inventory.AddResult.ADDED) {
+                        Supply s = Supply.byOrdinal(it.type);
+                        result.messages.add("Picked up " + (s != null ? s.displayName() : "item"));
+                        acted = true;
+                    } else {
+                        // Backpack full: return the stack to the tile and spend no turn.
+                        // The screen gates on fullness before submitting, so this is a safety net.
+                        state.addFloorItem(it.type, it.count, it.x, it.y);
+                    }
+                }
+                break;
+            }
         }
 
         if (acted) {
