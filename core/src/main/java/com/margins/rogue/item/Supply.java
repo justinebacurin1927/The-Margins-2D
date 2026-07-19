@@ -1,33 +1,35 @@
 package com.margins.rogue.item;
 
-import com.margins.rogue.RoguePlayer;
-
 /**
- * The MVP Route-1 Supply set (FR-10/11). Each type is a stackable consumable the
- * player can use; the backpack stores it as its non-negative {@link #ordinal()}
- * (honoring the {@code -1} empty-slot sentinel reserved in {@link Inventory}).
+ * The MVP Route-1 Supply set (FR-10/11): a stackable consumable TYPE. The backpack
+ * stores each as its non-negative {@link #ordinal()} (honoring the {@code -1}
+ * empty-slot sentinel reserved in {@link Inventory}).
  *
- * <p>Effects here are <b>known and fixed</b>. Story 3.3 binds each type to a
- * randomized true identity per seed, and Story 3.4 hides the identity until first
- * use — both layer on top of this enum without renaming it. Applying an effect
- * mutates the RunState-owned player, which is a model rule; this class holds no
+ * <p>A type's actual effect is its bound {@link TrueIdentity}, chosen per seed from
+ * {@link #possibleIdentities()} by {@code IdentifyMap} (FR-11) — so "Sealed
+ * Waterskin" can be clean water on one seed and tainted on another. Story 3.4 hides
+ * the identity behind the unidentified {@link #displayName()} until first use. No
  * libGDX types (AD-2).
  */
 public enum Supply {
-    WRAPPED_BUNDLE("Wrapped Bundle") { public void apply(RoguePlayer p) { p.eat(40); } },   // PRD Balance: bread +40
-    SEALED_WATERSKIN("Sealed Waterskin") { public void apply(RoguePlayer p) { p.eat(15); } }, // first-pass, tunable
-    SMALL_TIN("Small Tin") { public void apply(RoguePlayer p) { p.heal(4); } },              // first-pass
-    FOLDED_CLOTH("Folded Cloth") { public void apply(RoguePlayer p) { p.heal(6); } },        // first-pass
-    SEALED_LETTER("Sealed Letter") { public void apply(RoguePlayer p) { /* inert: Milek can't read it */ } };
+    WRAPPED_BUNDLE("Wrapped Bundle", TrueIdentity.STALE_BREAD, TrueIdentity.SPOILED_MEAT),
+    SEALED_WATERSKIN("Sealed Waterskin", TrueIdentity.CLEAN_WATER, TrueIdentity.TAINTED),
+    SMALL_TIN("Small Tin", TrueIdentity.FEVERWORT, TrueIdentity.RENDERED_FAT),
+    FOLDED_CLOTH("Folded Cloth", TrueIdentity.BANDAGES, TrueIdentity.OLD_RAGS),
+    SEALED_LETTER("Sealed Letter", TrueIdentity.INERT_LETTER);
 
     private final String displayName;
+    private final TrueIdentity[] possible;
 
-    Supply(String displayName) {
+    Supply(String displayName, TrueIdentity... possible) {
         this.displayName = displayName;
+        this.possible = possible;
     }
 
-    /** Apply this supply's (currently known) effect to the player. */
-    public abstract void apply(RoguePlayer p);
+    /** The identities this type may bind to for a run (FR-11). */
+    public TrueIdentity[] possibleIdentities() {
+        return possible;
+    }
 
     /** All types are spent on use except the inert Sealed Letter. */
     public boolean isConsumedOnUse() {

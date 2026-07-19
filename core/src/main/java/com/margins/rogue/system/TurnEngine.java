@@ -4,6 +4,7 @@ import com.margins.rogue.RoguePlayer;
 import com.margins.rogue.item.FloorItem;
 import com.margins.rogue.item.Inventory;
 import com.margins.rogue.item.Supply;
+import com.margins.rogue.item.TrueIdentity;
 import com.margins.rogue.state.RunState;
 
 /**
@@ -51,7 +52,8 @@ public class TurnEngine {
             case USE: {
                 Supply s = Supply.byOrdinal(action.itemType);
                 if (s != null && state.getInventory().count(action.itemType) > 0) {
-                    s.apply(player);
+                    TrueIdentity id = state.getIdentifyMap().identityOf(action.itemType);
+                    if (id != null) id.apply(player); // effect is the per-seed bound identity (FR-11)
                     if (s.isConsumedOnUse()) {
                         state.getInventory().remove(action.itemType, 1);
                         result.messages.add("Used " + s.displayName());

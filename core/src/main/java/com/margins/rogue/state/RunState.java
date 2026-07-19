@@ -31,6 +31,7 @@ public class RunState {
     // Field-initialized so it's non-null even when a save predating this field is loaded (Json skips the constructor).
     private Inventory inventory = new Inventory();  // finite carry: 8 backpack stacks + 2 equipped slots (FR-9, AD-12)
     private List<FloorItem> floorItems = new ArrayList<>(); // items lying on tiles; persisted so drops survive save/load (FR-10)
+    private IdentifyMap identifyMap;      // per-seed Supply→TrueIdentity binding (FR-11, AD-12); built at run start, persisted
     private int floorDepth;
     private long seed;
     private transient Random rng;
@@ -43,10 +44,24 @@ public class RunState {
         this(System.nanoTime());
     }
 
+    /**
+     * A seeded RNG with its cold start skipped: {@link Random}'s first outputs
+     * correlate across nearby seeds, which would rig the first supply-identity
+     * draw for small debug seeds. Skipping two draws decorrelates it while keeping
+     * one seeded stream (AD-5).
+     */
+    private static Random seededRng(long seed) {
+        Random r = new Random(seed);
+        r.nextInt();
+        r.nextInt();
+        return r;
+    }
+
     public RunState(long seed) {
         this.seed = seed;
-        this.rng = new Random(seed);
+        this.rng = seededRng(seed);
         this.floorDepth = 1;
+        this.identifyMap = IdentifyMap.build(rng); // bind supply identities at run start (FR-11, AD-12)
         generateFloor();
     }
 
@@ -104,6 +119,8 @@ public class RunState {
      */
     public void restoreAfterLoad() {
         this.rng = new Random(seed);
+        // identifyMap is a persisted field — it loads with the run, so the resumed
+        // run keeps its per-seed binding (verified by round-trip); no rebuild needed.
         player.setMap(tileMap);
         for (RogueEnemy e : enemies) {
             e.setMap(tileMap);
@@ -115,6 +132,7 @@ public class RunState {
         this.floorDepth = 1;
         this.lastStandUsed = false;
         this.lastStand = false;
+        this.identifyMap = IdentifyMap.build(rng); // a new run rebinds identities (FR-11)
         generateFloor();
     }
 
@@ -127,6 +145,9 @@ public class RunState {
 
     /** Items lying on floor tiles (FR-10). */
     public List<FloorItem> getFloorItems() { return floorItems; }
+
+    /** The per-seed Supply→TrueIdentity binding for this run (FR-11, AD-12). */
+    public IdentifyMap getIdentifyMap() { return identifyMap; }
 
     /** Place an item stack on a tile (a drop, or the return of a failed pickup). */
     public void addFloorItem(int type, int count, int x, int y) {

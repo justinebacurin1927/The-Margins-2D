@@ -71,7 +71,7 @@ development_status:
   epic-3: in-progress
   3-1-backpack-and-equipped-slots: done
   3-2-use-and-drop-items: done
-  3-3-per-seed-supply-identity: backlog
+  3-3-per-seed-supply-identity: review
   3-4-identify-on-use-persistence: backlog
   epic-3-retrospective: optional
 

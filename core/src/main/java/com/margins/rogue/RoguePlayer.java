@@ -100,6 +100,16 @@ public class RoguePlayer {
         hunger = Math.min(100, hunger + amount);
     }
 
+    /** Raw HP loss that bypasses armor/dodge/block — for non-combat harm like food poisoning. */
+    public void hurtRaw(int amount) {
+        hp = Math.max(0, hp - Math.max(0, amount));
+    }
+
+    /** Reduce hunger, clamped at 0 (a hunger penalty). */
+    public void starve(int amount) {
+        hunger = Math.max(0, hunger - Math.max(0, amount));
+    }
+
     public void tickHunger() {
         hunger = Math.max(0, hunger - 1);
         if (hunger == 0) {
