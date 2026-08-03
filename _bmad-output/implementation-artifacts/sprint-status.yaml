@@ -41,7 +41,7 @@
 # - Retrospective appends its action items to action_items; sprint-status surfaces open ones
 
 generated: 2026-07-17
-last_updated: 2026-08-03  # Epic 4 + Epic 5 complete (stories done, reviewed, retrospectives done)
+last_updated: 2026-08-03  # 6-1 done (reviewed, patch applied); defers logged; Epic 6 ready for 6.2
 project: The Margins
 project_key: NOKEY
 tracking_system: file-system
@@ -90,8 +90,8 @@ development_status:
   epic-5-retrospective: done
 
   # Epic 6 — The Caravan Road (Capstone)
-  epic-6: backlog
-  6-1-route-progression-through-procedural-floors: backlog
+  epic-6: in-progress
+  6-1-route-progression-through-procedural-floors: done
   6-2-authored-story-floor: backlog
   6-3-five-nights-again-opening-quest: backlog
   6-4-galleon-reunion-scene: backlog
@@ -147,7 +147,7 @@ action_items:
   - epic: 5
     action: "CRITICAL before Epic 6 authoring (fourth-epic carry): stand up a committed JUnit 5 core test root and port the dialogue/INSTINCT/flag harnesses (+ the still-uncovered companion/Bond/identify ones). Epic 6 authors content on this dialogue engine and needs a regression net."
     owner: "Dev"
-    status: open
+    status: done
   - epic: 5
     action: "Replace/hard-gate the debug T dialogue trigger + SampleDialog when Story 6.3 authors the 'Five Nights, Again' opening, so scaffolding does not ship in the playable slice."
     owner: "Dev"

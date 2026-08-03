@@ -236,7 +236,7 @@ public class RogueGameScreen implements Screen {
         drawNum(player.getHunger(), 32, WH - 48, false);
 
         font.setColor(0.7f, 0.6f, 0.4f, 1);
-        font.draw(batch, "F" + state.getFloorDepth(), 8, WH - 70);
+        font.draw(batch, state.getRoute().getName() + " " + state.getFloorDepth() + "/" + state.getRoute().getFloorCount(), 8, WH - 70);
         font.setColor(1, 1, 1, 1);
 
         if (messageTimer > 0) {

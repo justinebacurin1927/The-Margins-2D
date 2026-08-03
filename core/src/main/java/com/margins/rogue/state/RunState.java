@@ -10,6 +10,7 @@ import com.margins.rogue.RogueTileMap;
 import com.margins.rogue.item.FloorItem;
 import com.margins.rogue.item.Inventory;
 import com.margins.rogue.item.Supply;
+import com.margins.rogue.world.Route;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -37,6 +38,11 @@ public class RunState {
     // Run-scoped narrative state (AD-7): flags + Galleon's Bond. Field-initialized
     // so a pre-4.3 save (no flagStore key) loads empty-but-non-null (AD-6), like inventory.
     private FlagStore flagStore = new FlagStore();
+    // The route this run descends (FR-18). A constant singleton, so it's transient
+    // and field-initialized. Json never serializes a transient field, and fromJson
+    // invokes the no-arg constructor (which runs field initializers), so a load always
+    // re-supplies this default — pre-6.1 saves load the Caravan Road (AD-6).
+    private transient Route route = Route.CARAVAN_ROAD;
     private int floorDepth;
     private long seed;
     private transient Random rng;
@@ -128,9 +134,15 @@ public class RunState {
      * with fresh enemies/items, and move the existing player + companion to the
      * new entrance — never {@code new RoguePlayer(...)}, so HP/hunger/inventory
      * survive. Per-floor view state is rebuilt by {@code FovSystem.compute}
-     * (TurnEngine calls it on the descent turn).
+     * (TurnEngine calls it on the descent turn). Bounded by the route (FR-18):
+     * returns {@code false} and mutates nothing once the route's last floor is
+     * reached — the "road ends" seam that Stories 6.2 (authored Story Floor)
+     * and 6.5 (route completion) build on.
      */
-    public void descend() {
+    public boolean descend() {
+        if (floorDepth >= route.getFloorCount()) {
+            return false; // the route ends — no floor beyond its last
+        }
         floorDepth++;
         FloorResult result = FloorGenerator.generate(MAP_W, MAP_H, rng, floorDepth);
         tileMap = result.map;
@@ -149,6 +161,7 @@ public class RunState {
             c.setMap(tileMap);
             c.resetDistractions(); // fresh floor, fresh shouts (FR-14)
         }
+        return true;
     }
 
     /**
@@ -260,6 +273,10 @@ public class RunState {
     }
     public int getFloorDepth() { return floorDepth; }
     public void setFloorDepth(int floorDepth) { this.floorDepth = floorDepth; }
+
+    /** The route this run descends (FR-18) — its name, floor count, and end message. */
+    public Route getRoute() { return route; }
+
     public long getSeed() { return seed; }
 
     /** The single seeded RNG all gameplay randomness should draw from (AD-5). */

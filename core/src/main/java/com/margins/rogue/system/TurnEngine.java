@@ -113,8 +113,10 @@ public class TurnEngine {
             // are skipped for the arrival turn).
             if (action.kind == PlayerAction.Kind.MOVE
                     && state.getTileMap().getTile(player.getTileX(), player.getTileY()) == RogueTile.STAIRS_DOWN) {
-                state.descend();
-                result.messages.add("You descend to floor " + state.getFloorDepth());
+                boolean descended = state.descend();
+                result.messages.add(descended
+                        ? "You descend to floor " + state.getFloorDepth()
+                        : state.getRoute().endMessage()); // the road ends (FR-18 seam for 6.2/6.5)
                 HungerSystem.tick(player);
                 // The hunger tick can be lethal on the arrival tile; honor the once-per-run
                 // reprieve here too, so descending never bypasses Last Stand (FR-16/17).
