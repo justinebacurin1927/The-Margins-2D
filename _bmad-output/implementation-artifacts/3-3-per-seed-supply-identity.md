@@ -4,7 +4,7 @@ baseline_commit: 3b1054a
 
 # Story 3.3: Per-seed supply identity
 
-Status: review
+Status: done
 
 <!-- Note: Validation is optional. Run validate-create-story for quality check before dev-story. -->
 
@@ -64,6 +64,10 @@ so that identify-by-use is a genuine gamble that varies between runs (FR-11).
     - USE applies the **bound** identity's effect (e.g. a seed where `WRAPPED_BUNDLE→SPOILED_MEAT` costs HP; a seed where it→`STALE_BREAD` raises hunger).
     - Json round-trip: the binding is preserved after `toJson`→`fromJson`→`restoreAfterLoad`; a save with the `identifyMap` field stripped (pre-3.3) rebuilds a valid, deterministic binding on load.
   - [x] `mvn -o -pl core install` then live boot on `:0` (~8s) → clean.
+
+### Review Findings
+
+- [x] [Review][Defer] Pre-3.3 save loads a non-deterministic (nanoTime-seeded) identity binding [core/src/main/java/com/margins/rogue/state/RunState.java:restoreAfterLoad] — deferred, latent/extreme-edge. A genuine pre-3.3 save (JSON with no `identifyMap` key) does **not** NPE — empirically confirmed the no-arg `RunState()` ctor chains to `build()`, so the field is non-null after load and `identityOf` is null-guarded regardless. **However**, that binding is seeded from `System.nanoTime()` (the throwaway ctor build), not rebuilt from the saved `seed`, so such a save reloads with a different binding each time — a silent AC-4-intent gap. Task 3 originally specified a seed-rebuild fallback for exactly this; Deviation 2 dropped it with a rationale ("field is never null → dead code") that misdiagnoses what the branch did (it was seed-recovery, not null-guarding). Real-world risk is negligible: single-slot save, no-migration (AD-6), and the field ships with 3.3 so a pre-3.3 save is unlikely to exist. A clean fix is non-trivial (the field is non-null, so a null check can't detect a pre-3.3 save — it needs a version/sentinel). Deferred rather than patched. (source: auditor+edge+blind; the "NPE" framing from blind/edge was a false positive — verified no crash.)
 
 ## Dev Notes
 
