@@ -1,5 +1,6 @@
 package com.margins.rogue.state;
 
+import com.margins.rogue.Companion;
 import com.margins.rogue.FloorGenerator;
 import com.margins.rogue.FloorGenerator.FloorResult;
 import com.margins.rogue.NoiseEvent;
@@ -31,7 +32,11 @@ public class RunState {
     // Field-initialized so it's non-null even when a save predating this field is loaded (Json skips the constructor).
     private Inventory inventory = new Inventory();  // finite carry: 8 backpack stacks + 2 equipped slots (FR-9, AD-12)
     private List<FloorItem> floorItems = new ArrayList<>(); // items lying on tiles; persisted so drops survive save/load (FR-10)
+    private List<Companion> companions = new ArrayList<>(); // allied turn actors; single party slot (AD-10)
     private IdentifyMap identifyMap;      // per-seed Supply→TrueIdentity binding (FR-11, AD-12); built at run start, persisted
+    // Run-scoped narrative state (AD-7): flags + Galleon's Bond. Field-initialized
+    // so a pre-4.3 save (no flagStore key) loads empty-but-non-null (AD-6), like inventory.
+    private FlagStore flagStore = new FlagStore();
     private int floorDepth;
     private long seed;
     private transient Random rng;
@@ -63,9 +68,10 @@ public class RunState {
         this.floorDepth = 1;
         this.identifyMap = IdentifyMap.build(rng); // bind supply identities at run start (FR-11, AD-12)
         generateFloor();
+        spawnStartingCompanion();
     }
 
-    /** Builds the current floor and places the player and enemies. */
+    /** Builds the current floor and places a fresh player and enemies (run start/restart). */
     public void generateFloor() {
         FloorResult result = FloorGenerator.generate(MAP_W, MAP_H, rng, floorDepth);
         tileMap = result.map;
@@ -74,6 +80,15 @@ public class RunState {
         int startCy = result.roomCenters.get(0)[1];
         player = new RoguePlayer(startCx, startCy, tileMap);
 
+        placeFloorActors(result, player.getTileX(), player.getTileY());
+    }
+
+    /**
+     * Build the current floor's enemies and scattered supplies, avoiding the
+     * given tile (the player's). Extracted from {@link #generateFloor} so
+     * {@link #descend} can rebuild a floor without recreating the player (AC-3).
+     */
+    private void placeFloorActors(FloorResult result, int avoidX, int avoidY) {
         enemies = new ArrayList<>();
         for (int i = 1; i < result.roomCenters.size(); i++) {
             int cx = result.roomCenters.get(i)[0];
@@ -82,8 +97,7 @@ public class RunState {
             for (int e = 0; e < count; e++) {
                 int ex = cx + rng.nextInt(3) - 1;
                 int ey = cy + rng.nextInt(3) - 1;
-                if (tileMap.isWalkable(ex, ey)
-                        && !(ex == player.getTileX() && ey == player.getTileY())) {
+                if (tileMap.isWalkable(ex, ey) && !(ex == avoidX && ey == avoidY)) {
                     enemies.add(new RogueEnemy(ex, ey, tileMap));
                 }
             }
@@ -101,12 +115,39 @@ public class RunState {
                 int[] c = result.roomCenters.get(1 + rng.nextInt(result.roomCenters.size() - 1));
                 int ix = c[0] + rng.nextInt(3) - 1;
                 int iy = c[1] + rng.nextInt(3) - 1;
-                if (tileMap.isWalkable(ix, iy)
-                        && !(ix == player.getTileX() && iy == player.getTileY())) {
+                if (tileMap.isWalkable(ix, iy) && !(ix == avoidX && iy == avoidY)) {
                     floorItems.add(new FloorItem(rng.nextInt(Supply.count()), 1, ix, iy));
                     placed++;
                 }
             }
+        }
+    }
+
+    /**
+     * One-way descent (AC-2/3): advance {@code floorDepth}, rebuild the floor
+     * with fresh enemies/items, and move the existing player + companion to the
+     * new entrance — never {@code new RoguePlayer(...)}, so HP/hunger/inventory
+     * survive. Per-floor view state is rebuilt by {@code FovSystem.compute}
+     * (TurnEngine calls it on the descent turn).
+     */
+    public void descend() {
+        floorDepth++;
+        FloorResult result = FloorGenerator.generate(MAP_W, MAP_H, rng, floorDepth);
+        tileMap = result.map;
+
+        int startCx = result.roomCenters.get(0)[0];
+        int startCy = result.roomCenters.get(0)[1];
+        player.placeAt(startCx, startCy);
+        player.setMap(tileMap);
+
+        placeFloorActors(result, startCx, startCy);
+
+        Companion c = getActiveCompanion();
+        if (c != null) {
+            int[] spot = companionSpotNear(startCx, startCy);
+            c.placeAt(spot[0], spot[1]);
+            c.setMap(tileMap);
+            c.resetDistractions(); // fresh floor, fresh shouts (FR-14)
         }
     }
 
@@ -125,6 +166,9 @@ public class RunState {
         for (RogueEnemy e : enemies) {
             e.setMap(tileMap);
         }
+        for (Companion c : companions) {
+            c.setMap(tileMap);
+        }
     }
 
     /** Restart a fresh run from floor 1 (same seeded RNG stream continues). */
@@ -133,12 +177,47 @@ public class RunState {
         this.lastStandUsed = false;
         this.lastStand = false;
         this.identifyMap = IdentifyMap.build(rng); // a new run rebinds identities (FR-11)
+        this.flagStore = new FlagStore(); // narrative state is run-scoped (AD-7): a new run resets flags + Bond
         generateFloor();
+        spawnStartingCompanion();
+    }
+
+    /**
+     * Spawn a single active companion beside the player at run start (a
+     * placeholder bind — real recruitment is 4.3 + Epic 6). One slot (AD-10):
+     * the list is cleared first so restart never accumulates.
+     */
+    private void spawnStartingCompanion() {
+        companions.clear();
+        int[] spot = companionSpotNear(player.getTileX(), player.getTileY());
+        companions.add(new Companion(spot[0], spot[1], tileMap, "galleon"));
+    }
+
+    /** Walkable tile near (x,y): 4-dir adjacent first, then widening rings. */
+    private int[] companionSpotNear(int x, int y) {
+        for (int r = 1; r < 10; r++) {
+            for (int dx = -r; dx <= r; dx++) {
+                for (int dy = -r; dy <= r; dy++) {
+                    if (Math.abs(dx) + Math.abs(dy) != r) continue;
+                    int nx = x + dx, ny = y + dy;
+                    if (tileMap.isWalkable(nx, ny)) return new int[]{nx, ny};
+                }
+            }
+        }
+        return new int[]{x, y}; // unreachable on a carved floor
     }
 
     public RogueTileMap getTileMap() { return tileMap; }
     public RoguePlayer getPlayer() { return player; }
     public List<RogueEnemy> getEnemies() { return enemies; }
+
+    /** The party (AD-10): at most one companion in MVP. */
+    public List<Companion> getCompanions() { return companions; }
+
+    /** The single active companion, or null if the party is empty (AD-10). */
+    public Companion getActiveCompanion() {
+        return companions.isEmpty() ? null : companions.get(0);
+    }
 
     /** The finite carry container (FR-9): plain int arrays, so it saves/loads under this root for free (AD-6). */
     public Inventory getInventory() { return inventory; }
@@ -148,6 +227,12 @@ public class RunState {
 
     /** The per-seed Supply→TrueIdentity binding for this run (FR-11, AD-12). */
     public IdentifyMap getIdentifyMap() { return identifyMap; }
+
+    /**
+     * The run-scoped narrative store (AD-7): generic flags + Galleon's Bond.
+     * Dialogue/quests read and write narrative state only through this.
+     */
+    public FlagStore getFlagStore() { return flagStore; }
 
     /** Place an item stack on a tile (a drop, or the return of a failed pickup). */
     public void addFloorItem(int type, int count, int x, int y) {

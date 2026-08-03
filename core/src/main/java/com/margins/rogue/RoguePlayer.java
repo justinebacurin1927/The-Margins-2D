@@ -124,6 +124,12 @@ public class RoguePlayer {
     public void setTileX(int x) { this.tileX = x; }
     public void setTileY(int y) { this.tileY = y; }
 
+    /** Reposition for descent (model-only; HP/hunger/inventory untouched — AC-3). */
+    public void placeAt(int x, int y) {
+        this.tileX = x;
+        this.tileY = y;
+    }
+
     /** Re-inject the tilemap after a save load (map is transient — AD-6). */
     public void setMap(RogueTileMap map) { this.map = map; }
 

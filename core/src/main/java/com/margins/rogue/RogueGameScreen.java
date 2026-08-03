@@ -160,6 +160,13 @@ public class RogueGameScreen implements Screen {
                 }
             }
         }
+        // The active companion (placeholder art, ally-tinted; real per-bind sprites are Epic 6).
+        Companion companion = state.getActiveCompanion();
+        if (companion != null && tileMap.isVisible(companion.getTileX(), companion.getTileY())) {
+            batch.setColor(0.4f, 0.85f, 0.65f, 1f); // green ally tint so he reads as a friend, not a cultist
+            batch.draw(Assets.rogueEnemyTex, companion.getTileX() * 32f - 16f, companion.getTileY() * 32f - 32f, 64f, 64f);
+            batch.setColor(1f, 1f, 1f, 1f);
+        }
         // walk frame while stepping; snap to this direction's standing frame the moment we stop
         int prow = FACING_ROW[player.getFacing()];
         int fi = (sinceMove < WALK_HOLD) ? walkFrame : IDLE_COL[prow];
@@ -452,6 +459,7 @@ public class RogueGameScreen implements Screen {
         if (Gdx.input.isKeyJustPressed(Input.Keys.D) || Gdx.input.isKeyJustPressed(Input.Keys.RIGHT)) return PlayerAction.move(1, 0, 3);
         if (Gdx.input.isKeyJustPressed(Input.Keys.Q)) return PlayerAction.attack(facing);
         if (Gdx.input.isKeyJustPressed(Input.Keys.E)) return PlayerAction.block(facing);
+        if (Gdx.input.isKeyJustPressed(Input.Keys.F)) return PlayerAction.distract(facing);
         if (Gdx.input.isKeyJustPressed(Input.Keys.SPACE)) return PlayerAction.wait(facing);
         return null;
     }

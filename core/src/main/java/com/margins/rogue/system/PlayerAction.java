@@ -6,7 +6,7 @@ package com.margins.rogue.system;
  * {@code dir} uses RoguePlayer facing constants (SOUTH=0, NORTH=1, WEST=2, EAST=3).
  */
 public class PlayerAction {
-    public enum Kind { MOVE, ATTACK, BLOCK, WAIT, USE, DROP, PICKUP }
+    public enum Kind { MOVE, ATTACK, BLOCK, WAIT, USE, DROP, PICKUP, DISTRACT }
 
     public final Kind kind;
     public final int dx;
@@ -48,5 +48,9 @@ public class PlayerAction {
 
     public static PlayerAction pickup(int dir) {
         return new PlayerAction(Kind.PICKUP, 0, 0, dir, -1);
+    }
+
+    public static PlayerAction distract(int dir) {
+        return new PlayerAction(Kind.DISTRACT, 0, 0, dir, -1);
     }
 }

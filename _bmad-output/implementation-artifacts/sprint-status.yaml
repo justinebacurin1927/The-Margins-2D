@@ -41,7 +41,7 @@
 # - Retrospective appends its action items to action_items; sprint-status surfaces open ones
 
 generated: 2026-07-17
-last_updated: 2026-08-03
+last_updated: 2026-08-03  # Epic 4 complete: all stories done, code review done, retrospective done
 project: The Margins
 project_key: NOKEY
 tracking_system: file-system
@@ -76,11 +76,11 @@ development_status:
   epic-3-retrospective: done
 
   # Epic 4 — Galleon at Your Side
-  epic-4: in-progress
-  4-1-companion-follow-and-floor-transition: ready-for-dev
-  4-2-distraction-leverage: backlog
-  4-3-bond-tracking: backlog
-  epic-4-retrospective: optional
+  epic-4: done
+  4-1-companion-follow-and-floor-transition: done
+  4-2-distraction-leverage: done
+  4-3-bond-tracking: done
+  epic-4-retrospective: done
 
   # Epic 5 — Voices on the Road
   epic-5: backlog
@@ -126,5 +126,21 @@ action_items:
     status: open
   - epic: 3
     action: "Document build/verify quirks centrally (docs/BUILD.md or CLAUDE.md): mvn -o -pl core install before exec:java, and the exec-maven-plugin:3.1.0:java harness recipe (supersedes the open Epic 1 build-doc item)"
+    owner: "Dev"
+    status: open
+  - epic: 4
+    action: "CRITICAL PATH before Epic 5: stand up a committed JUnit 5 core test source root and port the highest-value harnesses (FlagStore round-trip/restart/old-save, companion follow/distract, descend-preserves-player, Last-Stand-on-descend regression). Third-time carry; supersedes the open Epic 1 & 3 JUnit items."
+    owner: "Dev"
+    status: open
+  - epic: 4
+    action: "Do save-migration properly the next time a persisted field needs it (implement the version stamp AND its read-branch together) rather than pre-declaring a bare field. The Epic 3 saveVersion field was added dead and removed in Epic 4 review; supersedes Epic 3 action item #2."
+    owner: "Dev"
+    status: open
+  - epic: 4
+    action: "Codify the TurnEngine acted-branch invariants (every acted branch must honor hunger -> checkLastStand -> FOV). The descend branch violated this and reached review; make it explicit before the 5.1 dialogue turn-suspension adds another special turn path."
+    owner: "Dev"
+    status: open
+  - epic: 4
+    action: "Centralize build/verify quirks in docs/BUILD.md or a CLAUDE.md section (recurring Epic 1/3 item)."
     owner: "Dev"
     status: open
