@@ -14,8 +14,12 @@ import com.badlogic.gdx.graphics.glutils.ShapeRenderer;
 import com.badlogic.gdx.utils.viewport.FitViewport;
 import com.margins.MarginsGame;
 import com.margins.asset.Assets;
+import com.margins.dialog.DialogNode;
 import com.margins.rogue.item.FloorItem;
 import com.margins.rogue.item.Inventory;
+import com.margins.rogue.narrative.DialogController;
+import com.margins.rogue.narrative.SampleDialog;
+import com.margins.rogue.narrative.SceneEffects;
 import com.margins.rogue.save.SaveService;
 import com.margins.rogue.state.RunState;
 import com.margins.rogue.system.FovSystem;
@@ -39,8 +43,12 @@ public class RogueGameScreen implements Screen {
     private boolean gameOver;
 
     /** Modal UI states that suspend normal turn play (AD-2: rules stay in the model). */
-    private enum UiMode { PLAY, INVENTORY, DROP_PROMPT }
+    private enum UiMode { PLAY, INVENTORY, DROP_PROMPT, DIALOGUE }
     private UiMode uiMode = UiMode.PLAY;
+    // While a scene is open the turn loop is suspended (input never reaches submitTurn),
+    // so no enemy/hunger/noise phase runs — that IS the FR-6 pause. Navigation lives in
+    // the controller (AD-2); this screen only renders it and forwards the chosen index.
+    private final DialogController dialog = new DialogController();
     private int cursor;          // highlighted backpack stack in the inventory panel
     private boolean makeRoom;    // inventory opened from the drop-or-leave prompt to free a slot
     private String message;
@@ -76,6 +84,10 @@ public class RogueGameScreen implements Screen {
         state = SaveService.load();
         if (state == null) state = new RunState();
         FovSystem.compute(state); // initial sight for the first frame (also rebuilds visible after a load)
+        // A scene revealed but not yet spawned (e.g. the app was closed mid-conversation, losing
+        // the transient scene) is consumed here — the player reloads on the same tile, so the cache
+        // still drops in the right place. No-op unless a reveal is pending (FR-8).
+        SceneEffects.applyCacheReveal(state);
     }
 
     @Override
@@ -97,6 +109,7 @@ public class RogueGameScreen implements Screen {
         renderHUD();
         if (uiMode == UiMode.INVENTORY) renderInventoryPanel();
         if (uiMode == UiMode.DROP_PROMPT) renderDropPrompt();
+        if (uiMode == UiMode.DIALOGUE) renderDialoguePanel();
         if (gameOver) renderDeathScreen();
     }
 
@@ -316,6 +329,32 @@ public class RogueGameScreen implements Screen {
         batch.end();
     }
 
+    /** The open dialogue node: its text, then its numbered choices (FR-6). */
+    private void renderDialoguePanel() {
+        DialogNode node = dialog.getCurrent();
+        if (node == null) return;
+        batch.getProjectionMatrix().setToOrtho2D(0, 0, WW, WH);
+        batch.begin();
+        batch.setColor(0, 0, 0, 0.82f);
+        batch.draw(Assets.rogueWhite, 60, 60, WW - 120, 180);
+        batch.setColor(1, 1, 1, 1);
+
+        font.draw(batch, node.text, 84, 210);
+
+        float y = 170;
+        if (node.options.length == 0) {
+            font.draw(batch, "[1] Continue", 96, y); // terminal node → any confirm closes it
+        } else {
+            for (int i = 0; i < node.options.length; i++) {
+                String marker = node.options[i].isGated() ? "  [INSTINCT]" : ""; // flag the cunning read (UJ-1)
+                font.draw(batch, "[" + (i + 1) + "] " + node.options[i].label + marker, 96, y);
+                y -= 22;
+            }
+        }
+        font.draw(batch, "1-4 choose    ESC leave", 84, 84);
+        batch.end();
+    }
+
     private void handleInput() {
         RoguePlayer player = state.getPlayer();
 
@@ -337,11 +376,15 @@ public class RogueGameScreen implements Screen {
 
         if (uiMode == UiMode.INVENTORY) { handleInventoryInput(); return; }
         if (uiMode == UiMode.DROP_PROMPT) { handleDropPromptInput(); return; }
+        if (uiMode == UiMode.DIALOGUE) { handleDialogueInput(); return; } // suspends the turn loop (FR-6)
 
         if (!waitingForInput) return;
 
         if (Gdx.input.isKeyJustPressed(Input.Keys.I)) { uiMode = UiMode.INVENTORY; cursor = 0; return; }
         if (Gdx.input.isKeyJustPressed(Input.Keys.G)) { handlePickupKey(player); return; }
+        // Debug trigger for FR-6: open a placeholder scene. Real triggers (talk to Galleon /
+        // the scavenger) and authored content are Epic 6.
+        if (Gdx.input.isKeyJustPressed(Input.Keys.T)) { dialog.start(SampleDialog.build(), state); uiMode = UiMode.DIALOGUE; return; }
 
         PlayerAction action = readAction(player.getFacing());
         if (action == null) return;
@@ -391,6 +434,48 @@ public class RogueGameScreen implements Screen {
             cursor = 0;
             makeRoom = true;
         }
+    }
+
+    /**
+     * Drive the open scene (FR-6): ESC closes it; a number key 1..N picks that
+     * choice (the model advances to the linked node or ends). A terminal node
+     * (no options) closes on 1/SPACE/ENTER. No turn is ever submitted here — that
+     * is what keeps enemies frozen while the scene is up.
+     */
+    private void handleDialogueInput() {
+        DialogNode node = dialog.getCurrent();
+        if (node == null) { uiMode = UiMode.PLAY; return; }
+
+        if (Gdx.input.isKeyJustPressed(Input.Keys.ESCAPE)) {
+            closeScene();
+            return;
+        }
+
+        if (node.options.length == 0) { // terminal node: any confirm closes it
+            if (Gdx.input.isKeyJustPressed(Input.Keys.NUM_1)
+                    || Gdx.input.isKeyJustPressed(Input.Keys.SPACE)
+                    || Gdx.input.isKeyJustPressed(Input.Keys.ENTER)) {
+                closeScene();
+            }
+            return;
+        }
+
+        int choice = -1;
+        if (Gdx.input.isKeyJustPressed(Input.Keys.NUM_1)) choice = 0;
+        else if (Gdx.input.isKeyJustPressed(Input.Keys.NUM_2)) choice = 1;
+        else if (Gdx.input.isKeyJustPressed(Input.Keys.NUM_3)) choice = 2;
+        else if (Gdx.input.isKeyJustPressed(Input.Keys.NUM_4)) choice = 3;
+        if (choice < 0 || choice >= node.options.length) return; // out-of-range → ignore
+
+        dialog.select(choice, state); // resolves the INSTINCT gate (AD-8) + any node flag effect (AD-7)
+        if (!dialog.isActive()) closeScene(); // the choice closed the scene
+    }
+
+    /** End the scene, return to play, and apply any content that a scene flag now gates (FR-8). */
+    private void closeScene() {
+        dialog.end();
+        uiMode = UiMode.PLAY;
+        SceneEffects.applyCacheReveal(state); // a revealed cache spawns when the conversation ends
     }
 
     private void handleInventoryInput() {

@@ -41,7 +41,7 @@
 # - Retrospective appends its action items to action_items; sprint-status surfaces open ones
 
 generated: 2026-07-17
-last_updated: 2026-08-03  # Epic 4 complete: all stories done, code review done, retrospective done
+last_updated: 2026-08-03  # Epic 4 + Epic 5 complete (all stories done, code review done)
 project: The Margins
 project_key: NOKEY
 tracking_system: file-system
@@ -83,10 +83,10 @@ development_status:
   epic-4-retrospective: done
 
   # Epic 5 — Voices on the Road
-  epic-5: backlog
-  5-1-branching-dialogue-that-suspends-the-turn-loop: backlog
-  5-2-instinct-gated-choices: backlog
-  5-3-scene-and-quest-flags: backlog
+  epic-5: done
+  5-1-branching-dialogue-that-suspends-the-turn-loop: done
+  5-2-instinct-gated-choices: done
+  5-3-scene-and-quest-flags: done
   epic-5-retrospective: optional
 
   # Epic 6 — The Caravan Road (Capstone)
