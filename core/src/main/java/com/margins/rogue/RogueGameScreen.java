@@ -16,7 +16,6 @@ import com.margins.MarginsGame;
 import com.margins.asset.Assets;
 import com.margins.rogue.item.FloorItem;
 import com.margins.rogue.item.Inventory;
-import com.margins.rogue.item.Supply;
 import com.margins.rogue.save.SaveService;
 import com.margins.rogue.state.RunState;
 import com.margins.rogue.system.FovSystem;
@@ -280,8 +279,7 @@ public class RogueGameScreen implements Screen {
         }
         for (int i = 0; i < slots.length; i++) {
             int type = inv.backpackType(slots[i]);
-            Supply s = Supply.byOrdinal(type);
-            String name = s != null ? s.displayName() : "Item " + type;
+            String name = state.getIdentifyMap().displayNameFor(type); // true name once identified (FR-12)
             font.draw(batch, (i == cursor ? "> " : "  ") + name + "   x" + inv.backpackCount(slots[i]), 92, y);
             y -= 20;
         }
@@ -291,8 +289,7 @@ public class RogueGameScreen implements Screen {
         y -= 20;
         for (int slot = 0; slot < Inventory.EQUIPPED_SLOTS; slot++) {
             int et = inv.equippedType(slot);
-            Supply s = et >= 0 ? Supply.byOrdinal(et) : null;
-            String label = et < 0 ? "empty" : (s != null ? s.displayName() : "Item " + et);
+            String label = et < 0 ? "empty" : state.getIdentifyMap().displayNameFor(et);
             font.draw(batch, "  [" + label + "]", 92, y);
             y -= 20;
         }

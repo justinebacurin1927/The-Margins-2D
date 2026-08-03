@@ -55,8 +55,13 @@ public class TurnEngine {
                     TrueIdentity id = state.getIdentifyMap().identityOf(action.itemType);
                     if (id != null) id.apply(player); // effect is the per-seed bound identity (FR-11)
                     if (s.isConsumedOnUse()) {
+                        boolean wasIdentified = state.getIdentifyMap().isIdentified(action.itemType);
+                        state.getIdentifyMap().markIdentified(action.itemType); // reveal the whole type (FR-12)
                         state.getInventory().remove(action.itemType, 1);
-                        result.messages.add("Used " + s.displayName());
+                        // First use reveals what it was; later uses just name the known identity.
+                        result.messages.add(!wasIdentified && id != null
+                                ? s.displayName() + ": " + id.displayName() + "!"
+                                : "Used " + state.getIdentifyMap().displayNameFor(action.itemType));
                         acted = true;
                     } else {
                         // Inert item (e.g. the unreadable Sealed Letter): a no-op costs no turn,
@@ -71,7 +76,7 @@ public class TurnEngine {
                 int n = state.getInventory().count(action.itemType);
                 if (s != null && n > 0 && state.getInventory().drop(action.itemType)) {
                     state.addFloorItem(action.itemType, n, player.getTileX(), player.getTileY());
-                    result.messages.add("Dropped " + s.displayName());
+                    result.messages.add("Dropped " + state.getIdentifyMap().displayNameFor(action.itemType));
                     acted = true;
                 }
                 break;
@@ -81,7 +86,7 @@ public class TurnEngine {
                 if (it != null) {
                     if (state.getInventory().tryAdd(it.type, it.count) == Inventory.AddResult.ADDED) {
                         Supply s = Supply.byOrdinal(it.type);
-                        result.messages.add("Picked up " + (s != null ? s.displayName() : "item"));
+                        result.messages.add("Picked up " + (s != null ? state.getIdentifyMap().displayNameFor(it.type) : "item"));
                         acted = true;
                     } else {
                         // Backpack full: return the stack to the tile and spend no turn.
