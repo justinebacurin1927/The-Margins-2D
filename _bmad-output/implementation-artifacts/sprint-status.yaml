@@ -41,7 +41,7 @@
 # - Retrospective appends its action items to action_items; sprint-status surfaces open ones
 
 generated: 2026-07-17
-last_updated: 2026-08-03  # Epic 4 + Epic 5 complete (all stories done, code review done)
+last_updated: 2026-08-03  # Epic 4 + Epic 5 complete (stories done, reviewed, retrospectives done)
 project: The Margins
 project_key: NOKEY
 tracking_system: file-system
@@ -87,7 +87,7 @@ development_status:
   5-1-branching-dialogue-that-suspends-the-turn-loop: done
   5-2-instinct-gated-choices: done
   5-3-scene-and-quest-flags: done
-  epic-5-retrospective: optional
+  epic-5-retrospective: done
 
   # Epic 6 — The Caravan Road (Capstone)
   epic-6: backlog
@@ -142,5 +142,21 @@ action_items:
     status: open
   - epic: 4
     action: "Centralize build/verify quirks in docs/BUILD.md or a CLAUDE.md section (recurring Epic 1/3 item)."
+    owner: "Dev"
+    status: open
+  - epic: 5
+    action: "CRITICAL before Epic 6 authoring (fourth-epic carry): stand up a committed JUnit 5 core test root and port the dialogue/INSTINCT/flag harnesses (+ the still-uncovered companion/Bond/identify ones). Epic 6 authors content on this dialogue engine and needs a regression net."
+    owner: "Dev"
+    status: open
+  - epic: 5
+    action: "Replace/hard-gate the debug T dialogue trigger + SampleDialog when Story 6.3 authors the 'Five Nights, Again' opening, so scaffolding does not ship in the playable slice."
+    owner: "Dev"
+    status: open
+  - epic: 5
+    action: "Wire Bond-tag into the dialogue path for Story 6.4 (reunion): FlagStore.applyBondTag (built in 4.3) is still called by nothing; the honest reunion choice must raise Bond (FR-15). Add a bond-tag field to DialogOption and call applyBondTag on selection."
+    owner: "Dev"
+    status: open
+  - epic: 5
+    action: "Harden the dialogue authoring contract during 6.2/6.3 authoring: >4-option nodes, null labels, non-1 flag values (!= 0), multi-cache key collisions (deferred low findings from Epic 5 review)."
     owner: "Dev"
     status: open
