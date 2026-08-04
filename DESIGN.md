@@ -7,6 +7,26 @@
 
 ---
 
+## North Star — the Design Filter (locked 2026-08-04)
+
+> **SPD is about numbers going down — HP, food, strength. The Margins is about standing going down — with people, factions, your companions — and that standing sometimes outlives the run.**
+
+Every system must serve at least one of two spines:
+
+1. **Scarcity** — survival *choices*, not meter management. What you forage, eat, carry, repair, risk.
+2. **Consequence** — the forest remembers. Reputation, companion memory, permanent lockouts, gear with history.
+
+Any mechanic that serves neither is a reskin. Run every new system through the filter before building it.
+
+**The three signature systems that make the game unmistakably ours:**
+- **Stealth-as-reward** — sneaking is the primary loot path, not combat. Clearing a camp undetected pays full loot with no HP cost; fighting is the expensive fallback that escalates (noise draws reinforcements).
+- **Campfire gamble** — rest, heal, and cook are one action that draws the forest in. Healing vs. being found.
+- **Gear with memory** — repair over replace. A knife kept since the kitchen camp out-fights a sword found in a graveyard. Worn-down is a feature, not a tax.
+
+The frame that holds them: **Milek fights because stealth failed, not because loot was on offer.** Low numbers, high stakes, the forest watching. This is the Core Pillars below, stated as one rule.
+
+---
+
 ## 1. Core Concept
 
 SPD's loop is: descend procedurally generated floors, manage limited resources (HP, food, identify-by-use items, gold), fight enemies with permadeath stakes, find a boss, descend further. The Margins gives you a built-in reason that loop matters: **Milek isn't dungeon-diving for treasure. He's searching for people.**
