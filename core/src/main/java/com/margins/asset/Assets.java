@@ -26,10 +26,6 @@ public class Assets {
     public static Animation<TextureRegion>[] milekWalk;
     public static Texture milekWalkSheet;
 
-    public static Texture iconHp, iconHunger;
-    public static Texture[] numSmall;
-    public static Texture[] numMed;
-
     public static final int TILE = 32;
 
     public static void load() {
@@ -77,25 +73,11 @@ public class Assets {
         rogueWhite = makeColorTex(TILE, TILE, 1.00f, 1.00f, 1.00f);
         rogueEnemy = makeColorTex(TILE, TILE, 0.80f, 0.15f, 0.15f);
 
-        Pixmap iconPm = new Pixmap(Gdx.files.internal("sprites/ui/PNG/Icons.png"));
-        iconHp = cropPixmap(iconPm, 66, 130, 24, 24);
-        iconHunger = cropPixmap(iconPm, 34, 226, 24, 24);
-        iconPm.dispose();
-
-        Pixmap numPm = new Pixmap(Gdx.files.internal("sprites/ui/PNG/Numbers.png"));
-        numSmall = new Texture[10];
-        numMed = new Texture[10];
-        for (int i = 0; i < 10; i++) {
-            int sy = 4 + i * 16;
-            numSmall[i] = cropPixmap(numPm, 0, sy, 16, 7);
-            sy = 164 + i * 16;
-            numMed[i] = cropPixmap(numPm, 0, sy, 16, 8);
-        }
-        numPm.dispose();
-
-        Pixmap cultistPm = new Pixmap(Gdx.files.internal("sprites/temple/PNG/Cultist1_Idle.png"));
-        rogueEnemyTex = cropPixmap(cultistPm, 0, 0, 64, 64);
-        cultistPm.dispose();
+        // The "cultist" sprite pack shipped as blank test art (a transparent sheet
+        // with one stray mark), so the enemy rendered as a near-invisible white box.
+        // Draw a real hooded-road-agent silhouette procedurally, matching the game's
+        // other generated art. Real per-entity sprites are the Epic 6.6 art pass.
+        rogueEnemyTex = makeCultist();
 
         tileFloorTex = makeColorTex(TILE, TILE, 0.80f, 0.70f, 0.55f);
         tileWallTex = makeColorTex(TILE, TILE, 0.60f, 0.50f, 0.60f);
@@ -130,12 +112,30 @@ public class Assets {
         return t;
     }
 
-    private static Texture cropPixmap(Pixmap source, int x, int y, int w, int h) {
-        Pixmap region = new Pixmap(w, h, Pixmap.Format.RGBA8888);
-        region.drawPixmap(source, 0, 0, x, y, w, h);
-        Texture tex = new Texture(region);
-        region.dispose();
-        return tex;
+    /**
+     * The enemy sprite: a hooded red-robed figure with a pale face, drawn as a
+     * small pixel silhouette at 64x64 (top-left Pixmap origin, feet at the bottom
+     * edge so {@code drawActor} can anchor them on the tile). Rendered with the
+     * same Nearest filter as the tiles, it reads as a distinct enemy shape; the
+     * companion reuses it under a green ally tint.
+     */
+    private static Texture makeCultist() {
+        Pixmap pm = new Pixmap(64, 64, Pixmap.Format.RGBA8888);
+        pm.setColor(0.62f, 0.16f, 0.12f, 1f);
+        pm.fillRectangle(18, 30, 28, 10);        // shoulders/torso
+        pm.fillTriangle(18, 40, 46, 40, 27, 56); // robe, left taper to hem
+        pm.fillTriangle(46, 40, 18, 40, 37, 56); // robe, right taper to hem
+        pm.fillRectangle(24, 56, 16, 4);         // hem/feet
+        pm.setColor(0.42f, 0.10f, 0.09f, 1f);
+        pm.fillCircle(32, 16, 14);               // hood
+        pm.setColor(0.86f, 0.78f, 0.64f, 1f);
+        pm.fillCircle(32, 14, 6);                // pale face
+        pm.setColor(0.08f, 0.05f, 0.05f, 1f);
+        pm.fillRectangle(28, 13, 3, 3);          // left eye
+        pm.fillRectangle(33, 13, 3, 3);          // right eye
+        Texture t = new Texture(pm);
+        pm.dispose();
+        return t;
     }
 
     private static Texture makeCircle(int size, float r, float g, float b) {
@@ -176,10 +176,6 @@ public class Assets {
         rogueStairs.dispose();
         rogueWhite.dispose();
         rogueEnemy.dispose();
-        iconHp.dispose();
-        iconHunger.dispose();
-        for (Texture t : numSmall) t.dispose();
-        for (Texture t : numMed) t.dispose();
         rogueEnemyTex.dispose();
         tileFloorTex.dispose();
         tileWallTex.dispose();

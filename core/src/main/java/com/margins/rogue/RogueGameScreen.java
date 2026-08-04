@@ -160,15 +160,15 @@ public class RogueGameScreen implements Screen {
         }
         for (RogueEnemy e : enemies) {
             if (e.isAlive() && tileMap.isVisible(e.getTileX(), e.getTileY())) {
-                batch.draw(e.getTexture(), e.getTileX() * 32f - 16f, e.getTileY() * 32f - 32f, 64f, 64f);
+                drawActor(e.getTexture(), e.getTileX(), e.getTileY(), 56f);
                 Detection d = e.getDetection();
                 if (d == Detection.ALERTED) {
                     font.setColor(1f, 0.25f, 0.25f, 1f);
-                    font.draw(batch, "!", e.getTileX() * 32f + 12f, e.getTileY() * 32f + 46f);
+                    font.draw(batch, "!", e.getTileX() * 32f + 12f, e.getTileY() * 32f + 62f);
                     font.setColor(1f, 1f, 1f, 1f);
                 } else if (d == Detection.SUSPICIOUS) {
                     font.setColor(1f, 0.9f, 0.3f, 1f);
-                    font.draw(batch, "?", e.getTileX() * 32f + 12f, e.getTileY() * 32f + 46f);
+                    font.draw(batch, "?", e.getTileX() * 32f + 12f, e.getTileY() * 32f + 62f);
                     font.setColor(1f, 1f, 1f, 1f);
                 }
             }
@@ -177,7 +177,7 @@ public class RogueGameScreen implements Screen {
         Companion companion = state.getActiveCompanion();
         if (companion != null && tileMap.isVisible(companion.getTileX(), companion.getTileY())) {
             batch.setColor(0.4f, 0.85f, 0.65f, 1f); // green ally tint so he reads as a friend, not a cultist
-            batch.draw(Assets.rogueEnemyTex, companion.getTileX() * 32f - 16f, companion.getTileY() * 32f - 32f, 64f, 64f);
+            drawActor(Assets.rogueEnemyTex, companion.getTileX(), companion.getTileY(), 56f);
             batch.setColor(1f, 1f, 1f, 1f);
         }
         // walk frame while stepping; snap to this direction's standing frame the moment we stop
@@ -200,7 +200,7 @@ public class RogueGameScreen implements Screen {
         for (RogueEnemy e : enemies) {
             if (!e.isAlive() || !tileMap.isVisible(e.getTileX(), e.getTileY())) continue;
             float ex = e.getTileX() * 32f;
-            float ey = e.getTileY() * 32f + 40f;
+            float ey = e.getTileY() * 32f + 62f;
             float bw = 32f, bh = 4f;
             shapes.setColor(0.3f, 0.05f, 0.05f, 1);
             shapes.rect(ex, ey, bw, bh);
@@ -224,19 +224,30 @@ public class RogueGameScreen implements Screen {
         batch.draw(tex, x * 32f, y * 32f, 32f, 32f, u, v, u + 32f / ts, v + 32f / ts);
     }
 
+    /**
+     * Draw an actor standing on a tile: feet at the tile's base, height in world
+     * units, width proportional, horizontally centered on the tile — the same
+     * anchor the player uses, so enemies/companions share his visual convention.
+     */
+    private void drawActor(Texture tex, int tileX, int tileY, float height) {
+        float ph = height;
+        float pw = ph * tex.getWidth() / tex.getHeight();
+        batch.draw(tex, tileX * 32f + 16f - pw / 2f, tileY * 32f, pw, ph);
+    }
+
     private void renderHUD() {
         RoguePlayer player = state.getPlayer();
         batch.getProjectionMatrix().setToOrtho2D(0, 0, WW, WH);
         batch.begin();
 
-        batch.draw(Assets.iconHp, 8, WH - 28, 20, 20);
-        drawNum(player.getHp(), 32, WH - 24, false);
-
-        batch.draw(Assets.iconHunger, 8, WH - 52, 20, 20);
-        drawNum(player.getHunger(), 32, WH - 48, false);
+        // Plain-text vitals. The icon/digit HUD art never rendered (its textures
+        // were crops of blank test art), so this uses the same white BitmapFont
+        // as the route/help lines — always visible, no sprite dependency.
+        font.draw(batch, "HP " + player.getHp(), 8, WH - 14);
+        font.draw(batch, player.hungerLabel(), 8, WH - 34);
 
         font.setColor(0.7f, 0.6f, 0.4f, 1);
-        font.draw(batch, state.getRoute().getName() + " " + state.getFloorDepth() + "/" + state.getRoute().getFloorCount(), 8, WH - 70);
+        font.draw(batch, state.getRoute().getName() + " " + state.getFloorDepth() + "/" + state.getRoute().getFloorCount(), 8, WH - 56);
         font.setColor(1, 1, 1, 1);
 
         if (messageTimer > 0) {
@@ -246,16 +257,6 @@ public class RogueGameScreen implements Screen {
         font.draw(batch, "WASD move  Q atk  E block  SPACE wait  G pick up  I items", 10, 18);
 
         batch.end();
-    }
-
-    private void drawNum(int value, float x, float y, boolean floor) {
-        String s = String.valueOf(value);
-        Texture[] digits = Assets.numSmall;
-        float cw = 24, ch = 21;
-        for (int i = 0; i < s.length(); i++) {
-            int d = s.charAt(i) - '0';
-            batch.draw(digits[d], x + i * cw, y, cw, ch);
-        }
     }
 
     private void renderDeathScreen() {

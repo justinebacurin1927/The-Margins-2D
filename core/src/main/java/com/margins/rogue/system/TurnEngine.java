@@ -35,7 +35,12 @@ public class TurnEngine {
                 int tx = player.getTileX() + action.dx;
                 int ty = player.getTileY() + action.dy;
                 if (state.getTileMap().isWalkable(tx, ty)) {
-                    player.tryMove(action.dx, action.dy);
+                    // Bloated slow: a 50% stumble that still spends the turn (spec §1).
+                    if (player.isSlowed() && state.rng().nextInt(100) < 50) {
+                        result.messages.add("Bloated — you stumble.");
+                    } else {
+                        player.tryMove(action.dx, action.dy);
+                    }
                     acted = true;
                 }
                 break;

@@ -2,6 +2,8 @@
 
 The project targets an SPD-style turn-based roguelike. See [DESIGN.md](DESIGN.md) for narrative design and [ARCHITECTURE.md](ARCHITECTURE.md) for technical architecture. Below is the mechanical build roadmap.
 
+The Region 1 (Forest) systems target — hunger tiers, debuffs, food, world structure, NPCs, currency — lives in [docs/REGION1-FOREST.md](docs/REGION1-FOREST.md).
+
 ## Phase 0 — Strip to SPD Core ✅
 
 - [x] Remove real-time systems (smooth movement, day/night, particle follower)

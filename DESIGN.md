@@ -3,6 +3,7 @@
 **Genre:** Roguelike dungeon-crawler (Shattered Pixel Dungeon-inspired) with persistent narrative
 **Starting point:** Campaign begins after Ch. 25 ("Blackberry Troupe") — original continuation, not a retelling
 **Player Character:** Milek of Coneros
+**Related docs:** [docs/REGION1-FOREST.md](docs/REGION1-FOREST.md) — Region 1 (Forest) mechanical design: hunger tiers, debuffs, food, world structure, NPCs, currency
 
 ---
 

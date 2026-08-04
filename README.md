@@ -69,6 +69,7 @@ The Margins 2D/
 ├── DESIGN.md                    # Full game design document
 ├── ARCHITECTURE.md              # Architecture documentation
 ├── ROADMAP.md                   # Development roadmap
+├── docs/REGION1-FOREST.md       # Region 1 (Forest) systems design — hunger, debuffs, food, world, NPCs, currency
 └── pom.xml                      # Maven multi-module build
 ```
 
@@ -111,3 +112,5 @@ All sprites from [CraftPix.net](https://craftpix.net) free/purchased packs:
 ## The Full Vision
 
 See [DESIGN.md](DESIGN.md) for the complete game design — routes, character system, companions, narrative structure, and story.
+
+See [docs/REGION1-FOREST.md](docs/REGION1-FOREST.md) for the Region 1 (Forest) systems design — hunger tiers, debuffs, food, world structure, NPCs, currency.
