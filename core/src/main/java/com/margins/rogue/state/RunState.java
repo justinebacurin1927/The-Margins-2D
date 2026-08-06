@@ -1,12 +1,14 @@
 package com.margins.rogue.state;
 
 import com.margins.rogue.Companion;
+import com.margins.rogue.DayPhase;
 import com.margins.rogue.FloorGenerator;
 import com.margins.rogue.FloorGenerator.FloorResult;
 import com.margins.rogue.NoiseEvent;
 import com.margins.rogue.RogueEnemy;
 import com.margins.rogue.RoguePlayer;
 import com.margins.rogue.RogueTileMap;
+import com.margins.rogue.Weather;
 import com.margins.rogue.item.FloorItem;
 import com.margins.rogue.item.Inventory;
 import com.margins.rogue.item.Supply;
@@ -29,6 +31,11 @@ public class RunState {
     /** Save-format version (AD-6). Bumped when the persisted shape changes incompatibly. */
     public static final int SAVE_VERSION = 1;
 
+    /** Day/Night cycle lengths (FR-5): Day 100 turns / Night 70 = one 170-turn cycle. */
+    public static final int DAY_LENGTH = 100;
+    public static final int NIGHT_LENGTH = 70;
+    public static final int CYCLE_LENGTH = DAY_LENGTH + NIGHT_LENGTH;
+
     private RogueTileMap tileMap;
     private RoguePlayer player;
     private List<RogueEnemy> enemies;
@@ -45,10 +52,16 @@ public class RunState {
     // on this int (fromJson runs initializers): it gates on the *raw JSON* lacking the
     // saveVersion key instead. The int is the FORWARD mechanism: a future v1->v2 compares it.
     private int saveVersion = SAVE_VERSION;
-    // Day/Night clock substrate (FR-4): a bare turn counter that advances on acted turns.
-    // The 100-day/70-night phase split and Weather are Story 1.3 — not built here.
+    // Day/Night clock (FR-4/FR-5): a turn counter that advances on acted turns. The phase is
+    // DERIVED from it (see getClockPhase); weather rolls per cycle boundary (see rollWeather).
     // Field-initialized so a save predating it loads at 0 (AD-6).
     private int clockTurns = 0;
+    // Per-cycle weather (FR-5, Story 1.3): exactly one type rolls per 170-turn cycle on the
+    // weighted distribution. Effects (FOV/temperature/spoilage) are later stories — here it is
+    // state the owning stories key off. Field-initialized so a save predating them loads valid
+    // defaults (AD-6); cycleNumber = clockTurns / CYCLE_LENGTH, the cycle last rolled.
+    private Weather weather = Weather.CLEAR;
+    private int cycleNumber = 0;
     private long seed;
     private transient Random rng;
     private boolean lastStandUsed;        // persisted: one reprieve per run (FR-16/17)
@@ -79,6 +92,7 @@ public class RunState {
         this.identifyMap = IdentifyMap.build(rng); // bind supply identities at run start (FR-11, AD-12)
         generateFloor();
         spawnStartingCompanion();
+        rollWeather(); // cycle 0's weather, drawn LAST so layout/identity draws stay on the pre-1.3 stream
     }
 
     /** Builds the continuous region and places a fresh player and enemies (run start/restart). */
@@ -142,8 +156,18 @@ public class RunState {
      */
     public void restoreAfterLoad() {
         this.rng = new Random(seed);
-        // identifyMap is a persisted field — it loads with the run, so the resumed
+        // IdentifyMap is a persisted field — it loads with the run, so the resumed
         // run keeps its per-seed binding (verified by round-trip); no rebuild needed.
+        // Reconcile a save predating the weather/cycle fields (Story 1.3): the no-arg ctor
+        // that libGDX Json runs fully constructs with a nanoTime seed, so a field-absent save
+        // inherits a non-deterministic weather (different every reload) — the same documented
+        // migration wart as identifyMap (deferred 3.3 item). We cannot distinguish it from a
+        // legitimately rolled value, so we only null-guard. cycleNumber, however, is fully
+        // derivable: clamp it from the persisted clock so a deep-clock old save is
+        // self-consistent (its cycle matches its phase) on the very first post-load turn.
+        // (AD-6 migration contract.)
+        if (weather == null) weather = Weather.CLEAR;
+        cycleNumber = clockTurns / CYCLE_LENGTH;
         player.setMap(tileMap);
         for (RogueEnemy e : enemies) {
             e.setMap(tileMap);
@@ -159,8 +183,11 @@ public class RunState {
         this.lastStand = false;
         this.identifyMap = IdentifyMap.build(rng); // a new run rebinds identities (FR-11)
         this.flagStore = new FlagStore(); // narrative state is run-scoped (AD-7): a new run resets flags + Bond
+        this.clockTurns = 0; // a new run starts at Day 0 (FR-5)
+        this.cycleNumber = 0;
         generateFloor();
         spawnStartingCompanion();
+        rollWeather(); // and rolls its own weather
     }
 
     /**
@@ -242,11 +269,37 @@ public class RunState {
     /** The save-format version this run was created/loaded under (AD-6). */
     public int getSaveVersion() { return saveVersion; }
 
-    /** Elapsed turns on the Day/Night clock (FR-4). Phase/weather are Story 1.3. */
+    /** Elapsed turns on the Day/Night clock (FR-4). */
     public int getClockTurns() { return clockTurns; }
 
-    /** Advance the Day/Night clock by one turn (called from the acted-branch, AD-4/AD-5). */
-    public void tickClock() { clockTurns++; }
+    /** Current Day/Night phase, derived from the clock (FR-5): Day while clockTurns%170 < 100. */
+    public DayPhase getClockPhase() {
+        return clockTurns % CYCLE_LENGTH < DAY_LENGTH ? DayPhase.DAY : DayPhase.NIGHT;
+    }
+
+    public boolean isDay() { return getClockPhase() == DayPhase.DAY; }
+
+    /** The weather in effect this cycle (FR-5). Effects live in later stories (1.4/1.5/1.6/3.x). */
+    public Weather getWeather() { return weather; }
+
+    /** Which 170-turn cycle the run is in (0-based). */
+    public int getCycleNumber() { return cycleNumber; }
+
+    /** Advance the Day/Night clock by one turn (called from the acted-branch, AD-4/AD-5).
+     *  Crossing a 170-turn cycle boundary rolls the next cycle's weather (FR-5). */
+    public void tickClock() {
+        clockTurns++;
+        if (clockTurns / CYCLE_LENGTH != cycleNumber) {
+            cycleNumber = clockTurns / CYCLE_LENGTH;
+            rollWeather();
+        }
+    }
+
+    /** Roll the next cycle's weather from the seeded RNG (AD-5): run start, restart, and
+     *  each cycle boundary (see {@link #tickClock}). */
+    public void rollWeather() {
+        weather = Weather.roll(rng);
+    }
 
     public long getSeed() { return seed; }
 

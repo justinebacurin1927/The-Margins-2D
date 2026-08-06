@@ -5,8 +5,10 @@ import com.badlogic.gdx.utils.JsonReader;
 import com.badlogic.gdx.utils.JsonValue;
 import com.badlogic.gdx.utils.JsonWriter;
 import com.margins.rogue.Companion;
+import com.margins.rogue.DayPhase;
 import com.margins.rogue.RogueEnemy;
 import com.margins.rogue.RoguePlayer;
+import com.margins.rogue.Weather;
 import com.margins.rogue.item.FloorItem;
 import org.junit.jupiter.api.Test;
 
@@ -115,6 +117,67 @@ class RunStatePersistenceTest {
         assertEquals(thirstTurns, loaded.getPlayer().getThirst(), "thirst countdown survives");
         assertEquals(temp, loaded.getPlayer().getTemperature(), "temperature survives");
         assertEquals(3, loaded.getClockTurns(), "the Day/Night clock survives");
+    }
+
+    @Test
+    void weatherAndCycleSurviveRoundTrip() {
+        // AC (Story 1.3 / AD-6): weather + cycle are persisted state — a load must keep them,
+        // never re-roll (that would break the "per cycle" contract on resume).
+        RunState s = new RunState(42L);
+        for (int i = 0; i < 170; i++) s.tickClock(); // into cycle 1 (Day)
+        assertEquals(1, s.getCycleNumber());
+        Weather weather = s.getWeather();
+
+        RunState loaded = json().fromJson(RunState.class, json().toJson(s));
+        loaded.restoreAfterLoad();
+
+        assertEquals(170, loaded.getClockTurns(), "the clock survives");
+        assertEquals(weather, loaded.getWeather(), "weather survives and is not re-rolled on load");
+        assertEquals(1, loaded.getCycleNumber(), "the cycle survives");
+        assertEquals(DayPhase.DAY, loaded.getClockPhase(), "the phase derives correctly after load");
+    }
+
+    @Test
+    void preWeatherSaveLoadsNonNullAndCycleZero() {
+        // AD-6: a save predating the weather/cycle fields (pre-1.3) must load non-crashing with a
+        // sane cycle. NOTE: the no-arg RunState() ctor (which libGDX Json runs) delegates to the
+        // full seeded ctor, so its rollWeather() sets a nanoTime-rolled weather for a field-absent
+        // save — the same documented migration wart as identifyMap (deferred 3.3 item). We assert
+        // non-null + cycle 0, not a specific weather.
+        RunState withData = new RunState(7L);
+        JsonValue root = new JsonReader().parse(json().toJson(withData));
+        root.remove("weather");
+        root.remove("cycleNumber"); // emulate a save written before the fields existed
+
+        RunState fromOld = json().fromJson(RunState.class, root.toJson(JsonWriter.OutputType.json));
+        fromOld.restoreAfterLoad();
+
+        assertNotNull(fromOld.getWeather(), "old save loads non-null weather (never a crash)");
+        assertEquals(0, fromOld.getCycleNumber(), "old save loads cycle 0");
+        assertEquals(DayPhase.DAY, fromOld.getClockPhase(), "turn 0 is Day regardless");
+    }
+
+    @Test
+    void preWeatherSaveDeepInACycleDerivesTheCycleFromTheClock() {
+        // Edge Case Med (review): a pre-1.3 save could hold clockTurns deep in a later cycle
+        // (the clock substrate shipped in 1.2) while lacking the weather/cycleNumber fields.
+        // The field-absent ctor-roll leaves a nanoTime weather (documented wart, same as
+        // identifyMap), but cycleNumber MUST derive from the persisted clock — before the
+        // review patch it loaded stale 0 and desynced the run's cycle from its weather.
+        RunState withData = new RunState(7L);
+        for (int i = 0; i < 170; i++) withData.tickClock(); // deep into cycle 1
+        assertEquals(1, withData.getCycleNumber());
+        JsonValue root = new JsonReader().parse(json().toJson(withData));
+        root.remove("weather");
+        root.remove("cycleNumber"); // emulate a save written before the fields existed
+
+        RunState fromOld = json().fromJson(RunState.class, root.toJson(JsonWriter.OutputType.json));
+        fromOld.restoreAfterLoad();
+
+        assertEquals(170, fromOld.getClockTurns(), "the persisted clock survives the migration");
+        assertEquals(1, fromOld.getCycleNumber(), "cycleNumber derives from the persisted clock, not stale 0");
+        assertEquals(DayPhase.DAY, fromOld.getClockPhase(), "turn 170 is Day of cycle 1 (self-consistent)");
+        assertNotNull(fromOld.getWeather(), "old save still loads non-null weather (never a crash)");
     }
 
     @Test

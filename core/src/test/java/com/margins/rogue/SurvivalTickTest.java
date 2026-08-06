@@ -86,4 +86,36 @@ class SurvivalTickTest {
         assertEquals(1, p.getHp(), "revived to 1 HP instead of dying");
         assertTrue(r.messages.contains("Last Stand!"), "the reprieve announces itself");
     }
+
+    // --- Story 1.3 honesty: the clock phase + weather are also acted-turn-only (AD-5, FR-5) ---
+
+    @Test
+    void wallBumpAdvancesNeitherClockNorWeather() {
+        RunState s = new RunState(1L);
+        TurnEngine te = new TurnEngine();
+        int clock = s.getClockTurns();
+        DayPhase phase = s.getClockPhase();
+        Weather weather = s.getWeather();
+        int cycle = s.getCycleNumber();
+        int[] toWall = placeAgainstWall(s);
+
+        te.advance(s, PlayerAction.move(toWall[0], toWall[1], 0)); // blocked move — no turn commits
+
+        assertEquals(clock, s.getClockTurns(), "the clock did not advance on a wall-bump");
+        assertEquals(phase, s.getClockPhase(), "the phase did not change");
+        assertEquals(weather, s.getWeather(), "weather did not re-roll");
+        assertEquals(cycle, s.getCycleNumber(), "the cycle did not advance");
+    }
+
+    @Test
+    void realActionAdvancesTheClockAndStaysInDay() {
+        RunState s = new RunState(1L);
+        TurnEngine te = new TurnEngine();
+        int clock = s.getClockTurns();
+
+        te.advance(s, PlayerAction.wait(0)); // a real action commits a turn
+
+        assertEquals(clock + 1, s.getClockTurns(), "a real action advances the clock");
+        assertEquals(DayPhase.DAY, s.getClockPhase(), "the run starts in Day and one turn stays Day");
+    }
 }
