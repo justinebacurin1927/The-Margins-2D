@@ -1,116 +1,53 @@
-# The Margins 2D
+# The Margin
 
-A turn-based roguelike dungeon-crawler built with **Java 17** and **libGDX 1.12.1**, mechanically based on **Shattered Pixel Dungeon**. Follow **Milek of Coneros** as he searches for Galleon, the Pack, and the truth about what happened to Erik.
+A text-forward, **SPD-style 2D survival roguelike** built with **Java 17** and **libGDX**. You play **Klein**, a young Novelborne knight whose quiet border posting falls on the first morning of an Evermove invasion. Stripped of rank and cut off from home, he survives the occupied **Herois** forest with one goal: **get home** — across the treeline, to his fiancée and the ordinary life the war tried to erase.
 
-> **Current status:** Turn-based dungeon crawling working. Combat, hunger, procedural floors, and defense mechanics implemented. Art from CraftPix sprite packs.
+Set ~50–60 years *before* the events of *The Margins*, in the same universe.
+
+> **Status:** design complete; the codebase has been **stripped to its reusable core** and is being rebuilt. The app compiles and runs (a blank shell) while the new game is built on top.
+
+## Design Bible
+
+The complete design lives in [`The Margin - Remake/`](The%20Margin%20-%20Remake/) — start with the numbered index:
+
+**→ [`00 - INDEX`](The%20Margin%20-%20Remake/00%20-%20INDEX.md)** — world, protagonist, story, gameplay, and all systems, ordered for a BMAD workflow.
+
+## Current Codebase
+
+The old prototype's art (~30 MB) and render layer were removed; the **reusable, headless, tested core** remains under `com.margins.rogue`:
+
+```
+core/src/main/java/com/margins/
+├── MarginsGame.java        # minimal runnable shell (blank screen)
+├── rogue/
+│   ├── system/             # TurnEngine, Combat, Hunger, Detection, Fov, Noise, PlayerAction
+│   ├── state/              # RunState, FlagStore, IdentifyMap
+│   ├── save/               # SaveService (JSON serialization)
+│   ├── item/               # Inventory, Supply, TrueIdentity, FloorItem
+│   ├── narrative/          # DialogController, SceneEffects
+│   ├── world/              # Route
+│   ├── RoguePlayer · RogueEnemy · RogueTileMap · RogueTile · FloorGenerator
+│   └── Companion · Detection · NoiseEvent
+└── dialog/DialogNode.java
+desktop/                    # LWJGL3 launcher
+```
+
+- **50 passing tests** cover the kept systems.
+- These are **scaffolding**: models still carry old-design shapes (e.g. `RoguePlayer` has 4 stats, not Klein's six) and will be reworked per the bible.
 
 ## Prerequisites
-
 - Java 17+
 - Apache Maven 3.6+
 
-## Quick Start
-
+## Build & Run
 ```bash
-mvn clean compile exec:java -pl desktop
+mvn -pl core test                          # run the test suite
+mvn clean compile exec:java -pl desktop    # run (blank shell for now)
 ```
-
-## Current Features
-
-| Feature | Status |
-|---------|--------|
-| Turn-based grid movement (WASD + arrows) | Done |
-| Procedural floor generation (rooms + corridors) | Done |
-| Turn-based combat (low numbers, tactical) | Done |
-| Hunger system | Done |
-| Enemy AI (chase, pathfind) | Done |
-| Defense mechanics (dodge, block, grit armor) | Done |
-| Enemy health bars | Done |
-| Temple dungeon tileset (CraftPix) | Done |
-| Cultist enemy sprites (CraftPix) | Done |
-| UI icons + numbers (CraftPix) | Done |
-| Pixel-art digit rendering | Done |
-| Stairs down progression | Done |
-| Permadeath / game over | Done |
-| Field of view / fog of war | Planned |
-| Identify-by-use items | Planned |
-| Equipment / degradation | Planned |
-| Save/load | Planned |
-
-## Project Structure
-
-```
-The Margins 2D/
-├── core/src/main/java/com/margins/
-│   ├── MarginsGame.java         # Game entry point
-│   ├── rogue/                   # Roguelike dungeon systems
-│   │   ├── RogueGameScreen.java # Main gameplay screen
-│   │   ├── RoguePlayer.java     # Player entity (stats, combat)
-│   │   ├── RogueEnemy.java      # Enemy entity (AI, combat)
-│   │   ├── RogueTileMap.java    # Grid-based tile map
-│   │   ├── RogueTile.java       # Tile type constants
-│   │   └── FloorGenerator.java  # Procedural BSP generation
-│   ├── screen/                  # Legacy overworld screens
-│   ├── entity/                  # Legacy overworld entities
-│   ├── dialog/                  # Branching dialog system
-│   ├── quest/                   # Quest system framework
-│   ├── map/                     # Legacy overworld map
-│   ├── item/                    # Legacy item/inventory
-│   ├── fx/                      # Particle effects
-│   └── asset/Assets.java        # Texture loading & management
-├── desktop/                     # Desktop launcher (LWJGL3)
-├── sprites/                     # All pixel art assets
-│   ├── swordsman/               # Milek sprites
-│   ├── temple/                  # Ruined temple dungeon pack
-│   ├── orc/                     # Orc enemy pack
-│   ├── trees/                   # Tree sprites
-│   ├── tileset/                 # Road tileset (TMX)
-│   └── ui/                      # UI icons, numbers, panels
-├── DESIGN.md                    # Full game design document
-├── ARCHITECTURE.md              # Architecture documentation
-├── ROADMAP.md                   # Development roadmap
-├── docs/REGION1-FOREST.md       # Region 1 (Forest) systems design — hunger, debuffs, food, world, NPCs, currency
-└── pom.xml                      # Maven multi-module build
-```
-
-## Controls
-
-| Key | Action |
-|-----|--------|
-| WASD / Arrows | Move 1 tile (turn-based) |
-| Q | Attack in facing direction |
-| E | Brace — halve next incoming hit (costs a turn) |
-| SPACE | Wait — pass turn, enemies move |
-| R | Restart (on death screen) |
-| Q | Quit (on death screen) |
-
-## Combat System
-
-- **Grit armor**: `grit / 2` flat damage reduction (grit=5 → -2 damage, min 1)
-- **Instinct dodge**: 3% per instinct point (instinct=7 → 21% dodge chance)
-- **Block**: Press E to brace; next hit deals half damage after armor
-- **Arrival grace**: Enemies that just moved adjacent don't attack on arrival
-- **Enemy HP bars**: Visual green→red bar above each enemy
-- All damage displayed as messages in HUD ("Hit for 2!", "Dodge!", "Brace! Blocked 3→1")
 
 ## Tech Stack
+- **libGDX** (LWJGL3 desktop backend) · **Java 17** · **Maven**
 
-- **libGDX 1.12.1** — cross-platform game framework
-- **LWJGL3** — desktop backend
-- **Maven** — build system
+---
 
-## Sprite Assets
-
-All sprites from [CraftPix.net](https://craftpix.net) free/purchased packs:
-- Ruined Temple Top-Down Location (walls, floors, cultists, objects)
-- Orc Warriors (enemy variants)
-- Top-Down UI Elements (icons, numbers, panels)
-- Road Tileset (Tiled TMX format)
-- Swordsman (Milek player character)
-- Trees and foliage
-
-## The Full Vision
-
-See [DESIGN.md](DESIGN.md) for the complete game design — routes, character system, companions, narrative structure, and story.
-
-See [docs/REGION1-FOREST.md](docs/REGION1-FOREST.md) for the Region 1 (Forest) systems design — hunger tiers, debuffs, food, world structure, NPCs, currency.
+*History: this repo began as "The Margins 2D," an SPD-style dungeon crawler starring Milek. It has been repurposed into **The Margin**, a survival roguelike starring Klein, set in the same world ~50–60 years earlier. The old prototype remains in git history.*
