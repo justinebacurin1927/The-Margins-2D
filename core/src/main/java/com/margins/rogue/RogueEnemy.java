@@ -1,7 +1,5 @@
 package com.margins.rogue;
 
-import com.badlogic.gdx.graphics.Texture;
-import com.margins.asset.Assets;
 import java.util.Random;
 
 public class RogueEnemy {
@@ -41,8 +39,6 @@ public class RogueEnemy {
     public boolean isAlive() { return alive; }
     public boolean hasJustArrived() { return justArrived; }
     public void setJustArrived(boolean v) { justArrived = v; }
-
-    public Texture getTexture() { return Assets.rogueEnemyTex; }
 
     public void takeDamage(int amount) {
         hp = Math.max(0, hp - amount);
