@@ -55,7 +55,7 @@
 #   item is now folded into new Story 1.1's acceptance criteria (AD-6).
 
 generated: 2026-08-06
-last_updated: 2026-08-06  # 1-2 contexted → ready-for-dev; Epic 1 in-progress
+last_updated: 2026-08-06  # 1-2 done (reviewed); Epic 1 in-progress
 project: The Margin
 project_key: NOKEY
 tracking_system: file-system
@@ -65,7 +65,7 @@ development_status:
   # Epic 1 — Survive the Forest (survival core on a continuous map; SM-2 playable-first)
   epic-1: in-progress
   1-1-retire-floor-descent-for-one-continuous-map: done
-  1-2-four-survival-tracks-that-tick-on-real-turns: ready-for-dev
+  1-2-four-survival-tracks-that-tick-on-real-turns: done
   1-3-day-night-clock-and-per-cycle-weather: backlog
   1-4-fov-and-light-the-visible-camp-tension: backlog
   1-5-food-water-and-two-step-purification: backlog

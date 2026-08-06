@@ -29,8 +29,38 @@ public class RoguePlayer {
         }
     }
 
+    /** Thirst tiers (PRD FR-4). Turn countdown per tier; HYDRATED is the start.
+     *  Parched runs three stages (Withered → Trembling → Dried Out) with a -2 HP/5t drain. */
+    public enum ThirstStatus {
+        HYDRATED("Hydrated", 200),
+        THIRSTY("Thirsty", 150),
+        DEHYDRATED("Dehydrated", 100), // Headache
+        PARCHED("Parched", 80);
+
+        final String label;
+        final int fullTurns;
+
+        ThirstStatus(String label, int fullTurns) {
+            this.label = label;
+            this.fullTurns = fullTurns;
+        }
+    }
+
+    /** Temperature bands over the [-100, +100] exposure meter (PRD FR-4). The
+     *  environmental drivers (Weather / Day-Night / campfire) arrive in Stories 1.3/1.6;
+     *  here the meter drifts toward Neutral and harms only at the extreme bands. */
+    public enum TempBand {
+        FROZEN("Frozen"), COLD("Cold"), CHILLED("Chilled"), NEUTRAL("Neutral"),
+        WARM("Warm"), HOT("Hot"), OVERHEATED("Overheated");
+
+        final String label;
+        TempBand(String label) { this.label = label; }
+    }
+
     /** Food points that bump one tier up (an eat() amount accumulates toward this). */
     private static final int FOOD_PER_TIER = 100;
+    /** Water points that bump one thirst tier up (a drink() amount accumulates toward this). */
+    private static final int WATER_PER_TIER = 100;
 
     private int maxHp;
     private int hp;
@@ -43,6 +73,16 @@ public class RoguePlayer {
     private int bloatedSlowTurns;  // Well Fed's Bloated movement-penalty countdown (first 50 turns)
     private int regenTimer;        // Well Fed regen cadence (+1 HP every 3 turns)
     private int starveTick;        // Starving damage cadence (1 HP/4 turns, 3 HP/2 turns in Rotting)
+
+    // Thirst track (FR-4). Field-initialized (like hunger) so a save predating these
+    // fields loads a valid starting state (AD-6; libGDX fromJson runs field initializers).
+    private ThirstStatus thirstStatus = ThirstStatus.HYDRATED;
+    private int thirstTurns = ThirstStatus.HYDRATED.fullTurns;
+    private int waterPoints;       // accumulated water toward the next tier bump
+    private int parchTick;         // Parched damage cadence (-2 HP every 5 turns)
+
+    // Temperature track (FR-4) — the meter only; drivers are Stories 1.3/1.6.
+    private int temperature = 0;   // [-100, +100]; 0 = Neutral
 
     private int str;
     private int instinct;
@@ -120,14 +160,22 @@ public class RoguePlayer {
         return rng.nextInt(100) < dodgePercent();
     }
 
-    /** Effective dodge chance (instinct×3), after Trembling's -15% Agility penalty
-     *  (mapped to the dodge instinct; spec §1). Package-private for headless tests. */
+    /** Effective dodge chance (instinct×3), after Trembling's -15% Agility penalty.
+     *  Trembling can come from Starving (hunger) or Parched (thirst); the penalty is
+     *  applied once, not stacked. Package-private for headless tests. */
     int dodgePercent() {
         int eff = instinct;
-        if (status == HungerStatus.STARVING && hungerTurns <= 100) { // Trembling and worse
+        if (isTrembling()) {
             eff = Math.round(eff * 0.85f);
         }
         return eff * 3;
+    }
+
+    /** The -15% AG "Trembling" condition, from either Starving-and-worse or Parched-and-worse. */
+    private boolean isTrembling() {
+        boolean hungerTrembling = status == HungerStatus.STARVING && hungerTurns <= 100; // Trembling + Rotting
+        boolean thirstTrembling = thirstStatus == ThirstStatus.PARCHED && parchedStage() >= 2; // Trembling + Dried Out
+        return hungerTrembling || thirstTrembling;
     }
 
     public int getDamageReduction() {
@@ -262,6 +310,107 @@ public class RoguePlayer {
             default:
                 break; // WELL_FED: already maxed (eat() bails earlier)
         }
+    }
+
+    // --- Thirst (FR-4): a parallel track to hunger; Parched drains -2 HP / 5 turns ---
+
+    public ThirstStatus getThirstStatus() { return thirstStatus; }
+    /** Turns remaining in the current thirst tier (persisted across save/load). */
+    public int getThirst() { return thirstTurns; }
+
+    /** HUD line: current tier + turns left, naming the Parched stage when parched. */
+    public String thirstLabel() {
+        if (thirstStatus == ThirstStatus.PARCHED) return "Parched (" + parchedStageName() + ") " + thirstTurns;
+        return thirstStatus.label + " " + thirstTurns;
+    }
+
+    /** One acted turn: advance the thirst countdown; Parched runs its -2 HP/5t drain. */
+    public void tickThirst() {
+        if (thirstStatus == ThirstStatus.PARCHED) {
+            parchTick++;
+            if (parchTick % 5 == 0) hurtRaw(2);          // Parched: -2 HP / 5 turns (all stages)
+            thirstTurns = Math.max(0, thirstTurns - 1);  // 80 → 0, then stays 0 (keeps draining)
+        } else {
+            thirstTurns--;
+            if (thirstTurns <= 0) dropThirstTier();
+        }
+    }
+
+    /** Drink toward the next tier up: WATER_PER_TIER points bump one tier (Hydrated is maxed). */
+    public void drink(int amount) {
+        if (thirstStatus == ThirstStatus.HYDRATED) return;
+        waterPoints = Math.min(WATER_PER_TIER, waterPoints + Math.max(0, amount));
+        if (waterPoints >= WATER_PER_TIER) {
+            waterPoints = 0;
+            riseThirstTier();
+        }
+    }
+
+    /** Parched stage from remaining turns: 1 Withered, 2 Trembling, 3 Dried Out (of 80). */
+    private int parchedStage() {
+        if (thirstTurns > 53) return 1;
+        if (thirstTurns > 26) return 2;
+        return 3;
+    }
+
+    private String parchedStageName() {
+        switch (parchedStage()) {
+            case 1: return "Withered";
+            case 2: return "Trembling";
+            default: return "Dried Out";
+        }
+    }
+
+    private void dropThirstTier() {
+        switch (thirstStatus) {
+            case HYDRATED:   thirstStatus = ThirstStatus.THIRSTY; break;
+            case THIRSTY:    thirstStatus = ThirstStatus.DEHYDRATED; break;
+            case DEHYDRATED: thirstStatus = ThirstStatus.PARCHED; parchTick = 0; break;
+            default:         return; // Parched at 0 stays Parched — the drain is already lethal
+        }
+        thirstTurns = thirstStatus.fullTurns;
+    }
+
+    private void riseThirstTier() {
+        switch (thirstStatus) {
+            case PARCHED:    thirstStatus = ThirstStatus.DEHYDRATED; thirstTurns = ThirstStatus.DEHYDRATED.fullTurns; break;
+            case DEHYDRATED: thirstStatus = ThirstStatus.THIRSTY;    thirstTurns = ThirstStatus.THIRSTY.fullTurns; break;
+            case THIRSTY:    thirstStatus = ThirstStatus.HYDRATED;   thirstTurns = ThirstStatus.HYDRATED.fullTurns; break;
+            default:         break; // HYDRATED: already maxed (drink() bails earlier)
+        }
+    }
+
+    // --- Temperature (FR-4): the meter only; drivers (weather/fire) are Stories 1.3/1.6 ---
+
+    public int getTemperature() { return temperature; }
+
+    public TempBand getTempBand() {
+        if (temperature <= -80) return TempBand.FROZEN;
+        if (temperature <= -50) return TempBand.COLD;
+        if (temperature <= -15) return TempBand.CHILLED;
+        if (temperature <   15) return TempBand.NEUTRAL;
+        if (temperature <   50) return TempBand.WARM;
+        if (temperature <   80) return TempBand.HOT;
+        return TempBand.OVERHEATED;
+    }
+
+    public String tempLabel() { return getTempBand().label + " (" + temperature + ")"; }
+
+    /** Drive the exposure meter (Stories 1.3/1.6 push weather/fire deltas here); clamps to [-100, +100]. */
+    public void adjustTemperature(int delta) {
+        temperature = Math.max(-100, Math.min(100, temperature + delta));
+    }
+
+    /** One acted turn: harm at the extreme bands (Frozen/Overheated) every turn spent there, and
+     *  drift one step toward Neutral (the driver-less baseline; weather/fire arrive later).
+     *  Harm-per-turn, not a counter cadence: a driver-less meter can only be briefly extreme, so a
+     *  counter cadence (e.g. every 3rd turn) would almost never fire before drift exits the band.
+     *  Rates are starting calibration — Story 1.6 re-balances under a real weather driver. */
+    public void tickTemperature() {
+        TempBand band = getTempBand();
+        if (band == TempBand.FROZEN || band == TempBand.OVERHEATED) hurtRaw(1);
+        if (temperature > 0) temperature--;
+        else if (temperature < 0) temperature++;
     }
 
     public boolean isAlive() {

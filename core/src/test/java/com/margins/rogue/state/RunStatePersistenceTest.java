@@ -6,6 +6,7 @@ import com.badlogic.gdx.utils.JsonValue;
 import com.badlogic.gdx.utils.JsonWriter;
 import com.margins.rogue.Companion;
 import com.margins.rogue.RogueEnemy;
+import com.margins.rogue.RoguePlayer;
 import com.margins.rogue.item.FloorItem;
 import org.junit.jupiter.api.Test;
 
@@ -17,10 +18,12 @@ import static org.junit.jupiter.api.Assertions.*;
  */
 class RunStatePersistenceTest {
 
-    /** Mirrors SaveService.json() element-type registration. */
+    /** Mirrors SaveService.json() element-type registration AND usePrototypes(false) (Story 1.1),
+     *  so the test serializer matches production (the divergence would mask save-format bugs). */
     private static Json json() {
         Json json = new Json();
         json.setOutputType(JsonWriter.OutputType.json);
+        json.setUsePrototypes(false);
         json.setElementType(RunState.class, "enemies", RogueEnemy.class);
         json.setElementType(RunState.class, "floorItems", FloorItem.class);
         json.setElementType(RunState.class, "companions", Companion.class);
@@ -91,6 +94,27 @@ class RunStatePersistenceTest {
         assertEquals(itemCount, loaded.getInventory().count(0), "inventory count survives");
         assertTrue(loaded.getIdentifyMap().isIdentified(0), "identity reveal survives");
         assertTrue(loaded.isLastStandUsed(), "the spent Last-Stand survives (no free reprieve on reload)");
+    }
+
+    @Test
+    void thirstTemperatureAndClockSurviveRoundTrip() {
+        // AC (Story 1.2 / AD-6): the new survival tracks are persisted state and must round-trip.
+        RunState s = new RunState(42L);
+        for (int i = 0; i < 210; i++) s.getPlayer().tickThirst(); // drop into Thirsty
+        s.getPlayer().adjustTemperature(-30);                     // Chilled
+        s.tickClock(); s.tickClock(); s.tickClock();             // clock = 3
+
+        RoguePlayer.ThirstStatus thirst = s.getPlayer().getThirstStatus();
+        int thirstTurns = s.getPlayer().getThirst();
+        int temp = s.getPlayer().getTemperature();
+
+        RunState loaded = json().fromJson(RunState.class, json().toJson(s));
+        loaded.restoreAfterLoad();
+
+        assertEquals(thirst, loaded.getPlayer().getThirstStatus(), "thirst tier survives");
+        assertEquals(thirstTurns, loaded.getPlayer().getThirst(), "thirst countdown survives");
+        assertEquals(temp, loaded.getPlayer().getTemperature(), "temperature survives");
+        assertEquals(3, loaded.getClockTurns(), "the Day/Night clock survives");
     }
 
     @Test

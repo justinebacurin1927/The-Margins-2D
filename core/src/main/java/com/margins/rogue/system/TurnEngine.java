@@ -112,8 +112,13 @@ public class TurnEngine {
 
         if (acted) {
             // The single acted path (AD-4): every acted turn runs the fixed order
-            // hunger -> detection -> companion -> enemy -> noise -> checkLastStand -> FOV.
+            // survival (hunger/thirst/temperature/clock) -> detection -> companion ->
+            // enemy -> noise -> checkLastStand -> FOV. Survival ticks run BEFORE
+            // checkLastStand so lethal thirst/cold honors the Last-Stand reprieve (AD-5).
             HungerSystem.tick(player);
+            ThirstSystem.tick(player);
+            TemperatureSystem.tick(player);
+            state.tickClock();
             DetectionSystem.update(state); // advance awareness before enemies move (AD-4)
             CompanionSystem.follow(state); // the ally moves in the Companion+Enemy-AI phase (AD-4, AD-10)
             CombatSystem.enemyPhase(state, result.messages);

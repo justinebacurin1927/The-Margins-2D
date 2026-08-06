@@ -45,6 +45,10 @@ public class RunState {
     // on this int (fromJson runs initializers): it gates on the *raw JSON* lacking the
     // saveVersion key instead. The int is the FORWARD mechanism: a future v1->v2 compares it.
     private int saveVersion = SAVE_VERSION;
+    // Day/Night clock substrate (FR-4): a bare turn counter that advances on acted turns.
+    // The 100-day/70-night phase split and Weather are Story 1.3 — not built here.
+    // Field-initialized so a save predating it loads at 0 (AD-6).
+    private int clockTurns = 0;
     private long seed;
     private transient Random rng;
     private boolean lastStandUsed;        // persisted: one reprieve per run (FR-16/17)
@@ -237,6 +241,12 @@ public class RunState {
     }
     /** The save-format version this run was created/loaded under (AD-6). */
     public int getSaveVersion() { return saveVersion; }
+
+    /** Elapsed turns on the Day/Night clock (FR-4). Phase/weather are Story 1.3. */
+    public int getClockTurns() { return clockTurns; }
+
+    /** Advance the Day/Night clock by one turn (called from the acted-branch, AD-4/AD-5). */
+    public void tickClock() { clockTurns++; }
 
     public long getSeed() { return seed; }
 
