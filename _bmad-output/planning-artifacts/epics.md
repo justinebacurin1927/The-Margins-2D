@@ -1,815 +1,790 @@
 ---
 stepsCompleted: [step-01, step-02, step-03, step-04]
 inputDocuments:
-  - _bmad-output/planning-artifacts/prds/prd-The-Margins-2026-07-17/prd.md
-  - _bmad-output/planning-artifacts/prds/prd-The-Margins-2026-07-17/addendum.md
-  - _bmad-output/planning-artifacts/architecture/architecture-The-Margins-2026-07-17/ARCHITECTURE-SPINE.md
-  - _bmad-output/planning-artifacts/game-vision-northstar.md
-  - _bmad-output/planning-artifacts/opening-design-act0-forest.md
+  - _bmad-output/planning-artifacts/prds/prd-The-Margin-2026-08-06/prd.md
+  - _bmad-output/planning-artifacts/architecture/architecture-The-Margin-2026-08-06/ARCHITECTURE-SPINE.md
 ---
 
-# The Margins (MVP — Route 1 Vertical Slice) - Epic Breakdown
+# The Margin - Epic Breakdown
 
 ## Overview
 
-This document decomposes the PRD (21 FRs) and the Architecture Spine (AD-1..AD-12) into implementable epics and stories for the MVP: the Route 1 "The Caravan Road" vertical slice. Brownfield Java 17 + libGDX, solo developer. Epics are sequenced foundation-first because the MVP is a strangler refactor of the existing 303-line `RogueGameScreen` — most feature epics attach as *systems* to the foundation Epic 1 builds, so building it first avoids repeated churn of the same core files (per the workflow's shared-file consolidation guidance).
+This document provides the complete epic and story breakdown for **The Margin** (the Klein/Herois remake), decomposing the requirements from the finalized PRD (`prd-The-Margin-2026-08-06`, 21 FRs across 6 features) and the finalized Architecture Spine (`architecture-The-Margin-2026-08-06`, 18 ADs, layered headless-core/render-screen paradigm) into implementable stories.
 
-> **Scope layering (added 2026-07-17).** Epics **1–6 remain the MVP vertical slice** and the first shippable milestone — unchanged. Epics **7+ are the North Star expansion** (`game-vision-northstar.md`): the full hybrid story + survival game, systems-first, one signature system foregrounded per region, regions mapped to the novel's road. Direction is **depth over speed — the roadmap intentionally exceeds 30 epics.** The MVP's Route-1 scaffolding (Epic 6's procedural floors / "Five Nights" opening / reunion) is a *prototype* of the road that the later Region epics (20–26) build at full fidelity and supersede. New epics below carry **story outlines**; full acceptance criteria are authored per-epic via `create-story` when each epic is scheduled (just-in-time), the same way Epics 1–6 were contexted.
+**Brownfield.** The existing `com.margins.rogue` headless core (turn engine, tilemap, FOV, detection, noise, combat, hunger, inventory, save) is *ratified*, not rebuilt (AD-1..7, AD-9..10 `[ADOPTED]`). The **one breaking deviation** is **AD-8**: the floor-descent machinery (`RunState.descend()`/`floorDepth`, `Route` floor-list, `STAIRS_DOWN/UP`, per-floor BSP gen, `TurnEngine` descent trigger) is retired and replaced by one continuous, persistent Herois map. This refactor is foundational and gates the world/foray work — it belongs in Epic 1.
+
+**Sequencing intent (from PRD SM-2 "survival loop genuinely playable first"):** deliver the survival core on a continuous map first, then Act 0/tutorial, then world/foray breadth, then combat/gear, then companions/story, then inventory/currency/economy.
+
+> The prior epic breakdown for the obsolete "The Margins" (Milek / Route 1 Caravan Road) design is archived at `epics-The-Margins-2026-07-17.obsolete.md`.
 
 ## Requirements Inventory
 
 ### Functional Requirements
 
-- FR-1: Line-of-sight visibility (bounded sight radius, blocked by walls).
-- FR-2: Explored memory (fog) — seen terrain dimmed, dynamic entities not persisted.
-- FR-3: Enemy patrol behavior while Unaware.
-- FR-4: Detection state machine (Unaware → Suspicious → Alerted, with de-escalation).
-- FR-5: Noise propagation (events raise/redirect Detection).
-- FR-6: Branching dialogue presentation that suspends turn processing.
-- FR-7: INSTINCT-gated choices routing to success/failure branches.
-- FR-8: Scene/quest flags set and read to gate content.
-- FR-9: Backpack + equipped slots with capacity handling.
-- FR-10: Use / drop item actions.
-- FR-11: Per-seed Supply identity randomization.
-- FR-12: Identify-on-use and run-persistent identification.
-- FR-13: Companion follow & single party slot across floors.
-- FR-14: Leverage — Galleon Distraction generates Noise to pull patrols.
-- FR-15: Bond tracking from tagged dialogue choices.
-- FR-16: Last Stand trigger on first otherwise-lethal hit.
-- FR-17: True permadeath after Last Stand spent.
-- FR-18: Route progression — 3 procedural Floors then authored Story Floor.
-- FR-19: Route completion end-state (completion screen).
-- FR-20: Single-run save/persistence and resume.
-- FR-21: Permadeath clears the save.
+**Act 0 — The Fall of Corneo (text intro + onboarding)**
+- FR-1: Text intro, read or skip — skippable, paged, SPD-tone; covers before/fall/hand-off; ticks no survival tracks and consumes no turns.
+- FR-2: Aldric's diegetic tutorial — all controls (move, scavenge, eat, craft, hide, rest) demonstrated in-world via Aldric's dialogue, no tooltips/UI chrome.
+- FR-3: Aldric's capture (the wound) — Aldric leaves the party by capture (recoverable, not death) once the player clears the tutorial; log + discovery seed establish he is held east along the Copper Road.
 
-#### North Star (Vision) Requirements — Epics 7+
+**The Turn & Survival Core**
+- FR-4: Four survival tracks — Hunger, Thirst, Temperature/Exposure, Day/Night; tiered with drift rates; tick only on real turns (survival-clock honesty).
+- FR-5: Day/Night and Weather — Day 100 / Night 70 turns; per-170-cycle Weather roll (Clear 40 / Rain 25 / Fog 20 / Storm 10 / Cold Snap 5); Night without light shrinks FOV and raises encounter/aggression; each weather type has pro/con.
+- FR-6: Food, water, and purification — sourcing/cooking/purifying; two-step purification (filtration then boiling→0% risk); spoilage ladder; SKILL-governed.
+- FR-7: Temperature forces fire — Cold Snap → Frozen in ~38 turns; campfire is warmth+light+cooking+purification but visible/audible (the choice core); torch craftable (Wood+Coal), 60-turn burn.
+- FR-8: Debuff system — tiered stacked debuffs with escalation chains (Bacterial: Nausea→Fever→Delirium; Mushroom/toxin track; Diarrhea) and real cures; persist until eaten/drunk/cured out of.
 
-- FR-22: Day/night time-of-day cycle affecting visibility, enemy spawns, NPC schedules, and time-gated resources.
-- FR-23: Dynamic weather (rain, storm, wind, snow) affecting visibility, movement, survival meters, and resource availability.
-- FR-24: Temperature system (cold/heat) driven by weather, biome, fire, and shelter; out-of-band temperature harms the player.
-- FR-25: Fatigue system — accrues with activity/time-awake, restored by rest/sleep, degrades combat/stealth/gather performance.
-- FR-26: Wetness system — raised by rain/water crossings, lowers temperature, dried by fire/time/shelter.
-- FR-27: Fire & shelter — build/maintain campfires and shelter that mitigate temperature/wetness/fatigue and enable rest.
-- FR-28: Environmental hazards (poison, ice, heat/dust, hazardous terrain) that damage or impair.
-- FR-29: Crafting & components — combine gathered materials into tools/weapons/armor/consumables/fire/food via recipes.
-- FR-30: Treasure & loot — placed caches and drops with rarity and region-specific loot tables.
-- FR-31: Hidden resource nodes — environmental gather points (tall grass, logs, trees, rocks) yielding biome-specific materials, some time/weather-gated.
-- FR-32: Combat system — weapon-based attacks and damage; enemy variety by region and time of day.
-- FR-33: Skills system — unlockable combat and survival skills that improve abilities and gathering/crafting/exploration efficiency.
-- FR-34: Player progression — persistent stats/mastery that combat and survival draw on.
-- FR-35: Bosses & mini-bosses — per-region encounter framework supporting fightable, evasion (unwinnable-yet), and social (outmaneuver) boss types; a boss/exit gates region progression.
-- FR-36: NPC behavior & schedules — allies, neutrals, and bystanders with daily schedules, states, and interactions.
-- FR-37: Side quest system — optional quests granting loot, gear, lore, and NPC relationships.
-- FR-38: Region (Arc) progression — a multi-region horizontal world; each region has a biome, region-specific enemies, NPCs, resources, quests, a signature system, a mini-boss/boss, and an exit to the next; travel advances the story.
-- FR-39: Per-region signature-system introduction — each new region foregrounds a new mechanic rather than only raising difficulty.
-- FR-40: Main storyline adaptation — regions map to the novel's road; story beats gate and advance via quests and flags.
+**The Foray & The World**
+- FR-9: The persistent, traversable Herois map — no floor-descent; danger is a spatial east/west gradient; hybrid (fixed canon landmarks + procedural wilderness); 11 World-Structures across 3 danger tiers.
+- FR-10: The foray loop — leave safe point → travel → scavenge under hazard → return before night/weather; per-structure loot/hazard; night shifts several locations' danger; simultaneous time pressure.
+- FR-11: Horizontal progression — no combat-XP; SKILL (doing) governs cooking/purification/repair/lockpicking; knowledge accumulates; gear-with-memory; allies add capability+liability, never raw power.
+
+**Combat & Its Costs**
+- FR-12: Combat is viable but costly — turn order by AG; actions Attack/Block/Dodge/Use Item/Flee; every attack costs durability; noise feeds detection; per-act occupation escalation; avoidance/stealth/VOICE beat fighting; Sense-users avoid-only.
+- FR-13: Gear-with-memory — ~30 weapons (5 categories × 5 tiers); repair restores durability but permanently lowers max on a decay curve (SKILL-modified); scavenge-on-break returns partial materials; SKILL-based repair with weapon-specific materials.
+- FR-14: Permadeath and Last Stand — death ends the run (no save-scumming); Last Stand once per run (GRIT check at 0 HP → survive at 1 HP, no bonus); restart = new procedural forest on the fixed canon spine.
+
+**The Story, People, and Companions**
+- FR-15: Companions are full tile-agents — own Status block, own HP pool, own condition/debuff state; never a passive follower; companion death is an open scope decision.
+- FR-16: Companion AI is autonomous — behavior state machine (follow/hold/hide/distract/fight-retreat for combatants; take-cover/flee for non-combatants) driven by the same detection/noise rules as enemies; simple orders steer it; companions can blow Klein's stealth.
+- FR-17: Companions as help and liability — party size (one active recommended); extra food, noise penalty, woundable body to protect; non-combatants don't fight; Bond deepens via survival+dialogue; loss shapes: Captured/Departure/Death.
+- FR-18: The act-gating main story — "Follow the Road" gates Act 1→2, "The Rescue" gates 2→3; Act 3 = the choice → last provisioning → Aldric resolution → closing trap → NW border crossing; the border crossing is the win (a final tense run, not a boss); epilogue seeds connect to main-story canon.
+- FR-19: Dialog and quest delivery — text-forward (speaker line, numbered choices, bottom log); dialogue suspends the turn loop (safe pause); VOICE-gated (occasional INS); quests NPC-given or discovery-triggered; four dialog channels.
+
+**Inventory, Currency, and Economy**
+- FR-20: Inventory — Quick-Access slots (5 weapon/armor + 3 artifact/ring) + 19 base main slots expandable by up to 5 storage items; weight scales with STR; bags carry durability and thematic traps.
+- FR-21: Currency and trade — four-tier currency (Copper→Silver 25:1→Gold 10:1→Royal Gold Plaque 1000:1); scarce by design; two mobile traders (Black Market coin-only guarded; Traveling Wanderer coin-or-barter) are the only sinks; coin is weighted; barter keeps non-coin players unblocked.
 
 ### NonFunctional Requirements
 
-- NFR-1 (Reliability): Route 1 completes start→finish with no progression-blocking bug (SM-1). No system may deadlock the turn pipeline.
-- NFR-2 (Reproducibility): A given seed reproduces the same floor layout and identify-by-use bindings (enables debugging and honest playtests) — AD-5.
-- NFR-3 (Solo-maintainability): New mechanics are isolated systems operating on `RunState`, headless-testable without a rendering context — AD-2.
-- NFR-4 (Save integrity): `RunState` serialize→deserialize round-trips without loss or object-graph duplication — AD-6, serialization-root convention.
-- NFR-5 (Scope): No Vision-tier system (Trust Meter, roster, endings, etc.) is introduced — PRD §5.
+*From PRD §4.7 — the SPD-style presentation lock, a system-wide constraint every feature and the architecture conforms to.*
+
+- NFR-1 (Rendering): 2D top-down tile-based only — no 3D, no camera tricks; placeholder colors acceptable pre-art.
+- NFR-2 (Interaction): turn-based, tile-by-tile; no real-time mechanics.
+- NFR-3 (Text channel): the bottom message log is the primary text surface; the HUD is minimal.
+- NFR-4 (Platform): desktop-first (Windows/Linux) via libGDX/LWJGL3; the mobile-friendly-HUD lock keeps a future port open.
+- NFR-5 (Performance): the persistent Herois map must render and pathfind within a single turn without perceptible stutter on mid-range desktop hardware.
 
 ### Additional Requirements
 
-From the Architecture Spine (technical requirements shaping implementation):
+*Technical requirements from the Architecture Spine (18 ADs) that shape epics/stories. No greenfield starter template — this is brownfield Java 17 + libGDX 1.12.1 (project-pinned), Maven multi-module (core + desktop), tested with JUnit Jupiter 5.10.2.*
 
-- Strangler layering: model (state/systems) ⟵ screen; no game rule in `RogueGameScreen`; no libGDX render types in model packages (AD-1, AD-2).
-- `RunState` single-owner + single serialization root; entities carry no serialized back-refs to map/RNG (AD-3, save convention).
-- One seeded RNG for all gameplay randomness (AD-5).
-- Save via libGDX `Json`, single slot, delete-on-death (AD-6).
-- Detection = radius + line-of-sight, no directional cones; Noise as a `RunState` event queue (AD-9).
-- INSTINCT checks deterministic threshold compares (AD-8).
-- `FloorGenerator` gains a fixed-layout mode for the Story Floor (AD-11).
-- Identify-by-use bindings on `RunState`, ratifying the existing stackable `Inventory` type/count model (AD-12).
-- First-pass balance values from the PRD Balance table seed the tuning constants.
+- **AD-8 (BREAKING — foundational refactor, Epic 1): retire the floor-descent machinery.** Remove `RunState.descend()`/`floorDepth` (+getters/setters), the `Route` floor-list model (`getFloorCount`), `RogueTile.STAIRS_DOWN/STAIRS_UP` walkable stairs, `FloorGenerator`'s per-floor BSP output, and the `TurnEngine:120` STAIRS_DOWN descent trigger. Replace with one continuous region (`Route` = landmark geography); this is the only intentional break from the ratified brownfield.
+- AD-1 (ratified): Layered — `com.margins.rogue` headless core owns all rules+state; `com.margins` screen is pure presentation, reads state and emits `PlayerAction`s only.
+- AD-2 (ratified): No core class imports a libGDX render/input/graphics type.
+- AD-3 (ratified): `RunState` is the single owner of all run data; nothing else holds an authoritative duplicate.
+- AD-4 (ratified + tightened): `TurnEngine.advance` runs the fixed pipeline PlayerAction → Hunger → Detection → Companion AI → Enemy AI (Combat) → Noise resolve → Last Stand → cleanup. Combat resolves at the actor's point in the pipeline via `CombatSystem`; a dead agent never acts later in the turn.
+- AD-5 (ratified + extended): a turn commits only on a real player action (survival-clock honesty); the whole party shares one turn — companions act only on player-acted turns.
+- AD-6 (ratified + extended): `RunState` serializes via libGDX Json; the tilemap serializes inline (never regenerated from seed on load). Add a `saveVersion`; pre-AD-8 saves are rejected with a clear message, never silently loaded.
+- AD-7 (ratified + extended): run-scoped narrative state (flags, quest state, act progression, Bond) lives in `FlagStore`; Bond becomes keyed per-companion (roster of four) for the Remake.
+- AD-9 (ratified): noise is a `NoiseEvent` on a per-turn queue; `NoiseSystem.resolve` is the single consumer (centrally nudges enemy detection state); `DetectionSystem` is the separate FOV-driven escalation path. Remake adds player-movement noise on the same channel.
+- AD-10 (companion model): each active companion is a full tile-agent (own Status/HP/debuffs/survival tracks + 7-state behavior machine); `CombatSystem` is the single authority over all three HP pools (player/companion/enemy); companions keyed by `bindId`; party-stealth penalty is a `NoiseEvent`; only the active companion is a positioned tile-agent (off-party members are abstract FlagStore/Bond entries).
+- AD-11: the occupation-escalation ramp has two channels — off-border presence thickens per act; the NW border cordon thins as acts advance (story-flag-scaled). They must not be merged.
+- AD-12: the border crossing is the win — always physically walkable; the cordon's strength is AD-11 channel (b), survivable only with Act-3 readiness; a scripted gauntlet, not a boss.
+- AD-13: gear-with-memory — repairs restore durability but permanently lower max on a SKILL-modified decay curve.
+- AD-14: Act 0 (text intro + Aldric tutorial) is a core-owned sequence presented by the screen; intro/dialogue/quest-log surfaces commit no turn and tick no survival clock (dialogue-safe-pause).
+- AD-15: SPD-style presentation is a ratifying, system-wide constraint (2D top-down tiles, turn-based, bottom log primary, minimal HUD).
+- AD-16: performance budget — one turn renders and pathfinds without perceptible stutter; a required perf test must cover the worst case (whole-party turn at max agent count + dense garrison, including per-agent FOV+AI+detection), not just render/pathfind.
+- AD-17: the economy is scarce — no infinite-money loop; traders convert surplus into readiness, never into safety.
+- AD-18: FOV and light are core mechanics (core-owned, symmetric rules); FOV computed only for the acting agent per step (cached across turn), detection keeps the cheap LOS-to-player check; light alerts enemies through exactly one mechanism — a per-turn `NoiseEvent` (AD-9), LOS-ignoring.
 
-### Non-Code Workstream
+### UX Design Requirements
 
-- Art: minimum unique sprites for Milek, Galleon, and one scavenger NPC (schedule risk, not a code blocker) — tracked as a story in Epic 6.
+*None — no bmad-ux design contract exists for this project. Presentation requirements are carried as NFR-1..5 (the SPD-style presentation lock) and AD-15. If a UX spec is authored later, its UX-DRs should be folded in here.*
 
 ### FR Coverage Map
 
-- FR-1: Epic 2 — Field of view
-- FR-2: Epic 2 — Explored fog memory
-- FR-3: Epic 2 — Enemy patrol
-- FR-4: Epic 2 — Detection state machine
-- FR-5: Epic 2 — Noise propagation
-- FR-6: Epic 5 — Branching dialogue
-- FR-7: Epic 5 — INSTINCT-gated choices
-- FR-8: Epic 5 — Scene/quest flags
-- FR-9: Epic 3 — Backpack & equipped slots
-- FR-10: Epic 3 — Use / drop
-- FR-11: Epic 3 — Per-seed identity
-- FR-12: Epic 3 — Identify-on-use persistence
-- FR-13: Epic 4 — Companion follow
-- FR-14: Epic 4 — Distraction leverage
-- FR-15: Epic 4 — Bond tracking (paid off in Epic 6 reunion)
-- FR-16: Epic 1 — Last Stand trigger
-- FR-17: Epic 1 — True permadeath
-- FR-18: Epic 6 — Route progression + Story Floor
-- FR-19: Epic 6 — Route completion
-- FR-20: Epic 1 — Save/resume
-- FR-21: Epic 1 — Permadeath clears save
-- FR-22: Epic 7 — Day/night cycle
-- FR-23: Epic 8 — Dynamic weather
-- FR-24: Epic 9 — Temperature
-- FR-25: Epic 9 — Fatigue
-- FR-26: Epic 9 — Wetness
-- FR-27: Epic 10 — Fire, shelter & rest
-- FR-28: Epic 11 — Environmental hazards
-- FR-29: Epic 12 — Crafting & components
-- FR-30: Epic 13 — Treasure & loot
-- FR-31: Epic 13 — Hidden resource nodes
-- FR-32: Epic 14 — Combat depth
-- FR-33: Epic 15 — Skills
-- FR-34: Epic 14 — Player progression
-- FR-35: Epic 16 — Bosses & mini-bosses
-- FR-36: Epic 17 — NPC behavior & schedules
-- FR-37: Epic 18 — Side quests
-- FR-38: Epic 19 — Region (Arc) progression framework
-- FR-39: Epic 19 — Per-region signature systems
-- FR-40: Epic 19 — Main storyline adaptation (realized in Region epics 20–26)
+- **FR-1** → Epic 2 — skippable, paged text intro (the Fall of Corneo).
+- **FR-2** → Epic 2 — Aldric's diegetic tutorial.
+- **FR-3** → Epic 2 — Aldric's capture (the wound + rescue seed).
+- **FR-4** → Epic 1 — four survival tracks.
+- **FR-5** → Epic 1 — day/night + weather.
+- **FR-6** → Epic 1 — food, water, purification.
+- **FR-7** → Epic 1 — temperature forces fire.
+- **FR-8** → Epic 1 — debuff system.
+- **FR-9** → Epic 3 — persistent hybrid Herois map + 11 World-Structures + tiers. *(The continuous-map substrate — the AD-8 floor-descent retirement — lands earlier, in Epic 1 Story 1, as the enabling refactor; Epic 3 enriches that substrate into the real hybrid world.)*
+- **FR-10** → Epic 3 — the foray loop.
+- **FR-11** → Epic 3 — horizontal progression (SKILL + knowledge). *(Facets recur: SKILL→cooking/purification in Epic 1, SKILL→repair/gear-with-memory in Epic 4, allies in Epic 5. Primary owner: Epic 3.)*
+- **FR-12** → Epic 4 — combat viable-but-costly.
+- **FR-13** → Epic 4 — gear-with-memory.
+- **FR-14** → Epic 4 — permadeath + Last Stand.
+- **FR-15** → Epic 5 — companions are full tile-agents.
+- **FR-16** → Epic 5 — autonomous companion AI.
+- **FR-17** → Epic 5 — companions as help and liability.
+- **FR-18** → Epic 5 — the act-gating main story + the border-crossing win.
+- **FR-19** → Epic 2 — dialog & quest delivery (foundation authored here for the intro; reused and extended in Epic 5).
+- **FR-20** → Epic 6 — inventory.
+- **FR-21** → Epic 6 — currency & trade.
+
+*NFR-1..5 (the SPD-style presentation lock) are cross-cutting: primary surface stood up in Epic 1, enforced in every epic per AD-15. AD-8 (retire floor-descent → continuous map) is Epic 1, Story 1 — the enabling refactor for everything spatial.*
 
 ## Epic List
 
-### Epic 1: Foundation, Save & Survival
-Rebuild the run on a `RunState` + `TurnEngine` spine (strangler-extracted from `RogueGameScreen`) so every later mechanic attaches as a system, then deliver the player-facing payoffs that spine makes possible: quit-and-resume a run, and a Last Stand reprieve before permadeath.
-**FRs covered:** FR-16, FR-17, FR-20, FR-21
+### Epic 1: Survive the Forest
+Stand up a playable survival life on one continuous, persistent Herois map — the loop the whole game is built on, delivered first (PRD SM-2: "survival loop genuinely playable first"). The enabling move is Story 1's AD-8 refactor: retire the floor-descent machinery so the map is one traversable region, then prove Klein can survive several in-game days against Hunger, Thirst, Temperature, the Day/Night clock, weather, food/water/purification, fire, and debuffs — rendered on the SPD-style surface.
+**FRs covered:** FR-4, FR-5, FR-6, FR-7, FR-8 (+ AD-8 continuous-map refactor; NFR-1..5 presentation surface).
 
-### Epic 2: Sight & Stealth
-The Caravan Road can be *sneaked*. Milek sees only by line of sight; mercenaries patrol, notice, and hunt — and can be avoided rather than fought.
-**FRs covered:** FR-1, FR-2, FR-3, FR-4, FR-5
+### Epic 2: The Fall of Corneo — Intro & Onboarding
+Bring a new player into the world and teach them to play *in-fiction*: the skippable paged text intro (the before and the fall), Aldric's diegetic tutorial of the Epic 1 survival controls, and his capture — the first loss and the seed of the rescue that pulls east. This epic also authors the **dialog & quest delivery foundation** (text-forward nodes, numbered choices, the dialogue-safe-pause, quest flags) that the intro is the first consumer of and that Epic 5 later extends.
+**FRs covered:** FR-1, FR-2, FR-3, FR-19 (governed by AD-14).
 
-### Epic 3: Scavenged Supplies
-Scarcity you can feel: a finite backpack and unlabeled supplies that might save you or hurt you, learned only by trying them.
-**FRs covered:** FR-9, FR-10, FR-11, FR-12
+### Epic 3: Forays into Herois — The World & Its Loot
+Turn the continuous substrate into the real Herois: the hybrid map (fixed canon landmarks + procedural wilderness), the east/west danger gradient, and the 11 World-Structure Locations across 3 danger tiers, each with its loot and hazard. Deliver the complete foray loop — leave a safe point, travel east under the clock, scavenge under hazard, haul back before night/weather turns — and the horizontal-progression spine (grow by SKILL and knowledge, never kill count).
+**FRs covered:** FR-9, FR-10, FR-11 (governed by AD-16 performance, AD-17 economy scarcity, AD-18 FOV/light).
 
-### Epic 4: Galleon at Your Side
-A companion who changes *how* a floor is solved, not just how hard you hit — Galleon follows, draws patrols off with a shout, and remembers how you treat him.
-**FRs covered:** FR-13, FR-14, FR-15
+### Epic 4: Combat & Its Costs
+Make fighting real, winnable, and expensive. Combat resolves at the actor's point in the turn pipeline through the single `CombatSystem` authority; every swing costs weapon durability on the gear-with-memory decay curve (repairs permanently lower max), noise draws reinforcements, the occupation thickens per act, and death is permanent save the once-per-run Last Stand. The lesson the systems teach: avoidance and stealth usually beat a straight fight.
+**FRs covered:** FR-12, FR-13, FR-14 (governed by AD-4 combat point, AD-10 single HP authority, AD-11 escalation, AD-13 gear decay).
 
-### Epic 5: Voices on the Road
-Authored moments interrupt the crawl: conversations with real choices, INSTINCT reads that reward Milek's cunning, and flags that remember what you did.
-**FRs covered:** FR-6, FR-7, FR-8
+### Epic 5: Companions & The Story
+The capstone: recruit companions as **full tile-agents** (own Status, HP, debuffs, and a behavior state machine — help *and* liability), deepen Bond through shared survival and dialogue, and play the act-gating main story ("Follow the Road" → "The Rescue" → the choice) to the canonical homecoming — the NW border crossing as a final tense run, not a boss. Builds on the Epic 2 dialog foundation, the Epic 4 combat authority (companion FIGHT), and the Epic 3 world (act-gates are spatial pushes).
+**FRs covered:** FR-15, FR-16, FR-17, FR-18 (governed by AD-10 companion model, AD-7 per-companion Bond, AD-5 party turn, AD-11/AD-12 escalation & border win, AD-14 dialogue-safe-pause).
 
-### Epic 6: The Caravan Road (Capstone)
-Assemble the slice into a playable Route: three procedural floors into an authored reunion, bookended by the "Five Nights, Again" opening and a completion beat — with the minimum art to make it read.
-**FRs covered:** FR-18, FR-19 (integrates all prior epics)
-
----
-
-> **↓ North Star expansion (Epics 7+).** Post-MVP. Grouped in phases; each attaches to the Epic 1 spine as systems, then Region epics build content on top. Story outlines only until scheduled.
-
-**Phase A — Survival Simulation** (deepens the survival loop the MVP starts)
-
-### Epic 7: Time & the Day/Night Cycle
-A turn-driven clock that turns the world over: light and visibility shift, spawns and NPC schedules change, and some resources only appear at certain hours.
-**FRs covered:** FR-22
-
-### Epic 8: Dynamic Weather
-Rain, storm, wind, and snow that are never just weather — they cut visibility, drag movement, and reshape what you can gather and survive.
-**FRs covered:** FR-23
-
-### Epic 9: The Body — Temperature, Fatigue & Wetness
-Three interlocking realism meters beside Hunger. Cold and heat, exhaustion, and getting soaked — each a pressure, introduced one region at a time so the loop never becomes meter-soup.
-**FRs covered:** FR-24, FR-25, FR-26
-
-### Epic 10: Fire, Shelter & Rest
-The crafted answer to the body: campfires and shelter that warm, dry, and let you rest — and a decision about *where and when* it's safe to stop.
-**FRs covered:** FR-27
-
-### Epic 11: Environmental Hazards
-The world bites back: poison, ice, heat and dust, hazardous terrain — region-signature dangers that reward reading the ground.
-**FRs covered:** FR-28
-
-**Phase B — Gameplay Depth** (turns survival into a game with mastery)
-
-### Epic 12: Crafting & Components
-Materials become tools, weapons, armor, fire, and food through recipes — the engine that connects gathering to survival and combat.
-**FRs covered:** FR-29
-
-### Epic 13: Loot, Treasure & Hidden Resources
-Reasons to explore: environmental gather nodes (grass/logs/trees/rocks), placed caches, and region loot tables with rarity.
-**FRs covered:** FR-30, FR-31
-
-### Epic 14: Combat Depth & Progression
-Combat that's real but honest: weapon-based attacks, region- and time-varied enemies, and persistent mastery Milek grows — fighting is a tool, not always the answer.
-**FRs covered:** FR-32, FR-34
-
-### Epic 15: Skills
-Unlockable combat and survival techniques that improve fighting *and* gathering, crafting, and exploration efficiency — how the "ant" gets sharper.
-**FRs covered:** FR-33
-
-### Epic 16: Bosses & Mini-Bosses
-A per-region encounter framework for three boss kinds — **fightable** (regional threats), **evasion** (unwinnable-yet walls like Spearshot), and **social** (outmaneuver, like Swan) — one gating each region's exit.
-**FRs covered:** FR-35
-
-**Phase C — World & Content Framework**
-
-### Epic 17: NPCs, Neutrals & Schedules
-The road is peopled: allies, neutral bystanders, and benefactors with daily schedules and states you can read, help, or avoid.
-**FRs covered:** FR-36
-
-### Epic 18: Side Quests
-Optional threads that reward exploration with gear, lore, and relationships — the texture between story beats.
-**FRs covered:** FR-37
-
-### Epic 19: Region (Arc) Progression Framework
-Generalizes the Route into the novel's horizontal road: a region model with biome, enemies, NPCs, resources, quests, a signature system, a boss, and an exit — travel advances the story.
-**FRs covered:** FR-38, FR-39, FR-40
-
-**Phase D — Regions of the Road** (content epics built on the framework; each = one leg of the novel)
-
-### Epic 20: Region 0 — Coneros: The Fall
-The fully-playable Prologue→Ch2 intro (Act 0) — controls taught by loss. Realizes `opening-design-act0-forest.md`.
-**FRs covered:** FR-40 (+ integrates prior systems)
-
-### Epic 21: Region 1 — North Pines: Whispering Forest
-Act 1, the first free-play region: hunger, fire/shelter, rain, crafting, stealth, the five-night camp raid, the "trailed home" climax. Companion = Erik.
-**FRs covered:** FR-38, FR-39 (+ Phase A/B systems)
-
-### Epic 22: Region 2 — Pinehurst & The Convoy
-Captivity as a region: the gap-in-the-door observation loop, feeding-line rationing, NPC schedules. Allies: Henry, the Pack.
-**FRs covered:** FR-38, FR-36
-
-### Epic 23: Region 3 — Tradewick: Gray Law
-A lawless hub of skills and side quests, crowd-stealth and "notability." Social boss: Bulwark Swan. Separation beat.
-**FRs covered:** FR-38, FR-37, FR-35
-
-### Epic 24: Region 4 — Coastal Road to Oakdale
-Exposure and weather on open ground; the evasion wall arrives — Spearshot, whom you survive, not beat.
-**FRs covered:** FR-38, FR-24, FR-35
-
-### Epic 25: Region 5 — Mirko: The Frost Pass
-Cold, snowstorms, and fire-or-die; ice hazards and pass bandits in an unmapped bottleneck.
-**FRs covered:** FR-38, FR-24, FR-28
-
-### Epic 26: Region 6 — Valens: The Wall
-Endgame of Route 1: prison starvation, the crack in the wall, the Twilight Knight mentor, the escape gauntlet, the 7-year threshold.
-**FRs covered:** FR-38, FR-40
-
-**Phase E — Beyond Route 1** (future region-sets, not yet decomposed)
-
-### Epics 27+: The Later Arcs
-Academic · Revolution · Throne War · One Kingdom · The Heaven Fell — each becomes its own region cluster when the game reaches it. The Blackberry Troupe / Theodore recur as benefactors throughout. Placeholder; decomposed when scheduled.
-**FRs covered:** FR-38, FR-40 (future)
+### Epic 6: Inventory, Currency & Economy
+Make carrying a real constraint and give the player a way to convert surplus into readiness: the hybrid slot+weight inventory (Quick-Access + expandable main slots, weight-by-STR, bags with durability and thematic traps) and the deliberately scarce four-tier currency with its two mobile traders as the only sinks. Enriches the basic ratified inventory the earlier forays used; scarcity (AD-17) keeps the economy always worse than foraging.
+**FRs covered:** FR-20, FR-21 (governed by AD-17 scarce economy).
 
 ---
 
-## Epic 1: Foundation, Save & Survival
+## Epic 1: Survive the Forest
 
-Rebuild the run on a headless `RunState` + `TurnEngine` spine so later mechanics attach as ordered systems, then ship the payoffs that spine enables: resume-a-run and Last Stand.
+Stand up a playable survival life on one continuous, persistent Herois map — the loop the whole game is built on (PRD SM-2). Story 1.1 is the enabling AD-8 refactor; the rest prove Klein can survive several in-game days.
 
-### Story 1.1: Extract RunState as the single owner of run data
+### Story 1.1: Retire floor-descent for one continuous map
 
-As the developer,
-I want all run data moved into one `RunState` object,
-So that there is a single authoritative source to advance, test, and later serialize.
-
-**Acceptance Criteria:**
-
-**Given** the game is refactored, **When** a run starts, **Then** the tilemap, player, enemy list, hunger, HP, current floor index, and seed all live on one `RunState` instance and nothing else holds a duplicate authoritative copy (AD-3).
-**And** the game plays identically to before the refactor (same movement, combat, hunger, stairs, permadeath).
-**And** no rendering type (`SpriteBatch`, `ShapeRenderer`, `Screen`, `Texture`) is referenced from `RunState` or the model package (AD-2).
-
-### Story 1.2: Introduce the ordered TurnEngine and extract systems
-
-As the developer,
-I want the turn to advance through a `TurnEngine` running ordered systems,
-So that `RogueGameScreen` only handles input/render and new mechanics slot in without editing the screen.
+As the solo developer,
+I want the floor-descent machinery replaced by a single continuous tiled region,
+So that the game can express the east/west danger gradient the whole design depends on (AD-8).
 
 **Acceptance Criteria:**
 
-**Given** a player action is submitted, **When** `TurnEngine.advance()` runs, **Then** systems execute in fixed order PlayerAction → Hunger → Enemy AI → Noise resolve → cleanup (AD-4).
-**And** the existing hunger tick and combat/defense resolution now live in `HungerSystem` and `CombatSystem`, not inline in the screen.
-**And** `RogueGameScreen` contains no game rule — only input forwarding and rendering (AD-2).
+**Given** the ratified brownfield core
+**When** the AD-8 refactor is applied
+**Then** `RunState.descend()`, `floorDepth` (+ getters/setters), the `Route` floor-list model (`getFloorCount`), `RogueTile.STAIRS_DOWN/STAIRS_UP`, `FloorGenerator`'s per-floor BSP output, and the `TurnEngine` STAIRS_DOWN descent trigger are removed
+**And** `FloorGenerator` produces one continuous tiled region and `Route` models landmark geography, not floors
+**And** the existing headless tests compile and pass with no reference to descent/stairs symbols.
 
-### Story 1.3: Single seeded RNG for reproducible runs
+**Given** a save written before the refactor
+**When** it is loaded
+**Then** it is rejected with a clear message (AD-6 `saveVersion`), never silently loaded onto the new map shape.
 
-As the developer,
-I want all gameplay randomness to draw from one seeded RNG on `RunState`,
-So that a seed reproduces a run for debugging and honest playtesting.
+### Story 1.2: Four survival tracks that tick on real turns
 
-**Acceptance Criteria:**
-
-**Given** two runs started with the same seed, **When** floors generate and identify-by-use binds, **Then** the layouts and bindings are identical (NFR-2, AD-5).
-**And** no gameplay class calls `new Random()` — all draws come from `RunState`'s RNG.
-
-### Story 1.4: Save and resume a run
-
-As Justine (player),
-I want to quit mid-run and pick up exactly where I left off,
-So that a play session can span more than one sitting (FR-20).
+As Klein,
+I want Hunger, Thirst, Temperature, and the Day/Night clock to advance as I act,
+So that survival is a real, honest pressure (FR-4).
 
 **Acceptance Criteria:**
 
-**Given** an in-progress run, **When** I save and relaunch, **Then** the exact `RunState` (floor, positions, inventory, identified supplies, flags, Bond, hunger, HP, last-stand-used, seed) is restored and play continues from the saved turn (FR-20, AD-6).
-**And** serialization uses libGDX `Json` with `RunState` as the sole root; the tilemap and RNG are not double-serialized via entity back-references (save convention, NFR-4).
+**Given** a run in progress
+**When** I take a real action (move, scavenge, eat, craft, fight, hide, rest, wait)
+**Then** Hunger, Thirst, Temperature, and the Day/Night clock each advance by one turn's worth per their tiers/drift rates (Hunger: Well Fed→Satisfied→Hungry→Starving; Thirst: Hydrated→Thirsty→Dehydrated→Parched).
 
-### Story 1.5: Permadeath clears the save
+**Given** a run in progress
+**When** I press a key into a wall or inert tile
+**Then** no turn is committed and no survival track ticks (survival-clock honesty, AD-5).
 
-As Justine (player),
-I want a dead run to be truly gone,
-So that death carries weight and can't be reloaded (FR-21).
+**Given** Hunger reaches Starving or Thirst reaches Parched
+**When** the escalation stages are entered
+**Then** the listed penalties apply (Starving: Fatigue -35% STR → Trembling -15% AG → Rotting -3 HP/2 turns; Parched: Withered → Trembling → Dried Out -2 HP/5 turns).
+
+### Story 1.3: Day/Night clock and per-cycle weather
+
+As Klein,
+I want the day to turn to night and weather to roll each cycle,
+So that time and weather shape how I plan (FR-5).
 
 **Acceptance Criteria:**
 
-**Given** true death occurs, **When** the game-over state is reached, **Then** the save slot is deleted and no "continue" option is offered — only a new run can start (FR-21).
+**Given** a run in progress
+**When** turns accumulate
+**Then** the clock runs Day 100 turns / Night 70 turns (170-turn cycle), and the current phase is queryable by systems and the HUD.
 
-### Story 1.6: Last Stand reprieve before permadeath
+**Given** a new 170-turn cycle begins
+**When** weather is rolled
+**Then** exactly one weather type is chosen on the weighted distribution (Clear 40 / Rain 25 / Fog 20 / Storm 10 / Cold Snap 5) and its listed pro/con is in effect for the cycle.
 
-As Justine (player),
-I want one desperate reprieve the first time a blow would kill Milek,
-So that death feels earned, not cheap (FR-16, FR-17).
+### Story 1.4: FOV and light — the visible-camp tension
+
+As Klein,
+I want darkness and fog to shrink what I can see and light to restore it at the cost of noise,
+So that a lit camp is a visible camp (FR-5, FR-7, AD-18).
 
 **Acceptance Criteria:**
 
-**Given** Milek has not yet used Last Stand this run, **When** a hit would drop him to ≤0 HP, **Then** he instead survives at 1 HP in a flagged desperate state for that turn and a message communicates the reprieve (FR-16).
-**And** **Given** Last Stand is already spent, **When** another lethal event occurs, **Then** the run ends via permadeath (FR-17), and starting a new run resets the flag.
+**Given** it is Night or the weather is Fog
+**When** FOV is computed for the acting agent
+**Then** the visible radius is shrunk versus clear-day baseline.
+
+**Given** I light a campfire or torch
+**When** FOV is recomputed
+**Then** my visible radius is restored but reduced versus clear day.
+
+**Given** a lit campfire or torch on my tile
+**When** the Noise step resolves (AD-9)
+**Then** a `NoiseEvent` is emitted at the light's tile each turn, LOS-ignoring, and in-radius enemies are drawn toward it (an enemy behind a wall can still be alerted).
+
+### Story 1.5: Food, water, and two-step purification
+
+As Klein,
+I want to source, cook, and purify food and water,
+So that I can eat and drink without poisoning myself (FR-6).
+
+**Acceptance Criteria:**
+
+**Given** a raw water source
+**When** I collect from it (Sunken Well stable / Pond / River 20% direct-drink poison risk)
+**Then** untreated water carries its source's risk until purified.
+
+**Given** raw water and a fire with coal
+**When** I filter (SKILL-based, reduces risk) then boil
+**Then** the water reaches 0% risk; filtration alone reduces but does not eliminate it.
+
+**Given** food in inventory
+**When** turns pass
+**Then** it advances Fresh → Half Rotten → Fully Spoiled; cooked meat and purified water resist spoilage; storage items slow the rate.
+
+**Given** cooking or purification is performed
+**When** the outcome is rolled
+**Then** it is governed by SKILL (the horizontal growth path, FR-11).
+
+### Story 1.6: Temperature and the campfire/torch
+
+As Klein,
+I want cold and heat to threaten me and fire to be the mitigation,
+So that warmth is a real choice under scarcity (FR-7).
+
+**Acceptance Criteria:**
+
+**Given** a Cold Snap with no mitigation
+**When** ~38 turns pass
+**Then** Temperature reaches Frozen (inside one 70-turn Night), with recovery ≈ half the onset rate.
+
+**Given** I build a campfire
+**When** it is lit
+**Then** it provides warmth + light + a cooking/purification station, is stationary, and is exposed (visible/audible to patrols per Story 1.4).
+
+**Given** Wood and Coal in inventory
+**When** I craft a torch
+**Then** I get a light-only source with a 60-turn burn (≈ one Night).
+
+**Given** a fire has drawn a patrol
+**When** I abandon the camp to flee into fog
+**Then** I lose the camp's cooking/purify/warmth benefits for the night — trading heat for stealth (UJ-1 edge case).
+
+### Story 1.7: The debuff system
+
+As Klein,
+I want unsafe survival choices to inflict tiered, curable debuffs,
+So that scarcity has teeth I must actively answer (FR-8).
+
+**Acceptance Criteria:**
+
+**Given** I consume contaminated food/water
+**When** the bacterial track triggers
+**Then** it escalates Nausea (-30% STR, 30t) → Fever (-40%, 25t) → Delirium (Paranoia+Vertigo+Crippled, 40t), with Diarrhea running parallel (Stage 1 2× / Stage 2 3× drain, lethal if ignored).
+
+**Given** I eat a toxic mushroom
+**When** the toxin track triggers
+**Then** the listed effects apply (Rotgut: instant Nausea+Crippled+Diarrhea; Honeymoon→Collapse: hidden 60-turn countdown → Max HP capped at 40% until cured).
+
+**Given** an active debuff
+**When** I apply the correct cure (Honey/Honeycomb, Bloodvein, cure items)
+**Then** it clears or shortens per the rule; debuffs do NOT clear from turns alone — only eating, drinking, or curing removes them.
+
+### Story 1.8: The survival HUD and message log
+
+As Klein,
+I want to see my survival state and read what happens each turn,
+So that the survival loop is legible and playable — the Epic 1 milestone (NFR-1..3, AD-15).
+
+**Acceptance Criteria:**
+
+**Given** a run in progress
+**When** the screen renders
+**Then** a minimal HUD shows the four tracks, current time/weather, and HP, and the bottom message log is the primary text surface (SPD-style).
+
+**Given** any turn resolves
+**When** notable events occur (tier change, debuff, weather roll, detection)
+**Then** they are written to the bottom message log in the SPD text-forward tone.
+
+**Given** the full Epic 1 loop
+**When** a playtester plays
+**Then** Klein can survive several in-game days against all four tracks, weather, and debuffs (SM-2 met) with no floor-descent anywhere.
 
 ---
 
-## Epic 2: Sight & Stealth
+## Epic 2: The Fall of Corneo — Intro & Onboarding
 
-Line-of-sight vision plus patrolling, noticing, hunting enemies — so the Caravan Road can be avoided rather than fought.
+Bring the player in and teach them in-fiction, ending on Aldric's capture; author the dialog/quest foundation the intro is the first consumer of (AD-14).
 
-### Story 2.1: Line-of-sight field of view
+### Story 2.1: Text-forward dialogue nodes with safe pause
 
-As Justine (player),
-I want to see only what Milek can actually see,
-So that stealth and ambush have meaning (FR-1).
-
-**Acceptance Criteria:**
-
-**Given** Milek stands in a room, **When** the view renders, **Then** tiles within the sight radius and not blocked by a wall are visible; opening a door reveals the room beyond next turn (FR-1).
-**And** enemies and supplies render only while on a currently-visible tile.
-**And** FOV runs as a system on `RunState`, using the seeded/deterministic tile data (AD-2).
-
-### Story 2.2: Explored fog memory
-
-As Justine (player),
-I want previously-seen terrain to be remembered dimly,
-So that I can navigate without seeing live enemies through walls (FR-2).
+As Klein,
+I want conversations to present a speaker line and numbered choices while the world holds still,
+So that reading and choosing never costs me a turn (FR-19, AD-14).
 
 **Acceptance Criteria:**
 
-**Given** a room I have left, **When** it is out of sight, **Then** its walls/floor render dimmed and any enemy that walked out of sight is no longer drawn (FR-2).
+**Given** a dialogue node
+**When** it is shown
+**Then** it renders a speaker line + up to N numbered choices in the text-forward surface, and the turn loop is suspended (no survival tick, no turn committed).
 
-### Story 2.3: Enemy patrol while unaware
+**Given** a choice
+**When** I select it
+**Then** it can advance the node, set a `FlagStore` flag, fire an effect (Bond gain/loss, item give/take, disposition), or be gated by a stat — and the node closes cleanly back to gameplay.
 
-As Justine (player),
-I want unaware enemies to patrol predictably,
-So that I can read patterns and slip past (FR-3).
+**Given** VOICE- or INS-gated choices
+**When** the gate is evaluated
+**Then** the choice routes to the appropriate success/failure branch by the gating stat (VOICE primary).
 
-**Acceptance Criteria:**
+### Story 2.2: The skippable paged text intro
 
-**Given** an Unaware enemy and Milek never entering its sight or Noise range, **When** turns pass, **Then** the enemy follows its patrol/idle-wander and never initiates combat (FR-3).
-
-### Story 2.4: Detection state machine
-
-As Justine (player),
-I want enemies to notice me gradually and lose me if I break away,
-So that stealth is a tense, recoverable state rather than instant failure (FR-4).
-
-**Acceptance Criteria:**
-
-**Given** Milek enters an enemy's vision radius with line-of-sight, **When** turns pass, **Then** the enemy rises Unaware→Suspicious, and sustained sight escalates to Alerted (begins pursuit) per the tuning thresholds (FR-4, AD-9).
-**And** **Given** the enemy loses sight and stimulus, **When** the de-escalation interval passes, **Then** it drops one Detection step.
-
-### Story 2.5: Noise propagation
-
-As Justine (player),
-I want loud actions to draw enemies,
-So that noise is a tool and a risk (FR-5).
+As a new player,
+I want a skippable, paged intro covering the fall of Corneo,
+So that I get the story without being forced to read it (FR-1).
 
 **Acceptance Criteria:**
 
-**Given** a Noise event (e.g., forcing a crate), **When** the AI system ticks, **Then** enemies within the Noise radius raise Detection and/or move toward the Noise origin; a silent move produces no such effect (FR-5, AD-9).
+**Given** a new run
+**When** the intro plays
+**Then** it pages through the before, the fall, and the hand-off (Klein and Aldric fleeing) in the SPD text-forward tone.
+
+**Given** any intro screen
+**When** I choose skip
+**Then** it jumps to gameplay in one action.
+
+**Given** any intro screen
+**When** it is shown
+**Then** no survival track ticks and no turn is consumed (AD-14).
+
+### Story 2.3: Aldric's diegetic tutorial
+
+As a new player,
+I want Aldric to teach me the controls in-world during the opening flight,
+So that I learn to play without tooltips (FR-2).
+
+**Acceptance Criteria:**
+
+**Given** the opening flight after the intro
+**When** Aldric speaks
+**Then** the how-to-play (move, scavenge, eat, craft, hide, rest) is delivered as in-world dialogue, not UI chrome.
+
+**Given** the tutorial sequence
+**When** I follow Aldric's prompts
+**Then** each core control from Epic 1 is demonstrated diegetically at least once.
+
+### Story 2.4: Aldric's capture and the rescue seed
+
+As Klein,
+I want Aldric taken the moment I've learned the ropes,
+So that I feel the first loss and inherit the rescue thread (FR-3).
+
+**Acceptance Criteria:**
+
+**Given** the tutorial is complete
+**When** the chasers catch up
+**Then** Aldric leaves by capture (a `FlagStore` flag, recoverable later), not death, and Klein escapes alone.
+
+**Given** the capture
+**When** it resolves
+**Then** the message log and a discovery seed establish Aldric is held **east** along the Copper Road, opening Act 1's wound and UJ-3's east-pull.
+
+### Story 2.5: Quest flags and the passive Journal
+
+As Klein,
+I want quests to start from NPCs or discoveries and be looked up in a Journal,
+So that the story can gate content without a rigid quest UI (FR-19).
+
+**Acceptance Criteria:**
+
+**Given** an NPC line or a discovery (Journal Note / item)
+**When** it triggers a quest
+**Then** the quest auto-starts by setting `FlagStore` quest state; killing a quest-giver voids that quest.
+
+**Given** active/known quests
+**When** I open the Journal
+**Then** it is a passive lookup of quest state — not a delivery mechanism — reading current `FlagStore` state.
 
 ---
 
-## Epic 3: Scavenged Supplies
+## Epic 3: Forays into Herois — The World & Its Loot
 
-A finite backpack and unlabeled supplies whose nature is learned only by using them.
+Turn the continuous substrate into the real Herois and deliver the complete foray loop and horizontal-progression spine.
 
-### Story 3.1: Backpack and equipped slots
+### Story 3.1: Hybrid map generation
 
-As Justine (player),
-I want limited carry capacity,
-So that scarcity forces real choices (FR-9).
-
-**Acceptance Criteria:**
-
-**Given** a full backpack, **When** I try to pick up another item, **Then** I'm prompted to drop-or-leave; equipping moves an item from backpack to an equipped slot (FR-9).
-**And** capacity uses the tuning values (8 backpack / 2 equipped) and ratifies the existing type/count `Inventory` model (AD-12).
-
-### Story 3.2: Use and drop items
-
-As Justine (player),
-I want to use or drop what I carry,
-So that I can spend supplies and shed weight (FR-10).
+As Klein,
+I want a forest that varies each run but keeps Herois's canon shape,
+So that every life is a new forest on the same spatial spine (FR-9).
 
 **Acceptance Criteria:**
 
-**Given** a consumable, **When** I use it, **Then** its effect applies and it is removed; **When** I drop any item, **Then** it appears on Milek's tile and can be re-picked (FR-10).
+**Given** a new run
+**When** the map generates
+**Then** fixed canon landmarks (Corneo, the Copper Road, the NW border crossing, the Watchtower) are placed consistently and procedural wilderness fills between them on the continuous region.
 
-### Story 3.3: Per-seed supply identity
+**Given** the generated map
+**When** the spatial spine is checked
+**Then** west/northwest = home/border and east/interior = the invasion down the Copper Road; danger and loot rise east, safety lies west.
 
-As the developer,
-I want each Supply type bound to a true identity per seed at run start,
-So that identify-by-use is a genuine gamble that varies between runs (FR-11).
+### Story 3.2: The 11 World-Structures across three danger tiers
 
-**Acceptance Criteria:**
-
-**Given** two runs on different seeds, **When** identities bind, **Then** "Sealed Waterskin" can map to different outcomes; within one run the mapping is stable (FR-11, AD-5, AD-12).
-
-### Story 3.4: Identify-on-use persistence
-
-As Justine (player),
-I want using one unknown supply to reveal that whole type,
-So that risk converts to knowledge for the rest of the run (FR-12).
+As Klein,
+I want distinct scavenge destinations placed along the danger gradient,
+So that where I go trades loot against risk (FR-9, FR-10).
 
 **Acceptance Criteria:**
 
-**Given** an unidentified Supply, **When** I use one, **Then** its true identity is revealed and applied, and all remaining supplies of that type show their true identity for the rest of the run (FR-12).
+**Given** the generated map
+**When** World-Structures are placed
+**Then** all 11 exist across 3 tiers consistent with the east/west spine (T1 Hunter's Blind / Fallen Log Hollow / Forest Shrine / Beehive Grove; T2 Kitchen Camp / Collapsed Watchtower / Poacher's Camp / Sunken Well; T3 Old House / Mercenary Graveyard / Deep Cave Mouth).
+
+**Given** any World-Structure
+**When** I reach it
+**Then** it exposes its listed loot set and hazard (e.g. Hunter's Blind: rope/small tools/20% Map Fragment, weak-floor-plank hazard; Old House: preserved food/cloth/locked cellar, structural-decay hazard).
+
+### Story 3.3: The foray loop, end to end
+
+As Klein,
+I want a complete leave→travel→scavenge→return arc under the clock,
+So that a day's foray is a real risk/reward decision (FR-10).
+
+**Acceptance Criteria:**
+
+**Given** a safe point and daylight
+**When** I travel east to a World-Structure, scavenge under its hazard, and return
+**Then** the loot is carried back and the arc is one continuous traversal (no floor transitions).
+
+**Given** a foray in progress
+**When** turns pass
+**Then** Hunger (~650 to death), Thirst (~530), Temperature (~38 to Frozen under Cold Snap), and the 170-turn clock all compete for the same turns — travel, scavenge, and return draw from one budget.
+
+**Given** night catches me mid-return
+**When** I lack light
+**Then** the return is more dangerous (shrunken FOV, active night hazards) — the overreach is concrete (UJ-2 edge case).
+
+### Story 3.4: Night and weather shift location danger
+
+As Klein,
+I want locations to change danger with the clock and weather,
+So that when I go matters as much as where (FR-10).
+
+**Acceptance Criteria:**
+
+**Given** nightfall
+**When** location states update
+**Then** the Graveyard's undead and the Sunken Well's creature become active, the Poacher's Camp patrols turn more aggressive, and the Beehive Grove flips *safer* (the sole exception).
+
+**Given** a weather roll (Storm/Fog/Cold Snap)
+**When** it stacks on a location
+**Then** its listed effect applies (e.g. Storm raises structural-collapse chance at decayed structures).
+
+### Story 3.5: Horizontal progression — SKILL and knowledge
+
+As Klein,
+I want to grow by knowing the forest rather than by kills,
+So that mastery is horizontal (FR-11, SM-3).
+
+**Acceptance Criteria:**
+
+**Given** any kill
+**When** it resolves
+**Then** no number, level, or XP rises from it (no combat-XP).
+
+**Given** repeated doing (cooking, purification, repair, lockpicking)
+**When** SKILL is exercised
+**Then** SKILL-governed outcomes improve, and accumulated knowledge (map fragments, mushroom/water safety, recipes, location dangers) persists and is queryable.
+
+**Given** two players — one who knows the forest, one who doesn't
+**When** both play
+**Then** the knowledgeable one measurably survives longer with no XP advantage (SM-3).
 
 ---
 
-## Epic 4: Galleon at Your Side
+## Epic 4: Combat & Its Costs
 
-A companion who changes how a floor is solved and remembers how you treat him.
+Make fighting real, winnable, and expensive, so avoidance and stealth usually win.
 
-> **Design constraint:** build this as a generic, entity-agnostic **Companion** system (follow / distraction / Bond), not Galleon-specific — Erik is the first bind (Act 0 + Forest), Galleon binds later on the road. See `opening-design-act0-forest.md`.
+### Story 4.1: Combat resolves at the actor's point via CombatSystem
 
-### Story 4.1: Companion follow and floor transition
-
-As Justine (player),
-I want Galleon to travel with me,
-So that he's present to help across the Route (FR-13).
+As Klein,
+I want to fight with a real action set in turn order,
+So that combat is a genuine option with clear resolution (FR-12, AD-4).
 
 **Acceptance Criteria:**
 
-**Given** Galleon is active, **When** I move or take stairs, **Then** he pathfinds to stay near Milek and transitions to the next floor, occupying the single party slot (FR-13, AD-10).
+**Given** hostiles in range
+**When** combat runs
+**Then** turn order is by AG (higher acts first), the action set is Attack / Block / Dodge / Use Item / Flee, and all damage routes through the single `CombatSystem` authority.
 
-### Story 4.2: Distraction leverage
+**Given** I kill an enemy with my attack
+**When** the pipeline continues that turn
+**Then** the dead enemy never acts later in the turn (dead-before-act, AD-4); no HP is mutated outside `CombatSystem` for combat.
 
-As Justine (player),
-I want to send Galleon to make noise,
-So that I can peel patrols off a path I couldn't force alone (FR-14).
+### Story 4.2: Combat noise draws reinforcements
 
-**Acceptance Criteria:**
-
-**Given** Galleon is active and Distraction is available, **When** I trigger it, **Then** a Noise event raises nearby enemies' Detection toward the origin, opening a path away from it (FR-14, AD-9, AD-10).
-**And** the ability respects its per-floor use limit / cooldown (2 per floor or 6-turn cooldown).
-
-### Story 4.3: Bond tracking
-
-As the developer,
-I want Galleon's Bond to shift from tagged dialogue choices,
-So that later authored dialogue can read it for tone (FR-15).
+As Klein,
+I want fighting to be loud,
+So that violence has a spatial consequence (FR-12, AD-9).
 
 **Acceptance Criteria:**
 
-**Given** a Bond-tagged choice, **When** selected, **Then** Bond updates in the `RunState` flag store and is readable by later dialogue nodes (FR-15, AD-7).
-**And** Bond unlocks no combat bonus or transformation in MVP (NFR-5).
+**Given** an attack or block
+**When** it resolves
+**Then** a `NoiseEvent` is emitted and consumed by `NoiseSystem.resolve`, drawing in-radius enemies toward the sound (UNAWARE→SUSPICIOUS, retarget).
+
+**Given** a wary patrol
+**When** I use VOICE to de-escalate (via dialogue)
+**Then** the encounter can be talked down instead of fought.
+
+### Story 4.3: Occupation escalation thickens per act
+
+As Klein,
+I want the Gilimans to grow denser as the story advances,
+So that fighting gets more punishing over a run (FR-12, AD-11 channel a).
+
+**Acceptance Criteria:**
+
+**Given** an act transition (story flags flip, AD-7/AD-11)
+**When** the off-border escalation channel reads them
+**Then** eastward/interior Giliman patrols, sweeps, curfews, and bounties get denser and more aggressive per act.
+
+**Given** the escalation ramp
+**When** it is applied
+**Then** it does NOT touch the NW border cordon (that is AD-11 channel b, owned by Epic 5) — the two channels stay separate.
+
+### Story 4.4: Weapon durability and gear-with-memory
+
+As Klein,
+I want weapons to wear and repairs to permanently cost their ceiling,
+So that gear is precious (FR-13, AD-13).
+
+**Acceptance Criteria:**
+
+**Given** a weapon
+**When** I attack/block/chop/throw
+**Then** it loses fixed durability per action, and at 0 it is unusable (~30 weapons across 5 categories × 5 tiers).
+
+**Given** a repair
+**When** it is performed
+**Then** durability is restored but max is permanently lowered on the SKILL-modified decay curve (Fresh 100% → 1st 90/93/96 → … → 6th+ beyond repair; Low SKILL hard-stops at the 6th).
+
+### Story 4.5: Scavenge-on-break and SKILL-based repair
+
+As Klein,
+I want broken gear to return materials and repairs to consume the right ones,
+So that the gear economy loops through my SKILL (FR-13).
+
+**Acceptance Criteria:**
+
+**Given** a weapon breaks
+**When** I scavenge it
+**Then** it returns partial materials by tier (T1–T2: 1–2 base; T3+: 2–3 base + possibly rare; T5: 3–4 base + unique).
+
+**Given** a repairable weapon and the right materials
+**When** I repair (spears: Wood+Rope; bows: Wood+String/Sinew; blades: Metal Scrap; etc.)
+**Then** the repair is SKILL-based and consumes the weapon-specific materials.
+
+### Story 4.6: Permadeath and Last Stand
+
+As Klein,
+I want one life per run with a single last-chance,
+So that death means something (FR-14).
+
+**Acceptance Criteria:**
+
+**Given** I drop to 0 HP with Last Stand unused
+**When** the auto-check runs
+**Then** a GRIT-based roll may leave me at 1 HP with no bonus, once per entire run.
+
+**Given** Last Stand is spent (or death occurs otherwise)
+**When** I die
+**Then** the run ends, the save is cleared (no save-scumming), and a restart begins a new life on a fresh procedural forest with the fixed canon spine.
 
 ---
 
-## Epic 5: Voices on the Road
+## Epic 5: Companions & The Story
 
-Authored conversations with real choices, INSTINCT reads, and flags that remember.
+The capstone: full-tile-agent companions and the act-gating spine to the earned homecoming. Builds on Epic 2 (dialog), Epic 4 (combat authority), Epic 3 (world).
 
-### Story 5.1: Branching dialogue that suspends the turn loop
+### Story 5.1: Companion as a full tile-agent
 
-As Justine (player),
-I want conversations to pause the action,
-So that authored moments land without enemies moving underneath them (FR-6).
-
-**Acceptance Criteria:**
-
-**Given** an authored dialogue node opens, **When** it is on screen, **Then** enemy turns do not advance and selecting one of its 1–4 choices advances to the linked node or closes the scene (FR-6, AD-7).
-
-### Story 5.2: INSTINCT-gated choices
-
-As Justine (player),
-I want some options unlocked by Milek's INSTINCT,
-So that his cunning is mechanically rewarded (FR-7).
+As Klein,
+I want a companion to be a real body with its own state,
+So that it is a person to protect, not a shadow (FR-15, AD-10).
 
 **Acceptance Criteria:**
 
-**Given** an INSTINCT-gated choice, **When** resolved, **Then** the outcome is a deterministic threshold compare (`instinct >= threshold`): success routes to the success branch (may set a flag / grant an item), failure routes elsewhere (FR-7, AD-8).
+**Given** an active companion
+**When** it exists on the map
+**Then** it carries its own Status block, its own HP pool (woundable/healable/incapacitable), and its own condition/debuff and survival state.
 
-### Story 5.3: Scene and quest flags
+**Given** the roster of four (Aldric combat; Mara, Old Fen, Yenna non-combat)
+**When** only one is active
+**Then** the active companion is a positioned tile-agent and the other three are abstract `FlagStore`/Bond entries (no tile, no noise, no survival tick until active) (AD-10).
 
-As the developer,
-I want authored scenes to set/read run-scoped flags,
-So that content can gate on what the player has done (FR-8).
+### Story 5.2: Autonomous companion behavior state machine
+
+As Klein,
+I want my companion to act on its own within the turn,
+So that it feels alive, not tethered (FR-16, AD-10).
 
 **Acceptance Criteria:**
 
-**Given** a scene sets a flag (e.g., "cache revealed"), **When** later content reads it, **Then** it gates correctly (the cache spawns) and the flag persists through save/reload (FR-8, AD-7, AD-6).
+**Given** an active companion on a player-acted turn
+**When** the Companion AI step runs
+**Then** it acts via a behavior state machine (follow / hold / hide / distract / fight-retreat for combatants; take-cover / flee for non-combatants), only on player-acted turns (AD-5), never merely mirroring my movement.
+
+**Given** the same detection/noise rules as enemies
+**When** the companion moves or acts
+**Then** it obeys them — a hidden companion is quiet, a panicking one emits noise that can blow my stealth.
+
+### Story 5.3: Simple orders steer the companion
+
+As Klein,
+I want to tell my companion to hide, hold, or distract,
+So that I can use it tactically (FR-16).
+
+**Acceptance Criteria:**
+
+**Given** an active companion
+**When** I issue hide / hold / distract
+**Then** the state machine switches to that behavior (distraction emits a `NoiseEvent` to pull patrols, reusing the existing distraction action).
+
+### Story 5.4: Companion combat and the liability cost
+
+As Klein,
+I want a combatant companion to fight through the same combat authority and cost me to keep,
+So that help is never free (FR-17, AD-10).
+
+**Acceptance Criteria:**
+
+**Given** a combatant companion in FIGHT
+**When** it attacks
+**Then** it routes through `CombatSystem` (no second owner of any HP pool), applying at the Companion-AI step.
+
+**Given** any active companion
+**When** it travels with me
+**Then** it costs extra food, adds a noise penalty to stealth (via its `NoiseEvent`s), and can be wounded; non-combatants (Mara, Old Fen, Yenna) never fight and must be defended.
+
+### Story 5.5: Bond and the shapes of loss
+
+As Klein,
+I want a relationship that deepens and can break,
+So that companions carry emotional stakes (FR-17, AD-7).
+
+**Acceptance Criteria:**
+
+**Given** shared survival and dialogue choices
+**When** Bond changes
+**Then** it is tracked per-companion (keyed by `bindId`); high Bond unlocks lore/loyalty/personal quests, low Bond withholds help or triggers departure, betrayal turns hostile.
+
+**Given** a companion is lost
+**When** the loss resolves
+**Then** it takes one of three shapes — Captured (recoverable via quest), Departure (low Bond), or Death (permanent) — matching the game's permadeath weight.
+
+### Story 5.6: The act-gating quests
+
+As Klein,
+I want main-story quests to advance the acts,
+So that the occupation tightens and the story throttles the run (FR-18, AD-11).
+
+**Acceptance Criteria:**
+
+**Given** Act 1
+**When** I complete "Follow the Road" (reach the Copper Road corridor, a Tier 2 push)
+**Then** a `FlagStore` flag flips and the act advances 1→2, and Epic 4's escalation channel reads it.
+
+**Given** Act 2
+**When** I complete "The Rescue" (reach/attempt Aldric's prison)
+**Then** success (Aldric rejoins) or failure (lost) both flip the 2→3 gate — Klein now knows the war and must choose.
+
+### Story 5.7: The border-crossing win and epilogue
+
+As Klein,
+I want the homecoming to be a final tense run past an act-scaled cordon,
+So that the win is escape, earned, not a boss (FR-18, AD-12, AD-11 channel b).
+
+**Acceptance Criteria:**
+
+**Given** Act 3 and the last provisioning done
+**When** I reach the NW border
+**Then** the crossing is a scripted tense run over a bounded number of turns against the Giliman cordon — always physically walkable, but survivable only with Act-3 readiness because the cordon (AD-11 channel b) has thinned as acts advanced.
+
+**Given** I survive the crossing
+**When** I cross into Novelborne
+**Then** the canonical ending lands (he makes it home) and the epilogue seeds connect to main-story canon (Corneo → Coneros, the Graveyard filling now) — validating SM-1.
 
 ---
 
-## Epic 6: The Caravan Road (Capstone)
+## Epic 6: Inventory, Currency & Economy
 
-Assemble the slice into a playable Route with authored bookends and the minimum art to read it.
+Make carrying a real constraint and give scarce coin a purpose through two traders.
 
-> **Authoring target:** the Prologue→Ch2 intro (Act 0) and the Ch3 Forest quest (Act 1) are fully specced in `opening-design-act0-forest.md` — Stories 6.2 (authored floor) and 6.3 ("Five Nights, Again") build from it.
+### Story 6.1: Hybrid slot + weight inventory
 
-### Story 6.1: Route progression through procedural floors
-
-As Justine (player),
-I want to descend three procedural floors of the Caravan Road,
-So that the crawl has a shape leading somewhere (FR-18).
+As Klein,
+I want carrying capacity to be a real constraint that better bags extend,
+So that what I haul is a decision (FR-20).
 
 **Acceptance Criteria:**
 
-**Given** Floors 1–3, **When** I take stairs, **Then** the next procedural floor loads and Route state advances 1→2→3 (FR-18).
-**And** Galleon, inventory, identified supplies, flags, and Last-Stand state carry across transitions.
+**Given** my inventory
+**When** I open it
+**Then** Quick-Access slots (5 weapon/armor-type + 3 artifact/ring) are always available, and the main inventory is 19 base slots expandable by equipping up to 5 storage items (bonuses merge).
 
-### Story 6.2: Authored Story Floor
+**Given** my STR
+**When** I carry items
+**Then** weight capacity scales with STR and over-capacity is handled (encumbrance), so a full pack limits foray range.
 
-As Justine (player),
-I want the fourth floor to be a hand-built place,
-So that the reunion happens exactly where and how it should (FR-18).
+### Story 6.2: Bag durability and thematic traps
 
-**Acceptance Criteria:**
-
-**Given** stairs are taken on Floor 3, **When** the next floor loads, **Then** it is the authored fixed layout, not a BSP-generated one (FR-18, AD-11).
-
-### Story 6.3: "Five Nights, Again" opening quest
-
-As Justine (player),
-I want the opening beat to establish tone and teach the loop,
-So that the slice starts in the novel's voice (content; realizes FR-6/7/8).
+As Klein,
+I want bags to wear and some to be trapped,
+So that storage itself carries risk (FR-20).
 
 **Acceptance Criteria:**
 
-**Given** a new run, **When** it begins, **Then** the opening monologue plays and the scavenger encounter offers the direct / INSTINCT / silent options, with the INSTINCT success revealing the hidden cache (FR-6, FR-7, FR-8).
+**Given** a bag with durability
+**When** it is used/damaged
+**Then** its durability tracks like any gear.
 
-### Story 6.4: Galleon reunion scene
+**Given** a trapped bag (dart/fire/freeze)
+**When** the trap fires
+**Then** the bag breaks and 75% of contents drop (recoverable), 25% are lost.
 
-As Justine (player),
-I want the reunion to play as an authored beat with a tone-setting choice,
-So that the emotional payoff the slice builds toward actually lands (FR-15, FR-19).
+### Story 6.3: Four-tier scarce currency
 
-**Acceptance Criteria:**
-
-**Given** the Story Floor is reached, **When** the reunion scene plays, **Then** it presents the tone-setting choice (honest / direct / silent), applies the corresponding Bond change, and reads Bond for warmer dialogue (FR-15, FR-19).
-
-### Story 6.5: Route completion end-state
-
-As Justine (player),
-I want a clear end to the slice,
-So that "finished" is a real, reachable state (FR-19, SM-1).
+As Klein,
+I want coin to be weighted and scarce,
+So that money is never a shortcut to safety (FR-21, AD-17).
 
 **Acceptance Criteria:**
 
-**Given** the reunion scene completes, **When** it resolves, **Then** the game transitions to an end-of-slice / "to be continued" screen and marks the Route complete (FR-19).
+**Given** currency
+**When** I hold it
+**Then** it uses four tiers (Copper → Silver 25:1 → Gold 10:1 → Royal Gold Plaque 1000:1) and coin is weighted like any item (carrying it costs space).
 
-### Story 6.6: Minimum unique art pass
+**Given** the economy
+**When** it is played
+**Then** there is no infinite-money loop and no coin sink is mandatory for survival (AD-17).
 
-As Justine (developer/artist),
-I want distinct sprites for the three characters the fiction needs,
-So that the slice reads as *The Margins*, not a CraftPix demo (non-code workstream).
+### Story 6.4: The two mobile traders
+
+As Klein,
+I want two mobile traders as the only coin sinks,
+So that trade converts surplus into readiness, never into safety (FR-21, AD-17).
 
 **Acceptance Criteria:**
 
-**Given** the MVP cast, **When** art is done, **Then** Milek, Galleon, and the scavenger NPC each have a recognizable, distinct sprite (recolor/commission/creator-drawn — approach chosen by Justine), with everything else reusing existing packs.
-**And** this is tracked as a parallel workstream and is not a blocker for code stories.
-
----
-
-# North Star Expansion — Epics 7+
-
-> Post-MVP. Each section carries a **story outline** (titles + intent). Full acceptance criteria are authored per-epic via `create-story` when scheduled — outlines here keep the roadmap complete without over-committing design not yet decided.
-
-## Epic 7: Time & the Day/Night Cycle
-
-A turn-driven time-of-day clock on `RunState` that changes the world as it turns over: light, spawns, schedules, and time-gated resources.
-**FRs covered:** FR-22
-
-**Story outline:**
-- 7.1 Time-of-day clock on `RunState` — advances with turns through dawn/day/dusk/night phases (seeded, save-persisted).
-- 7.2 Light & visibility by phase — sight radius and fog modulate with the hour.
-- 7.3 Time-gated spawns & resources — certain enemies and gather nodes appear only in specific phases.
-- 7.4 Wait / sleep to pass time — a rest action that advances the clock to a chosen phase.
-
-## Epic 8: Dynamic Weather
-
-A seeded weather state machine whose states are survival inputs, not decoration.
-**FRs covered:** FR-23
-
-**Story outline:**
-- 8.1 Weather state machine on `RunState` — clear/rain/storm/wind/snow with seeded transitions.
-- 8.2 Weather → visibility & movement — rain/storm cut sight; wind/snow slow travel.
-- 8.3 Weather → resource availability — nodes enabled or gated by current weather.
-- 8.4 Weather → survival hooks — exposes signals consumed by temperature/wetness (Epic 9).
-
-## Epic 9: The Body — Temperature, Fatigue & Wetness
-
-Three interlocking realism meters beside Hunger, each introduced one region at a time to avoid meter-soup.
-**FRs covered:** FR-24, FR-25, FR-26
-
-**Story outline:**
-- 9.1 Temperature meter & sources — biome/weather/fire/shelter drive it; out-of-band harms.
-- 9.2 Fatigue meter — accrues with activity/time-awake; restored by rest.
-- 9.3 Wetness meter — rain/water raise it, it lowers temperature, fire/time dry it.
-- 9.4 Meter → performance penalties — combat/stealth/gather degrade at bad levels.
-- 9.5 Per-region introduction gating — a region foregrounds one meter as its signature pressure.
-
-## Epic 10: Fire, Shelter & Rest
-
-The crafted answer to the body — and a decision about where and when it's safe to stop.
-**FRs covered:** FR-27
-
-**Story outline:**
-- 10.1 Build & fuel a campfire — consumes tinder/branches; warms and dries; emits light + noise.
-- 10.2 Shelter construction — mitigates weather/temperature and enables safe rest.
-- 10.3 Rest / sleep — restores fatigue and advances time, with risk while resting.
-- 10.4 Safety tension — fire light and noise draw enemies (ties to detection, Epic 2).
-
-## Epic 11: Environmental Hazards
-
-The world bites back with region-signature dangers that reward reading the ground.
-**FRs covered:** FR-28
-
-**Story outline:**
-- 11.1 Hazard framework — poison, ice, heat/dust, hazardous terrain as tile/effect types.
-- 11.2 Region-signature hazards — each mapped to a region's biome.
-- 11.3 Hazard mitigation — gear/crafting/skills reduce or negate.
-
-## Epic 12: Crafting & Components
-
-The engine connecting gathering to survival and combat.
-**FRs covered:** FR-29
-
-**Story outline:**
-- 12.1 Recipe & component model — materials combine into outputs.
-- 12.2 Crafting action & discovery — craft from inventory; learn recipes.
-- 12.3 Tool / weapon / armor crafting.
-- 12.4 Consumable & food crafting — feeds hunger and healing.
-- 12.5 Fire/shelter crafting hooks — shared with Epic 10.
-
-## Epic 13: Loot, Treasure & Hidden Resources
-
-Reasons to explore, matched to each biome.
-**FRs covered:** FR-30, FR-31
-
-**Story outline:**
-- 13.1 Hidden resource nodes — grass/logs/trees/rocks yield biome-specific materials.
-- 13.2 Time/weather-gated nodes — availability shifts with Epics 7–8.
-- 13.3 Placed treasure & caches — with rarity.
-- 13.4 Region loot tables & drops.
-
-## Epic 14: Combat Depth & Progression
-
-Combat that's real but honest — a tool, not always the answer.
-**FRs covered:** FR-32, FR-34
-
-**Story outline:**
-- 14.1 Weapon model & attacks — melee/ranged, damage types.
-- 14.2 Enemy variety by region & time of day.
-- 14.3 Player progression / mastery — persistent stats Milek grows.
-- 14.4 Combat ↔ survival coupling — hunger/fatigue/cold modify combat.
-
-## Epic 15: Skills
-
-How the ant gets sharper — unlockable combat and survival techniques.
-**FRs covered:** FR-33
-
-**Story outline:**
-- 15.1 Skill model & unlocks — combat and survival trees.
-- 15.2 Combat skills.
-- 15.3 Survival / gathering / crafting / exploration efficiency skills.
-- 15.4 Skill acquisition — from mentors, quests, or use (e.g., the Twilight Knight).
-
-## Epic 16: Bosses & Mini-Bosses
-
-A framework for three boss kinds, one gating each region's exit.
-**FRs covered:** FR-35
-
-**Story outline:**
-- 16.1 Boss encounter framework — type + region-exit gating.
-- 16.2 Fightable boss template — a regional threat you can beat.
-- 16.3 Evasion boss template — unwinnable-yet; objective is survive/escape (Spearshot).
-- 16.4 Social boss template — defeated by outmaneuvering via conditions/dialogue (Swan).
-
-## Epic 17: NPCs, Neutrals & Schedules
-
-The road is peopled — allies, neutrals, and benefactors you can read, help, or avoid.
-**FRs covered:** FR-36
-
-**Story outline:**
-- 17.1 NPC model & states — ally / neutral / bystander.
-- 17.2 Daily schedules — tied to Epic 7 time.
-- 17.3 Interaction hooks — talk/trade/help (reuse Epic 5 dialogue).
-- 17.4 Relationship generalization — reuse the Epic 4 companion Bond system entity-agnostically.
-
-## Epic 18: Side Quests
-
-The texture between story beats.
-**FRs covered:** FR-37
-
-**Story outline:**
-- 18.1 Side-quest model & tracking — reuse Epic 5 scene/quest flags.
-- 18.2 Quest givers & rewards — gear/lore/relationships.
-- 18.3 Region side-quest content hooks.
-
-## Epic 19: Region (Arc) Progression Framework
-
-Generalizes the Route into the novel's horizontal road.
-**FRs covered:** FR-38, FR-39, FR-40
-
-**Story outline:**
-- 19.1 Region model — biome, enemies, NPCs, resources, quests, signature system, boss, exit.
-- 19.2 Region travel & transition — horizontal, story-advancing; supersedes the MVP's procedural-floor Route.
-- 19.3 Signature-system introduction hook — each region enables its new mechanic on entry.
-- 19.4 Main-storyline flag/beat gating across regions.
-- 19.5 World-map / route representation.
-
-## Epic 20: Region 0 — Coneros: The Fall
-
-The fully-playable Prologue→Ch2 intro (Act 0). Realizes `opening-design-act0-forest.md`.
-**FRs covered:** FR-40 (+ integrates prior systems)
-
-**Story outline:**
-- 20.1 Act 0 authored sequence — river → house → flight → platform.
-- 20.2 Controls-by-loss scripting — unwinnable beats with expressive inputs.
-- 20.3 Palette shift — frost-ash intro blooms to color at the Forest.
-- 20.4 Mora handoff & quest bootstrap.
-
-## Epic 21: Region 1 — North Pines: Whispering Forest
-
-Act 1, the first free-play region. Companion = Erik.
-**FRs covered:** FR-38, FR-39 (+ Phase A/B systems)
-
-**Story outline:**
-- 21.1 Forest region build — biome, hidden-resource table, hollow-trunk camp.
-- 21.2 Survival loop instantiation — hunger/fire/rain/craft/day-night together.
-- 21.3 The Lamilla camp & five-night raid — greed-curve loot.
-- 21.4 "Trailed home" climax — detection = a tail that endangers the companion.
-- 21.5 Ashen-merchants exit / region transition.
-
-## Epic 22: Region 2 — Pinehurst & The Convoy
-
-Captivity as a region.
-**FRs covered:** FR-38, FR-36
-
-**Story outline:**
-- 22.1 Captivity region — caravan interior; the gap-in-the-door observation loop.
-- 22.2 Feeding-line rationing — position decides who eats; starvation is lethal.
-- 22.3 NPC allies — Henry and the Pack, with schedules.
-- 22.4 Intel / "opening" meter — observation unlocks progression.
-
-## Epic 23: Region 3 — Tradewick: Gray Law
-
-A lawless hub of skills and side quests.
-**FRs covered:** FR-38, FR-37, FR-35
-
-**Story outline:**
-- 23.1 Gray-law hub — crowd-stealth and a "notability" pressure.
-- 23.2 Skills & side-quest content.
-- 23.3 Social boss — Bulwark Swan (outmaneuver, don't fight).
-- 23.4 Separation beat — the auction; the party splits.
-
-## Epic 24: Region 4 — Coastal Road to Oakdale
-
-Exposure and weather on open ground; the first evasion wall.
-**FRs covered:** FR-38, FR-24, FR-35
-
-**Story outline:**
-- 24.1 Coastal exposure region — temperature/wind/storm.
-- 24.2 Open-ground stealth.
-- 24.3 Evasion boss — Spearshot (survive, not beat).
-
-## Epic 25: Region 5 — Mirko: The Frost Pass
-
-Cold, snowstorms, and fire-or-die.
-**FRs covered:** FR-38, FR-24, FR-28
-
-**Story outline:**
-- 25.1 Frost region — cold/snowstorm pressure.
-- 25.2 Ice hazards.
-- 25.3 Pass bandits / hunting-beast mini-boss.
-- 25.4 Weather-closed-pass gating.
-
-## Epic 26: Region 6 — Valens: The Wall
-
-The endgame of Route 1.
-**FRs covered:** FR-38, FR-40
-
-**Story outline:**
-- 26.1 Prison region — starvation and the crack in the wall.
-- 26.2 The Twilight Knight mentor — skills and story.
-- 26.3 Escape gauntlet boss.
-- 26.4 The 7-year threshold / Route 1 end-state.
-
-## Epics 27+: The Later Arcs (future)
-
-Academic · Revolution · Throne War · One Kingdom · The Heaven Fell. Each becomes its own region cluster when the game reaches it; the Blackberry Troupe / Theodore recur as benefactors. Placeholder — decomposed when scheduled.
-**FRs covered:** FR-38, FR-40 (future)
+**Given** the Traveling Wanderer
+**When** I meet him
+**Then** I can trade by coin or barter (Copper/Silver tier), keeping non-coin players unblocked.
+
+**Given** the Caravan Black Market Trader
+**When** I meet him
+**Then** he is coin-only (Gold-tier), guarded, and killing him permanently locks out that trade.
+
+**Given** either trader
+**When** I transact
+**Then** he buys at a loss and sells at a premium (scarcity holds) — there is no fixed shop.
