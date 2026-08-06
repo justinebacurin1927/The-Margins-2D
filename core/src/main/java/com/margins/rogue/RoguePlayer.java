@@ -77,7 +77,7 @@ public class RoguePlayer {
     public int getHp() { return hp; }
     public int getMaxHp() { return maxHp; }
     public HungerStatus getStatus() { return status; }
-    /** Turns remaining in the current hunger tier (kept for the carry-across-descend contract). */
+    /** Turns remaining in the current hunger tier (persisted across save/load). */
     public int getHunger() { return hungerTurns; }
 
     /** HUD line: current tier + turns left, naming the Starving stage when starving. */

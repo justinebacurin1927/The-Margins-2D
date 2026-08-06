@@ -16,6 +16,7 @@ public class FloorGenerator {
 
     private static final int MIN_ROOM_SIZE = 5;
     private static final int MAX_ROOM_SIZE = 10;
+    private static final int MAX_ROOMS = 9; // one continuous region (AD-8); no per-floor depth scaling
 
     public static class FloorResult {
         public RogueTileMap map;
@@ -26,15 +27,14 @@ public class FloorGenerator {
         }
     }
 
-    public static FloorResult generate(int width, int height, Random rand, int floorDepth) {
+    public static FloorResult generate(int width, int height, Random rand) {
         RogueTileMap map = new RogueTileMap(width, height);
         map.fill(RogueTile.WALL);
 
         List<Room> rooms = new ArrayList<>();
-        int maxRooms = 8 + floorDepth;
         int attempts = 0;
 
-        while (rooms.size() < maxRooms && attempts < 50) {
+        while (rooms.size() < MAX_ROOMS && attempts < 50) {
             attempts++;
             int rw = rand.nextInt(MAX_ROOM_SIZE - MIN_ROOM_SIZE + 1) + MIN_ROOM_SIZE;
             int rh = rand.nextInt(MAX_ROOM_SIZE - MIN_ROOM_SIZE + 1) + MIN_ROOM_SIZE;
@@ -55,6 +55,16 @@ public class FloorGenerator {
             }
         }
 
+        // Guarantee a non-empty region: the first placement always succeeds (nothing to
+        // overlap), so this is currently unreachable — but callers index roomCenters.get(0),
+        // so enforce the "at least one room" invariant rather than depend on that subtlety.
+        if (rooms.isEmpty()) {
+            Room r = new Room((width - MIN_ROOM_SIZE) / 2, (height - MIN_ROOM_SIZE) / 2,
+                              MIN_ROOM_SIZE, MIN_ROOM_SIZE);
+            rooms.add(r);
+            carveRoom(map, r);
+        }
+
         for (int i = 1; i < rooms.size(); i++) {
             Room a = rooms.get(i - 1);
             Room b = rooms.get(i);
@@ -62,14 +72,8 @@ public class FloorGenerator {
         }
 
         List<int[]> centers = new ArrayList<>();
-        if (!rooms.isEmpty()) {
-            Room start = rooms.get(0);
-            Room end = rooms.get(rooms.size() - 1);
-            map.setTile(start.cx(), start.cy(), RogueTile.STAIRS_UP);
-            map.setTile(end.cx(), end.cy(), RogueTile.STAIRS_DOWN);
-            for (Room r : rooms) {
-                centers.add(new int[]{r.cx(), r.cy()});
-            }
+        for (Room r : rooms) {
+            centers.add(new int[]{r.cx(), r.cy()});
         }
 
         return new FloorResult(map, centers);

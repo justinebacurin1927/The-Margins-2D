@@ -1,7 +1,6 @@
 package com.margins.rogue.system;
 
 import com.margins.rogue.RoguePlayer;
-import com.margins.rogue.RogueTile;
 import com.margins.rogue.item.FloorItem;
 import com.margins.rogue.item.Inventory;
 import com.margins.rogue.item.Supply;
@@ -112,36 +111,21 @@ public class TurnEngine {
         }
 
         if (acted) {
-            // Stepping onto the down-stairs descends: rebuild the floor and carry
-            // the party, treating the descent as the whole turn (hunger ticks, FOV
-            // recomputes, but the old floor's actors are gone — enemy/noise phases
-            // are skipped for the arrival turn).
-            if (action.kind == PlayerAction.Kind.MOVE
-                    && state.getTileMap().getTile(player.getTileX(), player.getTileY()) == RogueTile.STAIRS_DOWN) {
-                boolean descended = state.descend();
-                result.messages.add(descended
-                        ? "You descend to floor " + state.getFloorDepth()
-                        : state.getRoute().endMessage()); // the road ends (FR-18 seam for 6.2/6.5)
-                HungerSystem.tick(player);
-                // The hunger tick can be lethal on the arrival tile; honor the once-per-run
-                // reprieve here too, so descending never bypasses Last Stand (FR-16/17).
-                CombatSystem.checkLastStand(state, result.messages);
-                FovSystem.compute(state);
-            } else {
-                HungerSystem.tick(player);
-                DetectionSystem.update(state); // advance awareness before enemies move (AD-4)
-                CompanionSystem.follow(state); // the ally moves in the Companion+Enemy-AI phase (AD-4, AD-10)
-                CombatSystem.enemyPhase(state, result.messages);
-                NoiseSystem.resolve(state); // Noise resolve step (AD-4)
-                if (action.kind == PlayerAction.Kind.WAIT) {
-                    result.messages.add("Wait");
-                }
-                // Reprieve check after all damage this turn; added last so "Last Stand!"
-                // wins the message display over combat/wait text.
-                CombatSystem.checkLastStand(state, result.messages);
-                // Recompute sight from the player's (possibly new) position.
-                FovSystem.compute(state);
+            // The single acted path (AD-4): every acted turn runs the fixed order
+            // hunger -> detection -> companion -> enemy -> noise -> checkLastStand -> FOV.
+            HungerSystem.tick(player);
+            DetectionSystem.update(state); // advance awareness before enemies move (AD-4)
+            CompanionSystem.follow(state); // the ally moves in the Companion+Enemy-AI phase (AD-4, AD-10)
+            CombatSystem.enemyPhase(state, result.messages);
+            NoiseSystem.resolve(state); // Noise resolve step (AD-4)
+            if (action.kind == PlayerAction.Kind.WAIT) {
+                result.messages.add("Wait");
             }
+            // Reprieve check after all damage this turn; added last so "Last Stand!"
+            // wins the message display over combat/wait text.
+            CombatSystem.checkLastStand(state, result.messages);
+            // Recompute sight from the player's (possibly new) position.
+            FovSystem.compute(state);
         }
 
         return result;

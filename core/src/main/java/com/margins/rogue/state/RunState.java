@@ -10,14 +10,13 @@ import com.margins.rogue.RogueTileMap;
 import com.margins.rogue.item.FloorItem;
 import com.margins.rogue.item.Inventory;
 import com.margins.rogue.item.Supply;
-import com.margins.rogue.world.Route;
 
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Random;
 
 /**
- * Single owner of all run data (AD-3): tilemap, player, enemies, current floor,
+ * Single owner of all run data (AD-3): tilemap, player, enemies, current map,
  * seed and the seeded RNG. Systems mutate this; nothing else holds an
  * authoritative duplicate. This is the unit that will be serialized for save
  * (AD-6). Contains NO libGDX rendering types (AD-2) so it stays headless-testable.
@@ -26,6 +25,9 @@ public class RunState {
 
     private static final int MAP_W = 50;
     private static final int MAP_H = 50;
+
+    /** Save-format version (AD-6). Bumped when the persisted shape changes incompatibly. */
+    public static final int SAVE_VERSION = 1;
 
     private RogueTileMap tileMap;
     private RoguePlayer player;
@@ -38,12 +40,11 @@ public class RunState {
     // Run-scoped narrative state (AD-7): flags + Galleon's Bond. Field-initialized
     // so a pre-4.3 save (no flagStore key) loads empty-but-non-null (AD-6), like inventory.
     private FlagStore flagStore = new FlagStore();
-    // The route this run descends (FR-18). A constant singleton, so it's transient
-    // and field-initialized. Json never serializes a transient field, and fromJson
-    // invokes the no-arg constructor (which runs field initializers), so a load always
-    // re-supplies this default — pre-6.1 saves load the Caravan Road (AD-6).
-    private transient Route route = Route.CARAVAN_ROAD;
-    private int floorDepth;
+    // Save-format stamp (AD-6). Field-initialized, so a fresh run and a fresh load both
+    // report the current version — which is why the pre-AD-8 reject in SaveService can't gate
+    // on this int (fromJson runs initializers): it gates on the *raw JSON* lacking the
+    // saveVersion key instead. The int is the FORWARD mechanism: a future v1->v2 compares it.
+    private int saveVersion = SAVE_VERSION;
     private long seed;
     private transient Random rng;
     private boolean lastStandUsed;        // persisted: one reprieve per run (FR-16/17)
@@ -71,15 +72,14 @@ public class RunState {
     public RunState(long seed) {
         this.seed = seed;
         this.rng = seededRng(seed);
-        this.floorDepth = 1;
         this.identifyMap = IdentifyMap.build(rng); // bind supply identities at run start (FR-11, AD-12)
         generateFloor();
         spawnStartingCompanion();
     }
 
-    /** Builds the current floor and places a fresh player and enemies (run start/restart). */
+    /** Builds the continuous region and places a fresh player and enemies (run start/restart). */
     public void generateFloor() {
-        FloorResult result = FloorGenerator.generate(MAP_W, MAP_H, rng, floorDepth);
+        FloorResult result = FloorGenerator.generate(MAP_W, MAP_H, rng);
         tileMap = result.map;
 
         int startCx = result.roomCenters.get(0)[0];
@@ -90,9 +90,9 @@ public class RunState {
     }
 
     /**
-     * Build the current floor's enemies and scattered supplies, avoiding the
+     * Build the region's enemies and scattered supplies, avoiding the
      * given tile (the player's). Extracted from {@link #generateFloor} so
-     * {@link #descend} can rebuild a floor without recreating the player (AC-3).
+     * actor placement stays separable from map generation.
      */
     private void placeFloorActors(FloorResult result, int avoidX, int avoidY) {
         enemies = new ArrayList<>();
@@ -130,41 +130,6 @@ public class RunState {
     }
 
     /**
-     * One-way descent (AC-2/3): advance {@code floorDepth}, rebuild the floor
-     * with fresh enemies/items, and move the existing player + companion to the
-     * new entrance — never {@code new RoguePlayer(...)}, so HP/hunger/inventory
-     * survive. Per-floor view state is rebuilt by {@code FovSystem.compute}
-     * (TurnEngine calls it on the descent turn). Bounded by the route (FR-18):
-     * returns {@code false} and mutates nothing once the route's last floor is
-     * reached — the "road ends" seam that Stories 6.2 (authored Story Floor)
-     * and 6.5 (route completion) build on.
-     */
-    public boolean descend() {
-        if (floorDepth >= route.getFloorCount()) {
-            return false; // the route ends — no floor beyond its last
-        }
-        floorDepth++;
-        FloorResult result = FloorGenerator.generate(MAP_W, MAP_H, rng, floorDepth);
-        tileMap = result.map;
-
-        int startCx = result.roomCenters.get(0)[0];
-        int startCy = result.roomCenters.get(0)[1];
-        player.placeAt(startCx, startCy);
-        player.setMap(tileMap);
-
-        placeFloorActors(result, startCx, startCy);
-
-        Companion c = getActiveCompanion();
-        if (c != null) {
-            int[] spot = companionSpotNear(startCx, startCy);
-            c.placeAt(spot[0], spot[1]);
-            c.setMap(tileMap);
-            c.resetDistractions(); // fresh floor, fresh shouts (FR-14)
-        }
-        return true;
-    }
-
-    /**
      * Re-wire transient fields after a libGDX Json load (AD-6): rebuild the RNG
      * from the stored seed and re-inject the tilemap into the player and enemies
      * (they hold it transiently so the map serializes once, under this root only).
@@ -184,9 +149,8 @@ public class RunState {
         }
     }
 
-    /** Restart a fresh run from floor 1 (same seeded RNG stream continues). */
+    /** Restart a fresh run (same seeded RNG stream continues). */
     public void restart() {
-        this.floorDepth = 1;
         this.lastStandUsed = false;
         this.lastStand = false;
         this.identifyMap = IdentifyMap.build(rng); // a new run rebinds identities (FR-11)
@@ -271,11 +235,8 @@ public class RunState {
         }
         return false;
     }
-    public int getFloorDepth() { return floorDepth; }
-    public void setFloorDepth(int floorDepth) { this.floorDepth = floorDepth; }
-
-    /** The route this run descends (FR-18) — its name, floor count, and end message. */
-    public Route getRoute() { return route; }
+    /** The save-format version this run was created/loaded under (AD-6). */
+    public int getSaveVersion() { return saveVersion; }
 
     public long getSeed() { return seed; }
 

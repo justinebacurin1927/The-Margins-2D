@@ -155,8 +155,6 @@ public class MarginScreen implements Screen {
         switch (t) {
             case RogueTile.WALL:        r = 0.16f; g = 0.18f; b = 0.15f; break; // dark trunk/rock
             case RogueTile.DOOR:        r = 0.45f; g = 0.34f; b = 0.20f; break; // wood
-            case RogueTile.STAIRS_DOWN:
-            case RogueTile.STAIRS_UP:   r = 0.30f; g = 0.36f; b = 0.46f; break; // way onward
             default:                    r = 0.26f; g = 0.33f; b = 0.23f; break; // forest floor
         }
         if (!visible) { r *= 0.45f; g *= 0.45f; b *= 0.50f; } // fog memory

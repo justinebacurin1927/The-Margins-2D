@@ -1,6 +1,6 @@
-# generated: 2026-07-17
-# last_updated: 2026-07-17
-# project: The Margins
+# generated: 2026-08-06
+# last_updated: 2026-08-06
+# project: The Margin
 # project_key: NOKEY
 # tracking_system: file-system
 # story_location: _bmad-output/implementation-artifacts
@@ -39,124 +39,108 @@
 # - Developer typically creates next story after previous one is 'done' to incorporate learnings
 # - Dev moves story to 'review', then runs code-review (fresh context, different LLM recommended)
 # - Retrospective appends its action items to action_items; sprint-status surfaces open ones
+#
+# PROVENANCE (The Margin remake):
+# ===============================
+# - This tracker is a fresh start for THE MARGIN (Klein/Herois remake). The prior
+#   "The Margins" (Milek/Galleon/Caravan Road) tracker — Epics 1-5 done, Epic 6 in-progress —
+#   is archived at sprint-status-The-Margins-2026-07-17.obsolete.yaml. Its completed story
+#   files and retros remain on disk; that code is the BROWNFIELD the new architecture ratifies.
+# - Story keys below are the NEW design's 35 stories; none overlap the old keys, so all start
+#   at backlog. Brownfield reuse (a story that mostly ratifies existing code) is handled at
+#   create-story time, not by status auto-detection.
+# - The action_items carried below are the still-relevant OPEN items from the old tracker
+#   (de-duplicated), re-tagged to the new epics. Old-design-specific items (Galleon reunion
+#   Bond-tag, SampleDialog/"Five Nights" debug trigger) were dropped. The old "add saveVersion"
+#   item is now folded into new Story 1.1's acceptance criteria (AD-6).
 
-generated: 2026-07-17
-last_updated: 2026-08-03  # 6-1 done (reviewed, patch applied); defers logged; Epic 6 ready for 6.2
-project: The Margins
+generated: 2026-08-06
+last_updated: 2026-08-06  # 1-2 contexted → ready-for-dev; Epic 1 in-progress
+project: The Margin
 project_key: NOKEY
 tracking_system: file-system
 story_location: _bmad-output/implementation-artifacts
 
 development_status:
-  # Epic 1 — Foundation, Save & Survival
-  epic-1: done
-  1-1-extract-runstate: done
-  1-2-turnengine-systems: done
-  1-3-seeded-rng: done
-  1-4-save-resume: done
-  1-5-permadeath-clears-save: done
-  1-6-last-stand: done
-  epic-1-retrospective: done
+  # Epic 1 — Survive the Forest (survival core on a continuous map; SM-2 playable-first)
+  epic-1: in-progress
+  1-1-retire-floor-descent-for-one-continuous-map: done
+  1-2-four-survival-tracks-that-tick-on-real-turns: ready-for-dev
+  1-3-day-night-clock-and-per-cycle-weather: backlog
+  1-4-fov-and-light-the-visible-camp-tension: backlog
+  1-5-food-water-and-two-step-purification: backlog
+  1-6-temperature-and-the-campfire-torch: backlog
+  1-7-the-debuff-system: backlog
+  1-8-the-survival-hud-and-message-log: backlog
+  epic-1-retrospective: optional
 
-  # Epic 2 — Sight & Stealth
-  epic-2: done
-  2-1-line-of-sight-field-of-view: done
-  2-2-explored-fog-memory: done
-  2-3-enemy-patrol-while-unaware: done
-  2-4-detection-state-machine: done
-  2-5-noise-propagation: done
+  # Epic 2 — The Fall of Corneo (Act 0 intro + dialog/quest foundation)
+  epic-2: backlog
+  2-1-text-forward-dialogue-nodes-with-safe-pause: backlog
+  2-2-the-skippable-paged-text-intro: backlog
+  2-3-aldrics-diegetic-tutorial: backlog
+  2-4-aldrics-capture-and-the-rescue-seed: backlog
+  2-5-quest-flags-and-the-passive-journal: backlog
   epic-2-retrospective: optional
 
-  # Epic 3 — Scavenged Supplies
-  epic-3: done
-  3-1-backpack-and-equipped-slots: done
-  3-2-use-and-drop-items: done
-  3-3-per-seed-supply-identity: done
-  3-4-identify-on-use-persistence: done
-  epic-3-retrospective: done
+  # Epic 3 — Forays into Herois (the world & its loot)
+  epic-3: backlog
+  3-1-hybrid-map-generation: backlog
+  3-2-the-11-world-structures-across-three-danger-tiers: backlog
+  3-3-the-foray-loop-end-to-end: backlog
+  3-4-night-and-weather-shift-location-danger: backlog
+  3-5-horizontal-progression-skill-and-knowledge: backlog
+  epic-3-retrospective: optional
 
-  # Epic 4 — Galleon at Your Side
-  epic-4: done
-  4-1-companion-follow-and-floor-transition: done
-  4-2-distraction-leverage: done
-  4-3-bond-tracking: done
-  epic-4-retrospective: done
+  # Epic 4 — Combat & Its Costs
+  epic-4: backlog
+  4-1-combat-resolves-at-the-actors-point-via-combatsystem: backlog
+  4-2-combat-noise-draws-reinforcements: backlog
+  4-3-occupation-escalation-thickens-per-act: backlog
+  4-4-weapon-durability-and-gear-with-memory: backlog
+  4-5-scavenge-on-break-and-skill-based-repair: backlog
+  4-6-permadeath-and-last-stand: backlog
+  epic-4-retrospective: optional
 
-  # Epic 5 — Voices on the Road
-  epic-5: done
-  5-1-branching-dialogue-that-suspends-the-turn-loop: done
-  5-2-instinct-gated-choices: done
-  5-3-scene-and-quest-flags: done
-  epic-5-retrospective: done
+  # Epic 5 — Companions & The Story (capstone)
+  epic-5: backlog
+  5-1-companion-as-a-full-tile-agent: backlog
+  5-2-autonomous-companion-behavior-state-machine: backlog
+  5-3-simple-orders-steer-the-companion: backlog
+  5-4-companion-combat-and-the-liability-cost: backlog
+  5-5-bond-and-the-shapes-of-loss: backlog
+  5-6-the-act-gating-quests: backlog
+  5-7-the-border-crossing-win-and-epilogue: backlog
+  epic-5-retrospective: optional
 
-  # Epic 6 — The Caravan Road (Capstone)
-  epic-6: in-progress
-  6-1-route-progression-through-procedural-floors: done
-  6-2-authored-story-floor: backlog
-  6-3-five-nights-again-opening-quest: backlog
-  6-4-galleon-reunion-scene: backlog
-  6-5-route-completion-end-state: backlog
-  6-6-minimum-unique-art-pass: backlog
+  # Epic 6 — Inventory, Currency & Economy
+  epic-6: backlog
+  6-1-hybrid-slot-weight-inventory: backlog
+  6-2-bag-durability-and-thematic-traps: backlog
+  6-3-four-tier-scarce-currency: backlog
+  6-4-the-two-mobile-traders: backlog
   epic-6-retrospective: optional
 
 action_items:
+  # Carried forward from the archived "The Margins" tracker — still-relevant OPEN brownfield
+  # tech-debt, re-tagged to the new epics. See PROVENANCE header.
   - epic: 1
-    action: "Add JUnit 5 + a core test source root; port the Epic 1 round-trip/determinism/AC harnesses into committed tests"
-    owner: "Dev"
-    status: open
-  - epic: 1
-    action: "Resolve the uncommitted art-deletion changes (commit or revert) so the working tree is clean"
-    owner: "Dev"
-    status: done
-  - epic: 1
-    action: "Document build/verify quirks in project docs (reinstall core before -pl desktop exec:java; use a Lwjgl3Files harness for file-path tests)"
+    action: "BROWNFIELD CARRY (recurring 4-epic carry, still unresolved): stand up a committed JUnit 5 core test source root and port the highest-value existing harnesses — RunState round-trip/determinism, FlagStore, companion, dialogue/flag, inventory/identify. The ratified brownfield core has no committed test net; do this early in Epic 1 so the AD-8 refactor (Story 1.1) lands on a regression net."
     owner: "Dev"
     status: open
   - epic: 1
-    action: "In Epic 2, add explored/fog + detection state to RunState (not entities) to stay AD-3-consistent and inherit save persistence"
-    owner: "Dev"
-    status: done
-  - epic: 3
-    action: "CRITICAL PATH before Epic 4 dev: stand up a minimal JUnit 5 core test source root and port the identify/inventory/companion harnesses into committed tests (supersedes the open Epic 1 JUnit item)"
+    action: "BROWNFIELD CARRY: centralize build/verify quirks in docs/BUILD.md or a CLAUDE.md section — `mvn -o -pl core install` before `exec:java`, and the exec-maven-plugin:3.1.0:java harness recipe. Recurring carry across old Epics 1/3/4."
     owner: "Dev"
     status: open
-  - epic: 3
-    action: "CRITICAL PATH before Epic 4 grows the save: add a saveVersion field to RunState for deterministic defaults on older saves (closes the 3.3 + 3.4 save-migration deferrals; pre-empts the companion-list one)"
+  - epic: 1
+    action: "Story 1.1 / AD-4: codify the TurnEngine acted-branch invariants (every acted branch honors hunger → checkLastStand → FOV). The old descend branch violated this; Story 1.1 removes that branch, so verify the invariant holds after the refactor before new special turn-paths (dialogue safe-pause, companion turn) are added."
     owner: "Dev"
     status: open
-  - epic: 3
-    action: "Document build/verify quirks centrally (docs/BUILD.md or CLAUDE.md): mvn -o -pl core install before exec:java, and the exec-maven-plugin:3.1.0:java harness recipe (supersedes the open Epic 1 build-doc item)"
+  - epic: 1
+    action: "Story 1.1 / AD-6: implement saveVersion correctly — add the version stamp AND its read-branch (reject pre-AD-8 saves) TOGETHER. The old Epic 3 saveVersion field was added dead and removed in Epic 4 review; do not repeat that. (This supersedes and closes the old 'add saveVersion' action item.)"
     owner: "Dev"
     status: open
-  - epic: 4
-    action: "CRITICAL PATH before Epic 5: stand up a committed JUnit 5 core test source root and port the highest-value harnesses (FlagStore round-trip/restart/old-save, companion follow/distract, descend-preserves-player, Last-Stand-on-descend regression). Third-time carry; supersedes the open Epic 1 & 3 JUnit items."
-    owner: "Dev"
-    status: open
-  - epic: 4
-    action: "Do save-migration properly the next time a persisted field needs it (implement the version stamp AND its read-branch together) rather than pre-declaring a bare field. The Epic 3 saveVersion field was added dead and removed in Epic 4 review; supersedes Epic 3 action item #2."
-    owner: "Dev"
-    status: open
-  - epic: 4
-    action: "Codify the TurnEngine acted-branch invariants (every acted branch must honor hunger -> checkLastStand -> FOV). The descend branch violated this and reached review; make it explicit before the 5.1 dialogue turn-suspension adds another special turn path."
-    owner: "Dev"
-    status: open
-  - epic: 4
-    action: "Centralize build/verify quirks in docs/BUILD.md or a CLAUDE.md section (recurring Epic 1/3 item)."
-    owner: "Dev"
-    status: open
-  - epic: 5
-    action: "CRITICAL before Epic 6 authoring (fourth-epic carry): stand up a committed JUnit 5 core test root and port the dialogue/INSTINCT/flag harnesses (+ the still-uncovered companion/Bond/identify ones). Epic 6 authors content on this dialogue engine and needs a regression net."
-    owner: "Dev"
-    status: done
-  - epic: 5
-    action: "Replace/hard-gate the debug T dialogue trigger + SampleDialog when Story 6.3 authors the 'Five Nights, Again' opening, so scaffolding does not ship in the playable slice."
-    owner: "Dev"
-    status: open
-  - epic: 5
-    action: "Wire Bond-tag into the dialogue path for Story 6.4 (reunion): FlagStore.applyBondTag (built in 4.3) is still called by nothing; the honest reunion choice must raise Bond (FR-15). Add a bond-tag field to DialogOption and call applyBondTag on selection."
-    owner: "Dev"
-    status: open
-  - epic: 5
-    action: "Harden the dialogue authoring contract during 6.2/6.3 authoring: >4-option nodes, null labels, non-1 flag values (!= 0), multi-cache key collisions (deferred low findings from Epic 5 review)."
+  - epic: 2
+    action: "Epic 2 dialogue: harden the dialogue authoring contract the new design reuses — >4-option nodes, null labels, non-1 flag values (!= 0), multi-cache key collisions (deferred low findings from the old dialogue engine)."
     owner: "Dev"
     status: open

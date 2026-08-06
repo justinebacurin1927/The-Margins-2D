@@ -69,6 +69,31 @@ class RunStatePersistenceTest {
     }
 
     @Test
+    void vitalsInventoryIdentitiesAndLastStandSurviveRoundTrip() {
+        // AC-5 (Story 1.1): the continuous-map migration must not disturb the run's
+        // core serialized state. Ported from the deleted RouteProgressionTest, minus floors.
+        RunState s = new RunState(42L);
+        s.getPlayer().takeDamage(4);                       // non-default HP
+        s.getInventory().tryAdd(0, 2);                     // a stacked item
+        s.getIdentifyMap().markIdentified(0);              // a revealed identity
+        s.setLastStandUsed(true);                          // the reprieve spent
+
+        int hp = s.getPlayer().getHp();
+        int hunger = s.getPlayer().getHunger();
+        int itemCount = s.getInventory().count(0);
+
+        RunState loaded = json().fromJson(RunState.class, json().toJson(s));
+        loaded.restoreAfterLoad();
+
+        assertEquals(hp, loaded.getPlayer().getHp(), "HP survives round-trip");
+        assertEquals(s.getPlayer().getMaxHp(), loaded.getPlayer().getMaxHp(), "max HP survives");
+        assertEquals(hunger, loaded.getPlayer().getHunger(), "hunger survives");
+        assertEquals(itemCount, loaded.getInventory().count(0), "inventory count survives");
+        assertTrue(loaded.getIdentifyMap().isIdentified(0), "identity reveal survives");
+        assertTrue(loaded.isLastStandUsed(), "the spent Last-Stand survives (no free reprieve on reload)");
+    }
+
+    @Test
     void companionSurvivesRoundTripWithMapReinjected() {
         RunState s = new RunState(42L);
         assertNotNull(s.getActiveCompanion(), "a run starts with Galleon");

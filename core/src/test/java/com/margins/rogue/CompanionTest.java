@@ -59,6 +59,6 @@ class CompanionTest {
         assertEquals(0, c.getDistractionsLeft());
 
         c.resetDistractions();
-        assertEquals(Companion.MAX_DISTRACTIONS_PER_FLOOR, c.getDistractionsLeft(), "descending refills the budget");
+        assertEquals(Companion.MAX_DISTRACTIONS_PER_FLOOR, c.getDistractionsLeft(), "resetDistractions refills the budget");
     }
 }
