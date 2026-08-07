@@ -11,6 +11,7 @@ import com.badlogic.gdx.graphics.g2d.GlyphLayout;
 import com.badlogic.gdx.graphics.g2d.SpriteBatch;
 import com.badlogic.gdx.graphics.glutils.ShapeRenderer;
 import com.badlogic.gdx.utils.viewport.FitViewport;
+import com.margins.dialog.DialogNode;
 import com.margins.rogue.Companion;
 import com.margins.rogue.RogueEnemy;
 import com.margins.rogue.RoguePlayer;
@@ -19,11 +20,14 @@ import com.margins.rogue.RogueTileMap;
 import com.margins.rogue.item.FloorItem;
 import com.margins.rogue.item.Inventory;
 import com.margins.rogue.item.Supply;
+import com.margins.rogue.narrative.DialogController;
+import com.margins.rogue.narrative.SampleDialog;
 import com.margins.rogue.state.RunState;
 import com.margins.rogue.system.FovSystem;
 import com.margins.rogue.system.PlayerAction;
 import com.margins.rogue.system.TurnEngine;
 
+import java.util.ArrayList;
 import java.util.List;
 
 /**
@@ -45,6 +49,9 @@ public class MarginScreen implements Screen {
 
     private final RunState state = new RunState();
     private final TurnEngine turnEngine = new TurnEngine();
+    /** Story 2.1: the open dialogue scene, if any. Transient view-session state (NOT on
+     *  RunState — AD-6); while {@code isActive()} the turn loop is suspended (AD-14). */
+    private final DialogController dialog = new DialogController();
 
     private boolean gameOver = false;
     /** Selected backpack slot (0..7), -1 = none yet. Screen state only — reset on restart (Task 5). */
@@ -83,6 +90,7 @@ public class MarginScreen implements Screen {
                 state.appendMessages(List.of(GAME_OVER_LINE));
             }
             if (Gdx.input.isKeyJustPressed(Input.Keys.R)) {
+                dialog.end(); // Story 2.1: a restart closes any open scene
                 state.restart();
                 FovSystem.compute(state);
                 gameOver = false;
@@ -91,6 +99,15 @@ public class MarginScreen implements Screen {
                 // silently re-showing the opening line.
                 state.appendMessages(List.of("Another life. [WASD] move."));
             }
+            return;
+        }
+
+        // Story 2.1 safe pause (AD-14): while a scene is open, only dialogue keys route and every
+        // gameplay key is swallowed — no PlayerAction, so no turn and no survival tick. The
+        // screen only forwards indices and renders the controller's node (AD-1); it never mutates
+        // dialogue state itself.
+        if (dialog.isActive()) {
+            handleDialogueInput();
             return;
         }
 
@@ -123,7 +140,34 @@ public class MarginScreen implements Screen {
         // Backpack selection cycle (Task 5): TAB / ] forward, [ backward. Not a turn — returns null.
         if (down(Input.Keys.TAB) || down(Input.Keys.RIGHT_BRACKET)) return cycleSelection(1);
         if (down(Input.Keys.LEFT_BRACKET)) return cycleSelection(-1);
+        // Story 2.1 smoke scene (verification seam — superseded by the 2.2 intro, which removes
+        // this key). N is free (key audit in the story); opens the scene, no turn committed.
+        if (down(Input.Keys.N)) {
+            dialog.start(SampleDialog.build(), state);
+            return null;
+        }
         return null;
+    }
+
+    /** Story 2.1 (AD-14): the dialogue input surface while a scene is open. Number keys pick a
+     *  choice; SPACE/E close a terminal (optionless) node; ESC cancels. Nothing here returns a
+     *  PlayerAction — the turn loop stays suspended. Forwarding only (AD-1): the controller
+     *  owns navigation, effects, and the log writes. */
+    private void handleDialogueInput() {
+        DialogNode node = dialog.getCurrent();
+        if (node == null) return;
+        for (int i = 1; i <= node.options.length && i <= 9; i++) {
+            if (Gdx.input.isKeyJustPressed(Input.Keys.NUM_1 + (i - 1))) { // NUM_1..NUM_9
+                dialog.select(i - 1, state);
+                return;
+            }
+        }
+        if (node.options.length == 0
+                && (Gdx.input.isKeyJustPressed(Input.Keys.SPACE) || Gdx.input.isKeyJustPressed(Input.Keys.E))) {
+            dialog.end();
+        } else if (Gdx.input.isKeyJustPressed(Input.Keys.ESCAPE)) {
+            dialog.end();
+        }
     }
 
     /** The selected stack's type, or -1 when nothing is selected (or the slot went empty). */
@@ -233,15 +277,22 @@ public class MarginScreen implements Screen {
 
         renderBackpackRow();
 
-        // The bottom message log (NFR-3, AD-15): the PRIMARY text surface — the last ~5 lines,
-        // newest at the bottom edge. Read from the core-owned log (AD-1); never built here.
-        List<String> log = state.getMessageLog();
-        int start = Math.max(0, log.size() - LOG_LINES);
-        int y = 22 + 14 * (log.size() - 1 - start);
-        font.setColor(Color.WHITE);
-        for (int i = start; i < log.size(); i++) {
-            font.draw(batch, log.get(i), 8, y);
-            y -= 14;
+        // The bottom message log (NFR-3, AD-15): the PRIMARY text surface. Story 2.1 log-window
+        // policy (Decision 1): while a scene is open it shows the DIALOGUE PAGE (speaker + node
+        // text + numbered choices), not the last-5 event lines; the event window — now including
+        // the effect outcomes the scene appended — resumes when the scene closes. The log is
+        // core-owned (AD-1); never built here.
+        if (dialog.isActive()) {
+            renderDialoguePage();
+        } else {
+            List<String> log = state.getMessageLog();
+            int start = Math.max(0, log.size() - LOG_LINES);
+            int y = 22 + 14 * (log.size() - 1 - start);
+            font.setColor(Color.WHITE);
+            for (int i = start; i < log.size(); i++) {
+                font.draw(batch, log.get(i), 8, y);
+                y -= 14;
+            }
         }
 
         // Game over — a prominent centered overlay (the line is also in the log above).
@@ -272,6 +323,54 @@ public class MarginScreen implements Screen {
             font.draw(batch, label, x, WH - 50);
             x += (int) w + 12;
         }
+    }
+
+    /** Story 2.1: the dialogue page (AD-15 — the bottom log IS the text-forward surface). Draws
+     *  the speaker (nullable → narration, no prefix), the wrapped node text below the HUD rows,
+     *  and the numbered choices at the bottom edge. A null option label renders defensively
+     *  (authoring contract — the controller navigates by index, never by label). */
+    private void renderDialoguePage() {
+        DialogNode node = dialog.getCurrent();
+        if (node == null) return;
+
+        int y = WH - 66; // below the HP/tracks/debuff/backpack rows
+        if (node.speaker != null) {
+            font.setColor(0.75f, 0.90f, 0.80f, 1f); // speaker in green, the companion accent
+            font.draw(batch, node.speaker + ":", 8, y);
+            y -= 14;
+        }
+        font.setColor(0.95f, 0.90f, 0.75f, 1f);
+        for (String line : wrapText(node.text, WW - 16)) {
+            font.draw(batch, line, 8, y);
+            y -= 14;
+        }
+
+        int cy = 22 + 14 * (node.options.length - 1);
+        font.setColor(Color.WHITE);
+        for (int i = 0; i < node.options.length; i++) {
+            String label = node.options[i].label != null ? node.options[i].label : "(…)";
+            font.draw(batch, (i + 1) + ". " + label, 8, cy);
+            cy -= 14;
+        }
+    }
+
+    /** Word-wrap {@code text} to fit {@code maxWidthPx} at the current font (GlyphLayout measure). */
+    private List<String> wrapText(String text, int maxWidthPx) {
+        List<String> lines = new ArrayList<>();
+        StringBuilder cur = new StringBuilder();
+        for (String word : text.split(" ")) {
+            String trial = cur.length() == 0 ? word : cur + " " + word;
+            if (cur.length() > 0 && new GlyphLayout(font, trial).width > maxWidthPx) {
+                lines.add(cur.toString());
+                cur.setLength(0);
+                cur.append(word);
+            } else {
+                if (cur.length() > 0) cur.append(' ');
+                cur.append(word);
+            }
+        }
+        if (cur.length() > 0) lines.add(cur.toString());
+        return lines;
     }
 
     @Override public void resize(int w, int h) { viewport.update(w, h); }

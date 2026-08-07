@@ -1,6 +1,7 @@
 # Story 2.1: Text-forward dialogue nodes with safe pause
 
-Status: ready-for-dev
+Status: review
+baseline_commit: 56ff4db
 
 <!-- Note: Validation is optional. Run validate-create-story for quality check before dev-story. -->
 
@@ -54,41 +55,41 @@ So that reading and choosing never costs me a turn (FR-19, AD-14).
 
 ## Tasks / Subtasks
 
-- [ ] **Task 1 — The stat-agnostic gate (AC: 3)**
-  - [ ] New `com.margins.dialog.GateStat` enum (`INSTINCT`, `VOICE`).
-  - [ ] `DialogOption`: replace `instinctThreshold`/the gated ctor with `(GateStat gatedStat, int gateThreshold)` — `-1` = ungated; `isGated()` = `gatedStat != null`. One gate path, no legacy field. Keep the ungated `(label, next)` ctor.
-  - [ ] `DialogController.select`: resolve the gate by stat — `VOICE → player.getVoice()`, `INSTINCT → player.getInstinct()`; `>= threshold` → success `next`, below → `failNext` (brownfield semantics preserved).
-  - [ ] Migrate `DialogControllerTest`'s five 5.2 gate tests to the new ctor (`GateStat.INSTINCT, 5` etc.). 5.1/5.3 tests pass unchanged.
+- [x] **Task 1 — The stat-agnostic gate (AC: 3)**
+  - [x] New `com.margins.dialog.GateStat` enum (`INSTINCT`, `VOICE`).
+  - [x] `DialogOption`: replace `instinctThreshold`/the gated ctor with `(GateStat gatedStat, int gateThreshold)` — `-1` = ungated; `isGated()` = `gatedStat != null`. One gate path, no legacy field. Keep the ungated `(label, next)` ctor.
+  - [x] `DialogController.select`: resolve the gate by stat — `VOICE → player.getVoice()`, `INSTINCT → player.getInstinct()`; `>= threshold` → success `next`, below → `failNext` (brownfield semantics preserved).
+  - [x] Migrate `DialogControllerTest`'s five 5.2 gate tests to the new ctor (`GateStat.INSTINCT, 5` etc.). 5.1/5.3 tests pass unchanged.
 
-- [ ] **Task 2 — The effect model (AC: 2)**
-  - [ ] `DialogNode`: an effect list (`withEffect(...)` builder); keep `withFlag(key, value)` working as the SET_FLAG convenience.
-  - [ ] Effect kinds (com.margins.dialog descriptors + controller execution): SET_FLAG, BOND (tag → `applyBondTag`), GIVE_ITEM (type, count → `Inventory.tryAdd`), TAKE_ITEM (type, count → `Inventory.remove`), DISPOSITION (npc key, delta → `FlagStore.add("disposition."+key, delta)`).
-  - [ ] `DialogController.enter`: after the node's flag write, execute each effect, collect its SPD-tone line, then `state.appendMessages(lines)` when non-empty (Decision 2 — every effect emits; no silent mutation).
-  - [ ] Tests: each effect kind mutates the right store AND its line lands in `getMessageLog()`; `GIVE_ITEM` with a full pack emits "No room in your pack." and adds nothing; `BOND` via `BOND_TAG_HONEST` → +1 / `BOND_TAG_DISMISSIVE` → −1.
+- [x] **Task 2 — The effect model (AC: 2)**
+  - [x] `DialogNode`: an effect list (`withEffect(...)` builder); keep `withFlag(key, value)` working as the SET_FLAG convenience.
+  - [x] Effect kinds (com.margins.dialog descriptors + controller execution): SET_FLAG, BOND (tag → `applyBondTag`), GIVE_ITEM (type, count → `Inventory.tryAdd`), TAKE_ITEM (type, count → `Inventory.remove`), DISPOSITION (npc key, delta → `FlagStore.add("disposition."+key, delta)`).
+  - [x] `DialogController.enter`: after the node's flag write, execute each effect, collect its SPD-tone line, then `state.appendMessages(lines)` when non-empty (Decision 2 — every effect emits; no silent mutation).
+  - [x] Tests: each effect kind mutates the right store AND its line lands in `getMessageLog()`; `GIVE_ITEM` with a full pack emits "No room in your pack." and adds nothing; `BOND` via `BOND_TAG_HONEST` → +1 / `BOND_TAG_DISMISSIVE` → −1.
 
-- [ ] **Task 3 — The dialogue surface + safe pause (AC: 1)**
-  - [ ] `DialogNode`: `public String speaker` (nullable — narration has no speaker; AC-1 "speaker line").
-  - [ ] `MarginScreen`: `private final DialogController dialog = new DialogController();` — transient view-session state, NOT on RunState (Decision 4, AD-6).
-  - [ ] Safe-pause routing (Decision 6): while `dialog.isActive()`, all gameplay keys return `null`; `NUM_1..NUM_N` → `dialog.select(i-1, state)`; SPACE/E on a terminal node → `dialog.end()`; ESC → `dialog.end()`; R closes the scene before restarting.
-  - [ ] Render (Decision 1): while `dialog.isActive()`, `renderLog` draws the dialogue page — speaker (nullable → narration, no prefix), wrapped node text, numbered choices "1. label" — instead of the event window; when closed, revert to the last-5 event lines. No new chrome (NFR-3).
-  - [ ] The screen forwards indices and renders `getCurrent()` — it never mutates dialogue state itself (AD-1).
+- [x] **Task 3 — The dialogue surface + safe pause (AC: 1)**
+  - [x] `DialogNode`: `public String speaker` (nullable — narration has no speaker; AC-1 "speaker line").
+  - [x] `MarginScreen`: `private final DialogController dialog = new DialogController();` — transient view-session state, NOT on RunState (Decision 4, AD-6).
+  - [x] Safe-pause routing (Decision 6): while `dialog.isActive()`, all gameplay keys return `null`; `NUM_1..NUM_N` → `dialog.select(i-1, state)`; SPACE/E on a terminal node → `dialog.end()`; ESC → `dialog.end()`; R closes the scene before restarting.
+  - [x] Render (Decision 1): while `dialog.isActive()`, `renderLog` draws the dialogue page — speaker (nullable → narration, no prefix), wrapped node text, numbered choices "1. label" — instead of the event window; when closed, revert to the last-5 event lines. No new chrome (NFR-3).
+  - [x] The screen forwards indices and renders `getCurrent()` — it never mutates dialogue state itself (AD-1).
 
-- [ ] **Task 4 — The smoke scene + debug trigger (verification seam, superseded by 2.2)**
-  - [ ] Harden `SampleDialog.build()` (or a renamed equivalent) into the 2.1 smoke scene: narrator root (nullable speaker) with 2-4 options — one VOICE-gated + one INSTINCT-gated (both AC-3 branches), a closing choice; a flagged node with a NON-1 value; a Bond effect; an item-give effect; a disposition effect — a tour of AC-2's effect types.
-  - [ ] A free, non-conflicting debug key (N suggested) opens it, clearly commented as a verification seam. Do NOT wire it to run-start.
+- [x] **Task 4 — The smoke scene + debug trigger (verification seam, superseded by 2.2)**
+  - [x] Harden `SampleDialog.build()` (or a renamed equivalent) into the 2.1 smoke scene: narrator root (nullable speaker) with 2-4 options — one VOICE-gated + one INSTINCT-gated (both AC-3 branches), a closing choice; a flagged node with a NON-1 value; a Bond effect; an item-give effect; a disposition effect — a tour of AC-2's effect types.
+  - [x] A free, non-conflicting debug key (N suggested) opens it, clearly commented as a verification seam. Do NOT wire it to run-start.
 
-- [ ] **Task 5 — Tests: authoring-contract hardening + safe-pause pin (carry #5, AD-14)**
-  - [ ] >4-option nodes: a node with 5-6 options navigates fine through the controller (the old engine capped at 4).
-  - [ ] null option label: the controller never dereferences labels (navigation is by index) — a null label does not throw; the screen renders it defensively.
-  - [ ] non-1 flag value: `withFlag(key, 7)` writes 7 through to `FlagStore.get(key) == 7`; effects never assume a value of 1 (`!= 0` is the truth test — `FlagStore.get` returns 0 for absent).
-  - [ ] key namespacing: the smoke scene's keys are unique/namespaced (the SceneEffects `KEY_CACHE_*` single-authority pattern) — no collision between two scenes' keys.
-  - [ ] Safe-pause pin (AD-14): drive a full scene through the controller and assert `getClockTurns()` and the four tracks are UNCHANGED — dialogue ticks nothing (mirror the AD-5 honesty pins).
-  - [ ] Observation pin: after `select()`, every effect's line IS in `getMessageLog()`.
+- [x] **Task 5 — Tests: authoring-contract hardening + safe-pause pin (carry #5, AD-14)**
+  - [x] >4-option nodes: a node with 5-6 options navigates fine through the controller (the old engine capped at 4).
+  - [x] null option label: the controller never dereferences labels (navigation is by index) — a null label does not throw; the screen renders it defensively.
+  - [x] non-1 flag value: `withFlag(key, 7)` writes 7 through to `FlagStore.get(key) == 7`; effects never assume a value of 1 (`!= 0` is the truth test — `FlagStore.get` returns 0 for absent).
+  - [x] key namespacing: the smoke scene's keys are unique/namespaced (the SceneEffects `KEY_CACHE_*` single-authority pattern) — no collision between two scenes' keys.
+  - [x] Safe-pause pin (AD-14): drive a full scene through the controller and assert `getClockTurns()` and the four tracks are UNCHANGED — dialogue ticks nothing (mirror the AD-5 honesty pins).
+  - [x] Observation pin: after `select()`, every effect's line IS in `getMessageLog()`.
 
-- [ ] **Task 6 — Tests, full suite, serialization check (AC: all)**
-  - [ ] All core seams headless, no libGDX types (AD-2): `DialogueGateTest`, `DialogueEffectTest`, `DialogueSafePauseTest` (in `core/src/test/java/com/margins/rogue/narrative/`).
-  - [ ] Serialization: 2.1 adds NO new persisted field to RunState (Decision 4/5 — the controller/surface are transient; effects flow through existing persisted stores). Pin a save round-trip leaves the dialogue closed and `FlagStore`/`Inventory` round-trip unchanged (AD-6 rule satisfied by construction).
-  - [ ] Full suite green (`mvn -o clean install`), no regressions in the 205 existing tests (especially `DialogControllerTest`, `SceneEffectsTest`, `RunStatePersistenceTest`).
+- [x] **Task 6 — Tests, full suite, serialization check (AC: all)**
+  - [x] All core seams headless, no libGDX types (AD-2): `DialogueGateTest`, `DialogueEffectTest`, `DialogueSafePauseTest` (in `core/src/test/java/com/margins/rogue/narrative/`).
+  - [x] Serialization: 2.1 adds NO new persisted field to RunState (Decision 4/5 — the controller/surface are transient; effects flow through existing persisted stores). Pin a save round-trip leaves the dialogue closed and `FlagStore`/`Inventory` round-trip unchanged (AD-6 rule satisfied by construction).
+  - [x] Full suite green (`mvn -o clean install`), no regressions in the 205 existing tests (especially `DialogControllerTest`, `SceneEffectsTest`, `RunStatePersistenceTest`).
 
 ## Dev Notes
 
@@ -164,38 +165,45 @@ So that reading and choosing never costs me a turn (FR-19, AD-14).
 
 ### Agent Model Used
 
-(Dev fills at implementation time.)
+Claude Opus 4.8 (1M context)
 
 ### Debug Log References
 
-(Dev fills at implementation time.)
+- (2026-08-08) Java 17 pattern-switch: the first `apply(DialogEffect)` used `switch` with pattern cases — `-source 17` rejects it (JEP 441 is Java 21). Rewritten as `instanceof` pattern chains (JEP 394, Java 16+); the sealed `DialogEffect` makes it exhaustive.
+- (2026-08-08) Two `getMessageLog().isEmpty()` assertions failed because a fresh `RunState`'s log is SEEDED with the opening line (Story 1.8). Fixed both `DialogueEffectTest` cases to compare `size()` before/after instead of asserting empty.
 
 ### Completion Notes List
 
-(Dev fills at implementation time.)
+- Story 2.1 implemented end-to-end (all 6 tasks): the stat-agnostic `GateStat` gate (Task 1), the five-kind `DialogEffect` model + controller execution + log append (Task 2), the dialogue surface + structural safe pause in `MarginScreen` (Task 3), the hardened `SampleDialog` smoke scene behind the N debug key (Task 4), the authoring-contract + safe-pause pins (Task 5), and the serialization pin + full suite (Task 6). **228 core tests, 0 failures** (up from 205 — 23 new).
+- The brownfield engine was ratified, not rebuilt: `DialogController` navigation, `withFlag`, and `SceneEffects`/`FlagStore` are untouched in contract; `DialogNode`/`DialogController` gained the FR-19 gate and the effect model. `DialogControllerTest` 5.2 migrated to `GateStat.INSTINCT`; 5.1/5.3 pass unchanged.
+- Effect execution lives in `DialogController.enter` (AD-2/AD-1): it resolves the gate by stat, executes effects through FlagStore/Inventory, and appends the SPD lines via `RunState.appendMessages` — the log's second core writer, explicitly NOT an AD-4 change (dialogue is a suspended surface, never a turn). SET_FLAG (`withFlag`) is silent bookkeeping by design (the node text is the observation); Bond/item/disposition always emit (observation discipline).
+- Safe pause is structural: while `dialog.isActive()`, `handleInput` returns before `readAction` — no `PlayerAction`, so `advance()` never runs (pinned by `readingAndChoosingATurnTicksNothing`).
+- Log-window policy (Decision 1): `renderDialoguePage` replaces the last-5 event window while a scene is open; it reverts after close (the event window now includes effect outcomes).
+- `Inventory.tryAdd` returns `AddResult` (not boolean) — the GIVE_ITEM full-pack refusal keys off `BACKPACK_FULL`.
 
 ### File List
 
 **New (production):**
 - `core/src/main/java/com/margins/dialog/GateStat.java` — the gate-stat enum (INSTINCT/VOICE).
-- Effect descriptors in `com/margins/dialog` — the five kinds (SET_FLAG, BOND, GIVE_ITEM, TAKE_ITEM, DISPOSITION).
+- `core/src/main/java/com/margins/dialog/DialogEffect.java` — the five effect-kind descriptors (SetFlag, Bond, GiveItem, TakeItem, Disposition) as a sealed interface of records.
 
 **New (tests):**
-- `core/src/test/java/com/margins/rogue/narrative/DialogueGateTest.java`
-- `core/src/test/java/com/margins/rogue/narrative/DialogueEffectTest.java`
-- `core/src/test/java/com/margins/rogue/narrative/DialogueSafePauseTest.java`
+- `core/src/test/java/com/margins/rogue/narrative/DialogueGateTest.java` (6) — VOICE/INSTINCT gate routing + the wrong-stat guard.
+- `core/src/test/java/com/margins/rogue/narrative/DialogueEffectTest.java` (11) — each effect kind mutates + emits; full-pack refusal; unknown Bond tag no-op; non-1 flag value.
+- `core/src/test/java/com/margins/rogue/narrative/DialogueSafePauseTest.java` (6) — safe-pause ticks-nothing; observation-at-the-pause-seam; >4-option nodes; null label; key namespacing; reload-with-no-scene round-trip.
 
 **Modified (production):**
-- `core/src/main/java/com/margins/dialog/DialogNode.java` — `speaker`, `GateStat` gate, effect list.
-- `core/src/main/java/com/margins/rogue/narrative/DialogController.java` — stat-agnostic gate resolution, effect execution, log append.
-- `core/src/main/java/com/margins/rogue/narrative/SampleDialog.java` — the 2.1 smoke scene.
-- `core/src/main/java/com/margins/MarginScreen.java` — dialog field, safe-pause routing, dialogue-page render, debug key.
+- `core/src/main/java/com/margins/dialog/DialogNode.java` — `speaker` field, `GateStat` gate (replacing `instinctThreshold`), effect list; `withFlag` delegates to a `SetFlag` effect.
+- `core/src/main/java/com/margins/rogue/narrative/DialogController.java` — stat-agnostic gate resolution, effect execution + SPD log append, the `apply`/`bondLine`/`giveItemLine`/`takeItemLine`/`dispositionLine`/`nameFor` helpers.
+- `core/src/main/java/com/margins/rogue/narrative/SampleDialog.java` — hardened 2.1 smoke scene (`KEY_SMOKE_READ`), a tour of AC-2.
+- `core/src/main/java/com/margins/MarginScreen.java` — `dialog` field, safe-pause routing (`handleDialogueInput`), the dialogue-page render + `wrapText`, the N debug key, R closes the scene on restart.
 
 **Modified (tests):**
-- `core/src/test/java/com/margins/rogue/narrative/DialogControllerTest.java` — 5.2 gate tests migrate to `GateStat`; 5.1/5.3 unchanged.
+- `core/src/test/java/com/margins/rogue/narrative/DialogControllerTest.java` — 5.2 gate tests migrate to `GateStat.INSTINCT`; 5.1/5.3 unchanged.
 
 ## Change Log
 
 | Date | Who | Change |
 |------|-----|--------|
 | 2026-08-08 | Create | Story 2.1 created (Status: ready-for-dev) with the carried epic-1 retro lessons — observation discipline, log-window policy, authoring-contract hardening (carry #5), AD-6 rule — and the brownfield dialogue engine (DialogNode/DialogController/SceneEffects/FlagStore) ratified rather than rebuilt. |
+| 2026-08-08 | Dev | Implemented Story 2.1 (all 6 tasks). `GateStat` stat-agnostic gate (VOICE primary, FR-19); `DialogEffect` five-kind node-entry effect model executed by the controller with SPD log append (observation discipline); dialogue surface + structural safe pause in MarginScreen (AD-14); hardened SampleDialog smoke scene (N key); authoring-contract + serialization pins. 228 core tests green. |

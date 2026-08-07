@@ -55,7 +55,7 @@
 #   item is now folded into new Story 1.1's acceptance criteria (AD-6).
 
 generated: 2026-08-06
-last_updated: 2026-08-08  # Epic 1 retro action items all landed: BUILD.md, Story 2.1 (ready-for-dev), AD-6 rule, backlog re-triaged (22 closed/18 open); Epic 2 in-progress
+last_updated: 2026-08-08  # Story 2.1 implemented (228 tests green) → review; Epic 2 in-progress
 project: The Margin
 project_key: NOKEY
 tracking_system: file-system
@@ -76,7 +76,7 @@ development_status:
 
   # Epic 2 — The Fall of Corneo (Act 0 intro + dialog/quest foundation)
   epic-2: in-progress
-  2-1-text-forward-dialogue-nodes-with-safe-pause: ready-for-dev
+  2-1-text-forward-dialogue-nodes-with-safe-pause: review
   2-2-the-skippable-paged-text-intro: backlog
   2-3-aldrics-diegetic-tutorial: backlog
   2-4-aldrics-capture-and-the-rescue-seed: backlog

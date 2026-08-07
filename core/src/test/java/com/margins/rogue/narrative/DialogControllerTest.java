@@ -2,6 +2,7 @@ package com.margins.rogue.narrative;
 
 import com.margins.dialog.DialogNode;
 import com.margins.dialog.DialogNode.DialogOption;
+import com.margins.dialog.GateStat;
 import com.margins.rogue.state.RunState;
 import org.junit.jupiter.api.Test;
 
@@ -61,7 +62,7 @@ class DialogControllerTest {
         DialogController c = new DialogController();
         DialogNode ok = new DialogNode("SUCCESS");
         DialogNode no = new DialogNode("FAIL");
-        c.start(new DialogNode("g", new DialogOption("read", 5, ok, no)), s);
+        c.start(new DialogNode("g", new DialogOption("read", GateStat.INSTINCT, 5, ok, no)), s);
         c.select(0, s);
         assertSame(ok, c.getCurrent(), "7 >= 5 routes to success");
     }
@@ -72,7 +73,7 @@ class DialogControllerTest {
         DialogController c = new DialogController();
         DialogNode ok = new DialogNode("SUCCESS");
         DialogNode no = new DialogNode("FAIL");
-        c.start(new DialogNode("g", new DialogOption("read", 9, ok, no)), s);
+        c.start(new DialogNode("g", new DialogOption("read", GateStat.INSTINCT, 9, ok, no)), s);
         c.select(0, s);
         assertSame(no, c.getCurrent(), "7 < 9 routes to failure");
     }
@@ -83,7 +84,7 @@ class DialogControllerTest {
         DialogController c = new DialogController();
         DialogNode ok = new DialogNode("SUCCESS");
         DialogNode no = new DialogNode("FAIL");
-        c.start(new DialogNode("g", new DialogOption("read", 7, ok, no)), s);
+        c.start(new DialogNode("g", new DialogOption("read", GateStat.INSTINCT, 7, ok, no)), s);
         c.select(0, s);
         assertSame(ok, c.getCurrent(), "instinct == threshold passes (>=)");
     }
