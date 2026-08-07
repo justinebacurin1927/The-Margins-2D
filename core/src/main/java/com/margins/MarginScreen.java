@@ -23,6 +23,7 @@ import com.margins.rogue.item.Supply;
 import com.margins.rogue.narrative.CorneoIntro;
 import com.margins.rogue.narrative.DialogController;
 import com.margins.rogue.narrative.IntroController;
+import com.margins.rogue.narrative.TutorialController;
 import com.margins.rogue.state.RunState;
 import com.margins.rogue.system.FovSystem;
 import com.margins.rogue.system.PlayerAction;
@@ -56,6 +57,10 @@ public class MarginScreen implements Screen {
     /** Story 2.2: the Act 0 paged-text intro, opened once on a fresh run (below). Transient
      *  view-session state (NOT on RunState — AD-6); takes no RunState, so it cannot tick (AD-14). */
     private final IntroController intro = new IntroController();
+    /** Story 2.3: Aldric's diegetic tutorial — a passive coach that observes committed turns and
+     *  coaches the six opening controls into the log. Transient view-session state (NOT on RunState);
+     *  it never suspends the turn loop. Begins when the intro closes on a fresh run; skipped on restart. */
+    private final TutorialController tutorial = new TutorialController();
 
     private boolean gameOver = false;
     /** Selected backpack slot (0..7), -1 = none yet. Screen state only — reset on restart (Task 5). */
@@ -108,6 +113,10 @@ public class MarginScreen implements Screen {
             handleIntroInput();
             return;
         }
+        // Story 2.3: the intro has closed — arm the diegetic tutorial. begin() is guarded (fires the
+        // first Aldric prompt once, then no-ops), so this every-frame call is safe. On a restart run
+        // the tutorial was skip()'d, so this stays a no-op (a new life gets no coaching).
+        tutorial.begin(state);
         // Story 2.1 safe pause (AD-14): while a scene is open, only dialogue keys route and every
         // gameplay key is swallowed — no PlayerAction, so no turn and no survival tick. The
         // screen only forwards indices and renders the controller's node (AD-1); it never mutates
@@ -121,7 +130,10 @@ public class MarginScreen implements Screen {
         if (selectedSlot >= 0 && state.getInventory().backpackType(selectedSlot) < 0) selectedSlot = -1;
 
         PlayerAction action = readAction(p.getFacing());
-        if (action != null) turnEngine.advance(state, action); // the log is fed inside the engine (AD-4)
+        if (action != null) {
+            turnEngine.advance(state, action); // the log is fed inside the engine (AD-4)
+            tutorial.onAction(action, state);  // Story 2.3: the passive coach observes the committed turn
+        }
     }
 
     /** Restart the run: close any open scene, reset state, recompute FOV, clear the backpack
@@ -131,6 +143,7 @@ public class MarginScreen implements Screen {
     private void restart() {
         dialog.end();
         intro.end(); // close any open surface — symmetric with dialog.end() (review: keep the invariant honest)
+        tutorial.skip(); // Story 2.3: a new life after death gets no coaching (Decision 6)
         state.restart();
         FovSystem.compute(state);
         gameOver = false;

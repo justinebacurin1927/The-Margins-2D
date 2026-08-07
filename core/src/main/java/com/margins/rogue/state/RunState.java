@@ -316,8 +316,10 @@ public class RunState {
     public List<String> getMessageLog() { return Collections.unmodifiableList(messageLog); }
 
     /** Append messages to the log, trimming past the cap (oldest first). The log's sole mutator —
-     *  called by TurnEngine (AD-4) for acted AND refused turns, and by DialogController for dialogue
-     *  effect lines (Story 2.1 — a suspended surface, not a turn, so AD-4's acted branch is untouched). */
+     *  called by TurnEngine (AD-4) for acted AND refused turns, by DialogController for dialogue
+     *  effect lines (Story 2.1 — a suspended surface, not a turn, so AD-4's acted branch is untouched),
+     *  and by TutorialController for Aldric's diegetic coaching lines (Story 2.3 — a passive observer
+     *  that runs after a committed turn and writes only log lines, never a turn). */
     public void appendMessages(List<String> messages) {
         messageLog.addAll(messages);
         while (messageLog.size() > MESSAGE_LOG_CAP) messageLog.remove(0);
