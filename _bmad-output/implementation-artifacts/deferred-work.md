@@ -1,88 +1,206 @@
 # Deferred Work
 
-## Deferred from: code review of story-3.1 (2026-07-19)
+## Triage (2026-08-08)
 
-- **`equip` same-type-in-both-slots semantics** — `equip(type)` currently allows the same item type to occupy both equipped slots. Confirm the intended model (distinct gear vs. duplicate copies) when the equip UI is built in Story 3.2. [core/src/main/java/com/margins/rogue/item/Inventory.java]
-- **Equipped-item dead-end** — `unequip` into a full backpack is refused (no item loss, correct) and `drop()` only scans the backpack, so a player with a full backpack + equipped items has no way to shed an equipped item. Add an unequip-with-drop path alongside the drop UI in Story 3.2. [core/src/main/java/com/margins/rogue/item/Inventory.java]
+Full re-triage before Epic 3 (epic-1 retro action #5). Verdicts: **22 closed** (superseded by
+work already delivered — mostly the continuous-map refactor (1.1, AD-8), the saveVersion gate
+(1.1, AD-6/AD-8), and the Epic 1 story chain 1.2→1.6→1.8), **18 open** (below, each tagged with
+its target epic/story). **Epic 2-relevant:** the three items tagged `[Epic 2]` feed Story 2.2's
+intro and the Story 2.1/2.4/2.5 authoring work; the dialogue-authoring carry (#5) is already
+folded into Story 2.1's dev notes.
 
-## Deferred from: code review of story-3.2 (2026-07-19)
+**Open (working list):**
 
-- **Make-room swap spends two turns** — the drop-or-leave `[D]` → `[X]` gesture runs `drop` then `pickup` as two separate turns, so enemies double-move and hunger ticks twice for one player action. Refactor to a single-turn swap when the inventory UX is revisited. [core/src/main/java/com/margins/rogue/RogueGameScreen.java, handleInventoryInput]
-- **No per-tile item stacking / chooser** — multiple `FloorItem` stacks can sit on one tile; pickup and the rendered marker both act on the first stack with no disambiguation, and the marker shows no count. Add stacking-on-drop or a pickup chooser. [core/src/main/java/com/margins/rogue/state/RunState.java, takeItemAt / RogueGameScreen floor-item render]
+| # | Item (source) | Target | Verdict |
+|---|---------------|--------|---------|
+| O1 | `applyCacheReveal` gates on `== 1` + no null-guards | **Epic 2** (2.4/2.5 scene authors) | open — same non-1 hardening family Story 2.1 covers for the dialogue path |
+| O2 | Comment drift / stale "AD-8" + "pre-4.3 save" | **Epic 2** (2.1 — file 2.1 edits) | open — fix the AD citation when 2.1 touches DialogController |
+| O3 | Opening (cycle-0) weather never gets an onset line | **Epic 2** (2.2 intro) | open — the intro can decide |
+| O4 | Map connectivity/reachability not asserted | Epic 3 (3-1) | open |
+| O5 | `getStr()` floor hides Nausea-vs-Fever at STR 5 | Epic 3 (3-5) | open |
+| O6 | **SaveService has no production callers** | no story yet — add a save/load-UI story | open (TOP) |
+| O7 | `equip` same-type-in-both-slots semantics | Epic 4 (4-4) | open |
+| O8 | Equipped-item dead-end (unequip w/ full pack) | Epic 4 (4-4/4-5) | open |
+| O9 | Companion placement overlap (enemy / player tile) — merged from 2 items | Epic 5 (5-1) | open |
+| O10 | Per-tile item stacking / pickup chooser | Epic 6 (6-1) | open |
+| O11 | Global-clock spoilage — fresh meat rots in 1 turn | Epic 6 (object inventory) | open |
+| O12 | Torch can't be extinguished/dropped/conserved | Epic 6 (torch as item) | open |
+| O13 | `restoreAfterLoad()` RNG reseed diverges | no home (low) | open |
+| O14 | `tickClock()` only handles 1-turn crossings | carry to a fast-forward story | open |
+| O15 | Weather onset lags the temperature effect one turn | pipeline-ordering story | open |
+| O16 | "Wait"/refusal lines crowd the 5-line window | HUD polish | open |
+| O17 | `Weather.onsetLine()` default → "The skies clear." | when weather grows | open |
+| O18 | Bloated slow invisible in the debuff row | HUD polish | open |
 
-## Deferred from: code review of story-3.3 (2026-08-03)
+---
 
-- **Pre-3.3 save reloads with a non-deterministic identity binding** — a save written before the `identifyMap` field existed (no `identifyMap` key in JSON) does not crash (the no-arg `RunState()` ctor builds a binding, so the field is non-null and `identityOf` is null-guarded), but that binding is seeded from `System.nanoTime()` rather than rebuilt from the stored `seed` — so reloading the same pre-3.3 save yields a different binding each time. Task 3's dropped seed-rebuild fallback would have fixed this deterministically; dropping it (Deviation 2) misdiagnosed the branch as a null-guard. Negligible real-world risk (single-slot, no-migration AD-6, field ships with 3.3). A clean fix needs a save-version/sentinel since the non-null field defeats a null check. [core/src/main/java/com/margins/rogue/state/RunState.java, restoreAfterLoad]
+# OPEN (working list)
 
-## Deferred from: code review of story-3.4 (2026-08-03)
+## O1 — `SceneEffects.applyCacheReveal` authoring-contract robustness
+**Source:** code review of Epic 5 (5.3). **Target: Epic 2** (2.4/2.5 scene authors).
 
-- **Identify arrays not resized on cross-version save load (enum growth)** — `IdentifyMap.markIdentified` guards on `Supply.count()` but indexes `identifiedByOrdinal`; a save serialized under a smaller `Supply` enum deserializes a shorter (non-null) array, so the first use of a newly-added supply type would `ArrayIndexOutOfBounds`. Not reachable in the current build (array is always `Supply.count()` long); only manifests if a future story adds a `Supply` constant and an in-flight save is resumed across that change. Shares the same latent limitation as 3.3's `boundByOrdinal`. If cross-version save robustness is ever wanted, resize both identify arrays on load (or grow on demand). [core/src/main/java/com/margins/rogue/state/IdentifyMap.java, markIdentified]
+`applyCacheReveal` gates on `== 1` (a `withFlag(key, 2)` never spawns) and lacks the null-guards
+`DialogController` has; unreachable today, revisit (`!= 0`, consistency guards) when authored
+scenes use non-1 flag values. Same non-1 hardening family as carry #5 — Story 2.1 now covers the
+*dialogue* path (Task 5 pins `withFlag(key, 7)`), this is the SceneEffects side. [Low]
+[core/src/main/java/com/margins/rogue/narrative/SceneEffects.java]
 
-## Deferred from: code review of Epic 4 (4.1 / 4.2 / 4.3) (2026-08-03)
+## O2 — Comment drift / AD-number collision
+**Source:** code review of 1-1. **Target: Epic 2** (2.1 — the file 2.1 modifies).
 
-- **Companion may be placed on / step onto an enemy or STAIRS_DOWN tile** (story 4.1) — `RunState.companionSpotNear` and `Companion.followStep` use a walkable-only check with no enemy/stairs exclusion, so the ally can render stacked on an enemy or spawn on the down-stairs. The companion is a non-colliding ally by design, so this is cosmetic overlap rather than a gameplay blocker; ally-collision policy is a deliberate Epic 6 concern. [Low] [core/src/main/java/com/margins/rogue/state/RunState.java companionSpotNear, Companion.java followStep]
-- **No committed JUnit test suite for the new model** (story 4.3, cross-cutting) — FlagStore round-trip and companion/identify coverage exist only as throwaway harnesses, so the persistence contract is not guarded by a committed test. This is the standing Epic 1/3 retrospective critical-path item (stand up a JUnit 5 core test source root and port the harnesses). The 4.3 round-trip itself was verified passing by its harness before deletion. [Low]
+`DialogController.java:~48` still cites an **old** "AD-8" (the obsolete architecture's AD-8 ≠ the
+new architecture's AD-8 = continuous map); `RunState.java:49`'s "pre-4.3 save" comment is
+old-design vocabulary; `FlagStore`'s "Epic 5 dialogue nodes call this" overclaim becomes true once
+2.1's BOND effect calls `applyBondTag`. **Fix the stale AD-8 citation when Story 2.1 edits
+DialogController**; flag an architecture-wide AD-reference sweep for the rest.
 
-## Deferred from: code review of Epic 5 (5.1 / 5.2 / 5.3) (2026-08-03)
+## O3 — Opening (cycle-0 / restart) weather never gets an onset line
+**Source:** code review of 1-8. **Target: Epic 2** (2.2 intro).
 
-- **Debug `T` dialogue trigger + `SampleDialog` ship in the build** (story 5.1) — spec-sanctioned scaffolding so FR-6 is exercisable; it opens a placeholder scene and (via 5.3) spawns a real persisted cache. Epic 6 replaces the trigger with authored triggers/content and should remove or gate the debug key. [Low] [core/.../rogue/RogueGameScreen.java (T handler), narrative/SampleDialog.java]
-- **Dialogue input caps selectable choices at 4** (story 5.1) — only `NUM_1..NUM_4` are mapped; matches FR-6's "1–4 choices" cap, so 4 is by design, but a 5+-option authored node would have dead choices. Add a defensive cap/assert if authored content ever approaches the limit. [Low] [core/.../rogue/RogueGameScreen.java (handleDialogueInput)]
-- **`SceneEffects` cache keys are single-run-scoped globals** (story 5.3) — `scene.cache.*` would collide if a second authored cache is added; needs per-scene keying for multiple caches. [Low] [core/.../rogue/narrative/SceneEffects.java]
-- **Bond-tag dialogue wiring absent** (story 5.3, cross-cutting) — `FlagStore.applyBondTag` (built in 4.3) is never called by the dialogue path; no Epic 5 AC requires it (the honest-reunion Bond raise is the Epic 6 reunion). The 4.3 `FlagStore` doc comment slightly overclaims ("Epic 5 dialogue nodes call this") until Epic 6 wires it. [Low] [core/.../rogue/state/FlagStore.java, narrative/DialogController.java]
-- **`applyCacheReveal` authoring-contract robustness** (story 5.3) — gates on `== 1` (a `withFlag(key, 2)` never spawns) and lacks the null-guards `DialogController` has; unreachable today, revisit (`!= 0`, consistency guards) when authored scenes use non-1 flag values. [Low] [core/.../rogue/narrative/SceneEffects.java]
+The run-start roll is "current state", not a change (AC-2 is about transitions), and the HUD clock
+row already shows the weather. Optional atmosphere — the 2.2 intro can decide whether the opening
+weather gets an onset line. [Low] [core/src/main/java/com/margins/rogue/state/RunState.java rollWeather]
 
-## Deferred from: code review of story-6.1 (2026-08-03)
+## O4 — Map connectivity/reachability is not guaranteed or asserted
+**Source:** code review of 1-1. **Target: Epic 3** (3-1).
 
-- **Legacy save with `floorDepth` above the route bound loads soft-locked** — a hypothetical pre-6.1 deep save (old `descend()` was unbounded) with `floorDepth:5` round-trips but `descend()` returns `false` immediately and the run is stranded (HUD shows `5/3`). Unreachable from any real save — `setFloorDepth` has zero callers and no repo save has ever contained a `floorDepth` key — but it's the one gap where this codebase's graceful legacy-compat pattern (field-init defaults) does not apply. Fix when 6.5 builds the completion path: clamp `floorDepth` (or migrate to route-complete) on load + a regression test. [Med→Low] [core/.../rogue/state/RunState.java descend]
-- **Transient-route design is a landmine for 6.2/6.5** — works only because `route` is a compile-time constant singleton. A future per-run route (different floor count / non-constant) would either fail Json deserialization (`Route` has no no-arg ctor → `SerializationException`) or be silently replaced by `CARAVAN_ROAD` on load. Safe today; revisit when 6.2 makes the route per-run. [Low] [core/.../rogue/world/Route.java]
-- **Road-end turn burns hunger/Last-Stand and is re-triggerable** — on a `false` descend the branch still ticks hunger + Last-Stand; the player stands on the end stairs and can step off/on, re-firing the end message and starving with no completion state. This is the documented 6.5 seam — 6.1 deliberately creates it without implementing completion. [Low] [core/.../rogue/system/TurnEngine.java descend branch]
-- **Legacy-deep-save HUD renders an impossible floor marker (`5/3`)** — same root as the legacy-save finding; cosmetic, only on a state no real save reaches. [Low] [core/.../rogue/RogueGameScreen.java renderHUD]
+`FloorGenerator` chains rooms in insertion order with no reachability check, and `carveCorridor`'s
+3×3 brush can truncate at the map edge via `RogueTileMap.setTile`'s silent clamp. Story 3.1
+(world-gen owns the real hybrid map + traversability guarantees) is the home.
 
-## Deferred from: code review of 1-1-retire-floor-descent-for-one-continuous-map (2026-08-06)
+## O5 — `getStr()` floor hides the Nausea-vs-Fever STR distinction at base stat 5
+**Source:** code review of 1-7. **Target: Epic 3** (3-5).
 
-- **`SaveService` has no production callers (TOP FOLLOW-UP).** The save/load/migration path — including the AD-6 version guard added in Story 1.1 — is never invoked in the running game; `MarginScreen` only calls `RunState.restart()`. The guard is correct and tested but dormant. Needs a save/load-UI wiring story (no such story exists in the current epics yet). Pre-existing (the prototype was stripped of its UI wiring).
-- **`RunState.restoreAfterLoad()` reseeds RNG with `new Random(seed)`**, skipping the constructor's `seededRng` cold-start decorrelation — a resumed run's RNG stream diverges from a fresh run's. Pre-existing; low impact now that floor-descent (and post-load regeneration) is gone.
-- **Map connectivity/reachability is not guaranteed or asserted.** `FloorGenerator` chains rooms in insertion order with no reachability check, and `carveCorridor`'s 3×3 brush can truncate at the map edge via `RogueTileMap.setTile`'s silent clamp. Defer to Story 3.1 (world-gen owns the real hybrid map + traversability guarantees).
-- **`RunState.companionSpotNear` fallback returns the player's own tile**, stacking the companion on the player on a degenerate map. Pre-existing; mitigated by Story 1.1's ≥1-room guard.
-- **Comment drift / AD-number collision.** `DialogController.java:~48` still cites an **old** "AD-8" (the obsolete architecture's AD-8 ≠ the new architecture's AD-8 = continuous map). Flag for an architecture-wide AD-reference sweep; also `RunState`'s "pre-4.3 save" comment is old-design vocabulary.
-- **`MarginScreen` stale-tile render.** A legacy map containing a retired STAIRS tile value (3/4) would render as forest floor and be treated unwalkable (isWalkable dropped STAIRS). Mitigated because nothing loads maps in production today; becomes relevant when save/load is wired (the guard rejects such maps at that point).
+Nausea −30% and Fever −40% both floor to 3 at STR 5 (`floor(5×0.70) = floor(5×0.60) = 3`), so the
+escalation is mechanically invisible in the only offensive stat; Delirium applies no factor. The
+distinction materializes once Story 3.5 (horizontal progression) raises STR — revisit the
+factor/floor there; do not retune in isolation. [Low] [core/.../rogue/RoguePlayer.java getStr()]
 
-## Deferred from: code review of 1-2-four-survival-tracks-that-tick-on-real-turns (2026-08-06)
+## O6 — `SaveService` has no production callers (TOP)
+**Source:** code review of 1-1. **Target:** no story yet — **add a save/load-UI wiring story** (none
+exists in the current epics).
 
-- **HUD labels for the new survival tracks are unwired.** `RoguePlayer.thirstLabel()`/`tempLabel()` and `RunState.getClockTurns()` exist in the model but `RogueGameScreen` still only draws `hungerLabel` — so Thirst, Temperature, and the Day/Night counter are invisible in-game. This is Story 1.8's explicit scope ("do not build HUD here" — the labels were built headless). **Carry to Story 1.8**, which now knows the exact methods to surface. [Med] [core/.../RogueGameScreen.java renderHUD]
-- **Driver-less temperature drift vs. harm needs re-balancing under a real driver.** The review made extreme-band harm reliable (1 HP/turn while Frozen/Overheated), but with no weather/fire the meter only ever reaches an extreme transiently (~20 HP drifting out of Frozen) — the honest "exposure is lethal" shape, but the *rates* only make sense once a driver keeps the meter there. PRD FR-4 carries the numbers as "starting calibration." **Carry to Story 1.6**, which owns weather-driven drift (Cold Snap −2.0/turn) and the campfire mitigation. [Low] [core/.../RoguePlayer.java tickTemperature]
+The save/load/migration path — including the AD-6 saveVersion guard (Story 1.1) — is never
+invoked in the running game; `MarginScreen` only calls `RunState.restart()`. The guard is correct
+and tested but dormant. The game cannot currently save. Needs a UI-wiring story (Epic 3+).
 
-## Deferred from: code review / dev of 1-3-day-night-clock-and-per-cycle-weather (2026-08-06)
+## O7 — `equip` same-type-in-both-slots semantics
+**Source:** code review of 3.1 (brownfield). **Target: Epic 4** (4-4).
 
-- **Pre-1.3 save (no `weather`/`cycleNumber` keys) loads a nanoTime-rolled weather.** The no-arg `RunState()` ctor (which libGDX Json runs) delegates to the full seeded ctor, whose `rollWeather()` draws from a nanoTime-seeded RNG — so a save predating the fields inherits a non-deterministic weather (not the field-default CLEAR). Current saves always carry the key (`usePrototypes(false)`), so they load correctly; the wart only bites a 1.2→1.3 mid-run upgrade, which is unrealistic here. **This is the identical migration wart already deferred for `identifyMap` (3.3 item);** a clean fix would need the no-arg ctor to skip gameplay draws or a save-version/sentinel. `preWeatherSaveLoadsNonNullAndCycleZero` + `preWeatherSaveDeepInACycleDerivesTheCycleFromTheClock` pin the honest AD-6 contract (non-null, cycle derived from the persisted clock, Day). Review confirmed this is the same deferral as the 3.3 `identifyMap` item — the review's `restoreAfterLoad()` patch fixed the *cycle* deterministically but left the *weather* at the documented wart (indistinguishable from a legitimately rolled value at load). [Low] [core/.../state/RunState.java RunState()/rollWeather()]
-- **Forward-compat: an unknown weather string / new field silently voids a run.** libGDX Json reading an unrecognized enum string throws inside `fromJson`; `SaveService` catches `RuntimeException` → returns null (the player keeps a playable run at the cost of the save). Acceptable single-slot AD-6 today; **revisit when the saveVersion read-branch (open action item) exists** so a version gate can reject gracefully instead of via a catch-all. [Low] [SaveService]
-- **`tickClock()` only handles 1-turn crossings.** A future fast-forward/skip (Story 1.8 or a debug harness) that jumps many turns must loop `tickClock()` per turn — a single call that lands past a boundary would only roll the LAST crossed boundary's weather, mis-handling multi-cycle jumps. Fine for the turn-by-turn game loop today; carry the note to the story that adds fast-forward. [Low] [core/.../state/RunState.java tickClock]
+`equip(type)` currently allows the same item type to occupy both equipped slots. Confirm the
+intended model (distinct gear vs. duplicate copies) when the gear-with-memory UI is built in 4-4.
+[core/src/main/java/com/margins/rogue/item/Inventory.java]
 
-## Deferred from: code review of 1-4-fov-and-light-the-visible-camp-tension (2026-08-07)
+## O8 — Equipped-item dead-end
+**Source:** code review of 3.1 (brownfield). **Target: Epic 4** (4-4/4-5).
 
-- **`setLight` accepts off-map / wall / negative coordinates without validation.** Neither `RunState.setLight` nor `NoiseSystem` bounds-checks the light tile, so a light placed off-map or on a WALL lures enemies (via the AD-9 noise channel) to a tile they can never reach — functional-but-degenerate AI, no crash — and an extreme coordinate could overflow `NoiseSystem`'s `dx*dx` int math. **Not reachable within Story 1.4** (nothing here sets a bad light); the real callers are the campfire (Story 1.5, a validated map tile) and the torch (Story 1.6, the player's own walkable tile), so validation belongs at the point of lighting in those stories — building caller-guards now would be speculative. The 1.4 review already hardened `hasLight()` to require both coordinates ≥ 0, closing the most likely bad input (a half-set `-1`). **Carry to Stories 1.5/1.6:** validate/clamp the light tile to a walkable in-bounds tile when the campfire/torch lights it. [Med] [core/.../state/RunState.java setLight, system/NoiseSystem.java]
-  - *Note (not a separate item):* a persisted light reloading onto a "changed" tilemap is **not** independently reachable — AD-6 persists the tilemap inline (never regenerated from seed on load), so a saved light always reloads onto the same map where it was placed. This collapses into the set-time validation above; there is no separate load-time reconciliation to build.
+`unequip` into a full backpack is refused (no item loss, correct) and `drop()` only scans the
+backpack, so a player with a full backpack + equipped items has no way to shed an equipped item.
+Add an unequip-with-drop path alongside the 4-4 drop/gear UI. [core/.../rogue/item/Inventory.java]
 
-## Deferred from: code review of 1-5-food-water-and-two-step-purification (2026-08-07)
+## O9 — Companion placement overlap (enemy / player tile)
+**Source:** code review of Epic 4 (4.1) + code review of 1-1 — **merged** (both are
+`companionSpotNear` concerns). **Target: Epic 5** (5-1).
 
-- **Global-clock spoilage — fresh meat can rot within 1 turn of pickup** [Med] [core/.../system/SpoilageSystem.java] — Blind Hunter (M1): the batch model advances whole stacks on the run-global spoilage clock, so a Raw stack added at clock 49 advances at 50 (1 turn of "freshness"). Inherent to the no-per-item-state model chosen for Story 1.5 (enum-explosion: type-swap transitions, no per-item age) — a per-item age needs the object-based inventory, which is Epic 6. The review's accrual patch (salt-aware, `spoilageProgress`) keeps the cadence honest for whatever is in the pack, but the age gap is a documented model limitation. Revisit when/if the inventory gains per-item state.
-- **Campfire/torch light-tile validation (carried from the 1.4 deferral)** [Med] [core/.../state/RunState.java setLight / campfire] — the 1.4 deferral asked Stories 1.5/1.6 to validate the light tile when it lights. Story 1.5's `BUILD_CAMPFIRE` sets the fire on the player's OWN tile (always a walkable in-bounds tile by construction), so the campfire is already safe; the remaining validation need is the **Story 1.6 torch** (which can also be the player's own walkable tile — same by-construction safety, but confirm when the torch can be placed/extinguished). Carry forward to 1.6.
+`RunState.companionSpotNear` and `Companion.followStep` use a walkable-only check with no enemy
+exclusion, so the ally can render stacked on an enemy; on a degenerate map the fallback returns the
+player's own tile, stacking the ally on the player. Cosmetic (the companion is a non-colliding ally
+by design); ally-collision policy is a deliberate Epic 5/6 concern. (The stairs half of the old
+item is closed — the continuous map has no STAIRS, AD-8.)
+[core/.../rogue/state/RunState.java companionSpotNear, Companion.java followStep]
 
-## Deferred from: code review of 1-6-temperature-and-the-campfire-torch (2026-08-07)
+## O10 — Per-tile item stacking / pickup chooser
+**Source:** code review of 3.2 (brownfield). **Target: Epic 6** (6-1).
 
-- **Torch can't be extinguished, dropped, or conserved** [Med] [core/.../state/RunState.java torchTurns] — once lit, the torch burns 60 acted turns with no opt-out (no unlight action; not an inventory item, so DROP can't touch it). Out of Story 1.6 scope (the torch is deliberately modeled as a pure 60-turn commitment with no inventory item). Extinguish/conserve needs a new PlayerAction + likely the Epic 6 object inventory. Revisit when/if the torch becomes a carried inventory item.
-- **Torch light desyncs on non-acted repositioning** [Low] [core/.../RoguePlayer.java placeAt] — `placeAt` moves the player while the light stays on the old tile until the next acted turn, so a repositioned torch lights/emits-noise at a stale tile. No production caller today (`placeAt` is test-only repositioning); latent. Re-sync the light if a teleport/descent ever lands under a lit torch.
+Multiple `FloorItem` stacks can sit on one tile; pickup and the rendered marker both act on the
+first stack with no disambiguation, and the marker shows no count. Add stacking-on-drop or a pickup
+chooser in the 6-1 inventory work. [core/.../rogue/state/RunState.java, floor-item render]
 
-## Deferred from: code review of 1-7-the-debuff-system (2026-08-08)
+## O11 — Global-clock spoilage — fresh meat can rot within 1 turn of pickup
+**Source:** code review of 1-5. **Target: Epic 6** (object inventory).
 
-- **`getStr()` floor hides the Nausea-vs-Fever STR distinction at base stat 5** [Low] [core/.../RoguePlayer.java getStr()] — blind+edge: with the constructor STR of 5 (no growth mechanic yet), Nausea −30% and Fever −40% both floor to 3 (`floor(5×0.70) = floor(5×0.60) = 3`), so escalating Nausea→Fever is mechanically invisible in the player's only offensive stat, and Delirium applies no factor at all (the penalty is U-shaped 30/40/0%). The "-40%" only materializes under Starving's ×0.65 Fatigue (`floor(5×0.65×0.60)=1` vs `floor(5×0.65×0.70)=2`); the story's own test comment documents this. Root cause is STR locked at 5 with no growth — Story 3.5 (horizontal progression via skill/knowledge) raises STR and the distinction materializes (at STR 10: 7 vs 6). Revisit the factor/floor there; do not retune in 1.7.
-- **No composite debuff query seam (`getActiveDebuffs()` / `debuffLabel()`) for the HUD** [Low] [core/.../RoguePlayer.java debuff shape] — Acceptance Auditor: 1.7 deliberately keeps the debuff shape closed on `RoguePlayer` (architecture spine line 186 "no ad-hoc flags") and out of the 1.7 HUD scope; Story 1.8 (the survival HUD + message log) will need a composite query + label to render the active debuffs (bacterial stage/timer, diarrhea stage, rotgut cripple, honeymoon countdown, collapse cap). Carry to the 1.8 story as an input.
-- **E-key quick-eat can auto-feed a poison mushroom** [Low] [core/src/main/java/com/margins/MarginScreen.java E-key firstWhere(Supply::isProvision)] — Blind Hunter: the quick-eat stopgap consumes the FIRST provision in backpack slot order, so the 1.7 mushrooms/cures (now provisions) are silently consumable — pressing E to eat food can feed a Honeymoon Mushroom (hidden 60-turn collapse, no player choice) or waste a scarce cure. Resolved by Justine: accepted for 1.7 (the E-key is a documented stopgap and 1.7's scope forbids building selection). **Carry to Story 1.8:** the HUD item-selection must give deliberate use of the new mushroom/cure supplies; dropping them into the E-key quick-eat rotation was the regression the 1.8 selection replaces.
+The batch model advances whole stacks on the run-global spoilage clock, so a Raw stack added at
+clock 49 advances at 50 (1 turn of "freshness"). Inherent to the no-per-item-state model (Story 1.5);
+per-item age needs the object-based inventory (Epic 6). [Med] [core/.../system/SpoilageSystem.java]
 
-## Deferred from: code review of 1-8-the-survival-hud-and-message-log (2026-08-08)
+## O12 — Torch can't be extinguished, dropped, or conserved
+**Source:** code review of 1-6. **Target: Epic 6** (torch as carried item).
 
-- **Weather onset announces a change whose temperature effect lags one turn** [Low] [core/.../system/TurnEngine.java] — blind+edge: the boundary roll happens after `TemperatureSystem` already ticked under the OLD weather, so a Cold Snap onset reads as ominous a turn before its −2/turn bites (FOV, by contrast, applies the new weather instantly). Pre-existing Story 1.6 pipeline ordering, out of 1.8 scope. Revisit in a future pipeline-ordering story (align the weather roll with the temperature step or split onset observation across the boundary).
-- **"Wait"/refusal lines crowd notable events out of the 5-line window** [Low] [core/.../system/TurnEngine.java] — blind: grinding WAIT fills the window with "Wait" and can push notable events out of the rendered 5 lines. By-design bounded surface (AD-15); a future polish could suppress the wait line (it is player-initiated and visible in the input itself) or grow the window.
-- **`Weather.onsetLine()` default maps any future weather type to "The skies clear."** [Low] [core/.../Weather.java] — the default branch is speculative (the 5-type enum is fixed and exhaustive); a future weather constant would silently announce "The skies clear." No current defect, noted for when weather grows.
-- **Opening (cycle-0 / restart) weather never gets an onset line** [Low] [core/.../state/RunState.java rollWeather] — the run-start roll is "current state", not a change (AC-2 is about transitions), and the HUD clock row already shows the weather; adding an opening onset line is optional atmosphere if the intro ever wants it.
-- **Bloated slow invisible in the debuff row** [Low] [core/.../RoguePlayer.java getActiveDebuffLabels] — edge: a Well-Fed player's 50% stumble (`isSlowed()`) has no HUD label. The 1.8 spec's label set (bacterial / diarrhea / Rotgut / Collapse) is explicit and Bloated is a Well-Fed side effect (legible via `hungerLabel`). Deferred as a future HUD enhancement if the stumble needs surfacing.
+Once lit, the torch burns 60 acted turns with no opt-out (no unlight action; not an inventory item,
+so DROP can't touch it). Deliberate 1.6 modeling (pure 60-turn commitment). Extinguish/conserve
+needs a new `PlayerAction` + likely the Epic 6 object inventory. [Med]
+[core/.../rogue/state/RunState.java torchTurns]
+
+## O13 — `RunState.restoreAfterLoad()` reseeds RNG with `new Random(seed)`
+**Source:** code review of 1-1. **Target:** no home (low).
+
+Skips the constructor's `seededRng` cold-start decorrelation, so a resumed run's RNG stream
+diverges from a fresh run's. Low impact now (no load in production, O6); fix if resume-parity ever
+matters.
+
+## O14 — `tickClock()` only handles 1-turn crossings
+**Source:** code review of 1-3. **Target:** carry to the story that adds fast-forward (none yet).
+
+A future fast-forward/skip that jumps many turns must loop `tickClock()` per turn — a single call
+past a boundary only rolls the LAST crossed boundary's weather. Fine for the turn-by-turn loop
+today. [Low] [core/.../rogue/state/RunState.java tickClock]
+
+## O15 — Weather onset announces a change whose temperature effect lags one turn
+**Source:** code review of 1-8. **Target:** a future pipeline-ordering story.
+
+The boundary roll happens after `TemperatureSystem` already ticked under the OLD weather, so a Cold
+Snap onset reads as ominous a turn before its −2/turn bites (FOV applies the new weather instantly).
+Pre-existing Story 1.6 pipeline ordering. Revisit in a pipeline-ordering story (align the roll with
+the temperature step). [Low] [core/.../system/TurnEngine.java]
+
+## O16 — "Wait"/refusal lines crowd notable events out of the 5-line window
+**Source:** code review of 1-8. **Target:** HUD polish (not Epic 2).
+
+Grinding WAIT fills the window with "Wait" and pushes notable events out of the rendered 5 lines.
+By-design bounded surface (AD-15); a future polish could suppress the wait line (player-initiated,
+visible in the input itself) or grow the window. (Story 2.1's dialogue page is a separate surface.)
+[Low] [core/.../system/TurnEngine.java]
+
+## O17 — `Weather.onsetLine()` default maps any future weather type to "The skies clear."
+**Source:** code review of 1-8. **Target:** when weather grows.
+
+The default branch is speculative (the 5-type enum is fixed and exhaustive); a future weather
+constant would silently announce "The skies clear." No current defect. [Low]
+[core/.../rogue/Weather.java]
+
+## O18 — Bloated slow invisible in the debuff row
+**Source:** code review of 1-8. **Target:** HUD polish.
+
+A Well-Fed player's 50% stumble (`isSlowed()`) has no HUD label. The 1.8 label set (bacterial /
+diarrhea / Rotgut / Collapse) is explicit and Bloated is a Well-Fed side effect (legible via
+`hungerLabel`). Future HUD enhancement if the stumble needs surfacing. [Low]
+[core/.../rogue/RoguePlayer.java getActiveDebuffLabels]
+
+---
+
+# CLOSED (2026-08-08 triage — superseded or delivered)
+
+| Item (source) | Close reason |
+|----------------|--------------|
+| Make-room swap spends two turns [3.2] | Old `RogueGameScreen`/D-key gesture gone; new MarginScreen has no drop-D UX. |
+| Pre-3.3 save loads a non-deterministic `identifyMap` binding [3.3] | Superseded: Story 1.1's `saveVersion` + AD-8 reject-by-absence gate (`SaveMigrationTest`) rejects pre-AD-8 saves — the field-absent case can never load. |
+| Identify arrays not resized on cross-version save (enum growth) [3.4] | Superseded: the saveVersion gate rejects cross-version saves (reject, not resize). |
+| No committed JUnit suite for the new model [Epic 4] | **DELIVERED**: carry #1 closed (JUnit 5 core root; 205 tests incl. FlagStoreTest/CompanionTest/IdentifyMapTest). |
+| Debug `T` trigger + `SampleDialog` ship in build [Epic 5] | Old screen gone (T = craftTorch since 1.6); carry dropped the old trigger as old-design-specific. New-design equivalent: 2.1's smoke scene behind a debug key, superseded by 2.2 — **2.2 must remove the 2.1 debug key**. |
+| Dialogue input caps choices at 4 [Epic 5] | Superseded: Story 2.1's surface maps `NUM_1..NUM_N` and Task 5 pins >4-option navigation (carry #5 hardening). |
+| `SceneEffects` cache keys single-run-scoped (collision) [Epic 5] | Superseded: Story 2.1's key-namespacing hardening (Task 5, carry #5 item 4). |
+| Bond-tag dialogue wiring absent [Epic 5] | Superseded: Story 2.1 Task 2's BOND effect calls `applyBondTag` (wiring now in 2.1). Residual doc-drift folded into O2. |
+| Legacy `floorDepth` save loads soft-locked [6.1] | Floor descent removed by Story 1.1 (continuous map, AD-8). |
+| Transient-route design landmine [6.1] | No route/floors in the continuous-map design. |
+| Road-end turn burns hunger/Last-Stand, re-triggerable [6.1] | Descend branch removed by Story 1.1. |
+| Legacy-deep-save HUD renders `5/3` [6.1] | Old screen + floor descent gone. |
+| Stale-tile render of retired STAIRS values [1-1] | The AD-8 map guard rejects legacy maps at load — premise unreachable. |
+| HUD labels for the survival tracks unwired [1-2] | **DELIVERED**: Story 1.8's minimal HUD renders all four tracks + clock/weather. |
+| Driver-less temperature drift re-balancing [1-2] | **DELIVERED**: Story 1.6 added the weather/fire drivers (Cold Snap, campfire) the rates calibrate against. |
+| Pre-1.3 save loads a nanoTime-rolled weather [1-3] | Superseded: AD-6 migration rule codified (retro action #4) + the saveVersion gate rejects pre-AD-8 saves — the field-absent case can never load. |
+| Forward-compat: unknown weather string voids a run [1-3] | Superseded: the saveVersion read-branch now exists (reject-by-version); the residual enum-corruption case is the documented accepted catch-all (null → playable run). |
+| `setLight` accepts off-map/wall/negative coords [1-4] | Resolved by construction through the 1.5→1.6 chain: campfire + torch light the player's own walkable tile; the `hasLight()` ≥ 0 guard closed the half-set −1 case. |
+| Campfire/torch light-tile validation [1-5] | Same as above — resolved by construction (torch lit via craftTorch at the player's tile). |
+| Torch light desyncs on `placeAt` repositioning [1-6] | Premise obsolete: no teleport/descent in the continuous-map design; `placeAt` is test-only. |
+| Composite debuff query seam [1-7] | **DELIVERED**: Story 1.8's `getActiveDebuffLabels` (Task 3, 10 tests). |
+| E-key quick-eat can auto-feed a poison mushroom [1-7] | **DELIVERED**: Story 1.8's backpack selection replaced `firstWhere` (F-09 closed). |
