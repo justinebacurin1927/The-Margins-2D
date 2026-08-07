@@ -55,7 +55,7 @@
 #   item is now folded into new Story 1.1's acceptance criteria (AD-6).
 
 generated: 2026-08-06
-last_updated: 2026-08-08  # 1-6 done; Story 1.7 reviewed + 5 review patches applied → done; Epic 1 in-progress
+last_updated: 2026-08-08  # Epic 1 retro complete (epic-1-retro-2026-08-08); carries #1/#3/#4 closed, #2 re-committed; Epic 1 done
 project: The Margin
 project_key: NOKEY
 tracking_system: file-system
@@ -63,7 +63,7 @@ story_location: _bmad-output/implementation-artifacts
 
 development_status:
   # Epic 1 — Survive the Forest (survival core on a continuous map; SM-2 playable-first)
-  epic-1: in-progress
+  epic-1: done
   1-1-retire-floor-descent-for-one-continuous-map: done
   1-2-four-survival-tracks-that-tick-on-real-turns: done
   1-3-day-night-clock-and-per-cycle-weather: done
@@ -71,8 +71,8 @@ development_status:
   1-5-food-water-and-two-step-purification: done
   1-6-temperature-and-the-campfire-torch: done
   1-7-the-debuff-system: done
-  1-8-the-survival-hud-and-message-log: backlog
-  epic-1-retrospective: optional
+  1-8-the-survival-hud-and-message-log: done
+  epic-1-retrospective: done
 
   # Epic 2 — The Fall of Corneo (Act 0 intro + dialog/quest foundation)
   epic-2: backlog
@@ -123,24 +123,38 @@ development_status:
 
 action_items:
   # Carried forward from the archived "The Margins" tracker — still-relevant OPEN brownfield
-  # tech-debt, re-tagged to the new epics. See PROVENANCE header.
+  # tech-debt, re-tagged to the new epics. See PROVENANCE header. Follow-through reviewed in the
+  # epic-1 retro (2026-08-08): #1/#3/#4 closed with evidence, #2 re-committed, #5 Epic-2-scoped.
   - epic: 1
-    action: "BROWNFIELD CARRY (recurring 4-epic carry, still unresolved): stand up a committed JUnit 5 core test source root and port the highest-value existing harnesses — RunState round-trip/determinism, FlagStore, companion, dialogue/flag, inventory/identify. The ratified brownfield core has no committed test net; do this early in Epic 1 so the AD-8 refactor (Story 1.1) lands on a regression net."
+    action: "BROWNFIELD CARRY: stand up a committed JUnit 5 core test source root and port the highest-value existing harnesses — RunState round-trip/determinism, FlagStore, companion, dialogue/flag, inventory/identify. [CLOSED 2026-08-08 retro: 25+ suites / 205 core tests committed — RunStatePersistenceTest, SaveMigrationTest, FlagStoreTest, CompanionTest, DialogControllerTest, SceneEffectsTest, IdentifyMapTest, InventorySelectionTest.]"
+    owner: "Dev"
+    status: done
+  - epic: 1
+    action: "BROWNFIELD CARRY: centralize build/verify quirks in docs/BUILD.md or a CLAUDE.md section — `mvn -o -pl core install` before `exec:java`, and the exec-maven-plugin:3.1.0:java harness recipe. Re-committed in the 2026-08-08 epic-1 retro (flagged in two retros now) with a before-Story-2.1 deadline; do NOT close until docs/BUILD.md exists."
     owner: "Dev"
     status: open
   - epic: 1
-    action: "BROWNFIELD CARRY: centralize build/verify quirks in docs/BUILD.md or a CLAUDE.md section — `mvn -o -pl core install` before `exec:java`, and the exec-maven-plugin:3.1.0:java harness recipe. Recurring carry across old Epics 1/3/4."
+    action: "Story 1.1 / AD-4: codify the TurnEngine acted-branch invariants (every acted branch honors hunger → checkLastStand → FOV). [CLOSED 2026-08-08 retro: Story 1.1 removed the violating descend branch; the single acted path is now structurally one branch, with checkLastStand/FOV ordering pinned by tests. Carry the invariant forward when dialogue safe-pause / companion turn are added in Epics 2/5.]"
     owner: "Dev"
-    status: open
+    status: done
   - epic: 1
-    action: "Story 1.1 / AD-4: codify the TurnEngine acted-branch invariants (every acted branch honors hunger → checkLastStand → FOV). The old descend branch violated this; Story 1.1 removes that branch, so verify the invariant holds after the refactor before new special turn-paths (dialogue safe-pause, companion turn) are added."
+    action: "Story 1.1 / AD-6: implement saveVersion correctly — add the version stamp AND its read-branch (reject pre-AD-8 saves) TOGETHER. [CLOSED 2026-08-08 retro: saveVersion stamped + SaveMigrationTest proves the reject-by-absence read-branch; the old dead-field failure mode was not repeated.]"
     owner: "Dev"
-    status: open
-  - epic: 1
-    action: "Story 1.1 / AD-6: implement saveVersion correctly — add the version stamp AND its read-branch (reject pre-AD-8 saves) TOGETHER. The old Epic 3 saveVersion field was added dead and removed in Epic 4 review; do not repeat that. (This supersedes and closes the old 'add saveVersion' action item.)"
-    owner: "Dev"
-    status: open
+    status: done
   - epic: 2
-    action: "Epic 2 dialogue: harden the dialogue authoring contract the new design reuses — >4-option nodes, null labels, non-1 flag values (!= 0), multi-cache key collisions (deferred low findings from the old dialogue engine)."
+    action: "Epic 2 dialogue: harden the dialogue authoring contract the new design reuses — >4-option nodes, null labels, non-1 flag values (!= 0), multi-cache key collisions (deferred low findings from the old dialogue engine). Carry into Story 2.1 dev notes (epic-1 retro action #3)."
+    owner: "Dev"
+    status: open
+  # Epic 1 retrospective action items (2026-08-08).
+  - epic: 1
+    action: "Commit + push Story 1.8 (survival HUD + message log; 205 tests) — Epic 1 is not 'done' on main until it lands. workspace.json excluded; branch-per-story flow."
+    owner: "Dev"
+    status: open
+  - epic: 1
+    action: "Epic 2 Story 2.1 dev notes must carry the two 1.8 lessons: (a) observation discipline — every dialogue effect (Bond, flags, item give/take, disposition) emits to the log or capture-compares; (b) a log-window policy so dialogue text isn't lost to the 5-line window. Plus the AD-6 migration rule: field-absent saves inherit ctor-rolled nondeterministic state — every new persisted field needs a deterministic default OR a load-time reconcile in restoreAfterLoad() (bit twice: 1.3 weather, 3.3-identify pattern)."
+    owner: "Dev"
+    status: open
+  - epic: 3
+    action: "Re-triage the deferred-work backlog (~30 entries across 9 stories) before Epic 3 — close/merge obsolete items, tag Epic 2-relevant ones (epic-1 retro action #5)."
     owner: "Dev"
     status: open
