@@ -315,8 +315,9 @@ public class RunState {
      *  has exactly one writer (appendMessages, called by TurnEngine — AD-4). */
     public List<String> getMessageLog() { return Collections.unmodifiableList(messageLog); }
 
-    /** Append a turn's messages to the log, trimming past the cap (oldest first). Called by
-     *  TurnEngine (AD-4) for acted AND refused turns — the log is the surface for all feedback. */
+    /** Append messages to the log, trimming past the cap (oldest first). The log's sole mutator —
+     *  called by TurnEngine (AD-4) for acted AND refused turns, and by DialogController for dialogue
+     *  effect lines (Story 2.1 — a suspended surface, not a turn, so AD-4's acted branch is untouched). */
     public void appendMessages(List<String> messages) {
         messageLog.addAll(messages);
         while (messageLog.size() > MESSAGE_LOG_CAP) messageLog.remove(0);

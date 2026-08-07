@@ -89,16 +89,7 @@ public class MarginScreen implements Screen {
                 gameOver = true;
                 state.appendMessages(List.of(GAME_OVER_LINE));
             }
-            if (Gdx.input.isKeyJustPressed(Input.Keys.R)) {
-                dialog.end(); // Story 2.1: a restart closes any open scene
-                state.restart();
-                FovSystem.compute(state);
-                gameOver = false;
-                selectedSlot = -1;
-                // Restart feedback (deletion-check finding): a new life announces itself instead of
-                // silently re-showing the opening line.
-                state.appendMessages(List.of("Another life. [WASD] move."));
-            }
+            if (Gdx.input.isKeyJustPressed(Input.Keys.R)) restart();
             return;
         }
 
@@ -110,13 +101,25 @@ public class MarginScreen implements Screen {
             handleDialogueInput();
             return;
         }
-
         // A consumed selection (its stack was used up) resets the selection so E/K/F/V don't
         // silently no-op on a now-empty slot (edge-review finding).
         if (selectedSlot >= 0 && state.getInventory().backpackType(selectedSlot) < 0) selectedSlot = -1;
 
         PlayerAction action = readAction(p.getFacing());
         if (action != null) turnEngine.advance(state, action); // the log is fed inside the engine (AD-4)
+    }
+
+    /** Restart the run: close any open scene, reset state, recompute FOV, clear the backpack
+     *  selection. The single restart path for both game-over [R] and a live-scene [R] (Decision 6 —
+     *  a restart always closes an open scene); the new life announces itself (deletion-check
+     *  finding) instead of silently re-showing the opening line. */
+    private void restart() {
+        dialog.end();
+        state.restart();
+        FovSystem.compute(state);
+        gameOver = false;
+        selectedSlot = -1;
+        state.appendMessages(List.of("Another life. [WASD] move."));
     }
 
     private PlayerAction readAction(int facing) {
@@ -150,12 +153,13 @@ public class MarginScreen implements Screen {
     }
 
     /** Story 2.1 (AD-14): the dialogue input surface while a scene is open. Number keys pick a
-     *  choice; SPACE/E close a terminal (optionless) node; ESC cancels. Nothing here returns a
-     *  PlayerAction — the turn loop stays suspended. Forwarding only (AD-1): the controller
-     *  owns navigation, effects, and the log writes. */
+     *  choice; SPACE/E close a terminal (optionless) node; ESC cancels; R restarts (Decision 6 —
+     *  a restart closes any open scene). Nothing here returns a PlayerAction — the turn loop stays
+     *  suspended. Forwarding only (AD-1): the controller owns navigation, effects, and the log writes. */
     private void handleDialogueInput() {
         DialogNode node = dialog.getCurrent();
         if (node == null) return;
+        if (Gdx.input.isKeyJustPressed(Input.Keys.R)) { restart(); return; }
         for (int i = 1; i <= node.options.length && i <= 9; i++) {
             if (Gdx.input.isKeyJustPressed(Input.Keys.NUM_1 + (i - 1))) { // NUM_1..NUM_9
                 dialog.select(i - 1, state);
@@ -339,8 +343,14 @@ public class MarginScreen implements Screen {
             font.draw(batch, node.speaker + ":", 8, y);
             y -= 14;
         }
+        // The choices block is bottom-anchored, so the wrapped text must stop above it — a long
+        // node text would otherwise overlap the choices (review finding). A null text renders no
+        // lines (defensive, like the null-label render above).
+        int choicesTop = 22 + 14 * node.options.length;
         font.setColor(0.95f, 0.90f, 0.75f, 1f);
-        for (String line : wrapText(node.text, WW - 16)) {
+        String text = node.text != null ? node.text : "";
+        for (String line : wrapText(text, WW - 16)) {
+            if (y < choicesTop) break; // no room left — stop above the choices block
             font.draw(batch, line, 8, y);
             y -= 14;
         }
@@ -351,6 +361,12 @@ public class MarginScreen implements Screen {
             String label = node.options[i].label != null ? node.options[i].label : "(…)";
             font.draw(batch, (i + 1) + ". " + label, 8, cy);
             cy -= 14;
+        }
+        // Decision 7: a terminal (zero-option) node is a text page closed by SPACE/E — the hint is
+        // the affordance that it's a page, not a dead end.
+        if (node.options.length == 0) {
+            font.setColor(0.55f, 0.55f, 0.55f, 1f);
+            font.draw(batch, "[SPACE] continue", 8, 22);
         }
     }
 

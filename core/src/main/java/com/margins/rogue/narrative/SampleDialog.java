@@ -13,10 +13,11 @@ import com.margins.rogue.state.FlagStore;
  * debug N key in {@code MarginScreen}. NOT shippable content: the real intro is
  * Story 2.2, which removes this debug key.
  *
- * <p>Every AC-2 capability is exercised here: an optionless closing node, an
- * ungated advance, a VOICE-gated choice AND an INSTINCT-gated choice (both
- * success/failure routes), a node with a NON-1 flag value (authoring-contract
- * hardening — {@code != 0} is the truth test), a Bond effect, an item-give
+ * <p>Every AC-2 capability is exercised here: a zero-option terminal node (Decision 7 — a text
+ * page closed by SPACE/E), an ungated advance, a VOICE-gated choice AND an INSTINCT-gated choice
+ * (a fresh player's fixed stats make the PASS branches the reachable in-game tour; both pass/fail
+ * routes are pinned headlessly by {@code DialogueGateTest}), a node with a NON-1 flag value
+ * (authoring-contract hardening — {@code != 0} is the truth test), a Bond effect, an item-give
  * effect, and a disposition effect.
  */
 public final class SampleDialog {
@@ -46,24 +47,24 @@ public final class SampleDialog {
                 .withSpeaker("Aldric")
                 .withEffect(new DialogEffect.GiveItem(Supply.COAL.ordinal(), 1));
 
-        // The INSTINCT-gated read (FR-19 occasional INS gate): INSTINCT 7 < 9 fails, so the
-        // run's default player lands on noRead. The read branch carries a NON-1 flag value +
-        // a disposition shift.
+        // The INSTINCT-gated read (FR-19 occasional INS gate): gate 5 so a fresh player's
+        // INSTINCT 7 >= 5 passes — the read tour (NON-1 flag value + a disposition shift) is
+        // reachable in-game, not dead content. It is a ZERO-OPTION node (Decision 7): a terminal
+        // text page closed by SPACE/E, exercising that close path in the seam.
         DialogNode read = new DialogNode(
-                "You catch the tell — his eyes flick to the fire. He's holding something back.",
-                new DialogOption("Leave", end))
+                "You catch the tell — his eyes flick to the fire. He's holding something back.")
                 .withFlag(KEY_SMOKE_READ, 7)
                 .withEffect(new DialogEffect.Disposition("aldric", 1));
         DialogNode noRead = new DialogNode(
                 "Nothing reads. Just a tired man on a hard road.",
                 new DialogOption("Leave", end));
 
+        // Narrator root (nullable speaker — Task 4): third-person narration, so no speaker line.
         return new DialogNode(
                 "Aldric squats by the fire, turning a coal in his fingers. \"You're doing well, Klein.\"",
                 new DialogOption("Tell him about Magdalene's letter.", GateStat.VOICE, 2, honest, end),
                 new DialogOption("Ask about the road ahead.", coal),
-                new DialogOption("Read whether he's hiding something.", GateStat.INSTINCT, 9, read, noRead),
-                new DialogOption("Say nothing and move on.", null))
-                .withSpeaker("Aldric");
+                new DialogOption("Read whether he's hiding something.", GateStat.INSTINCT, 5, read, noRead),
+                new DialogOption("Say nothing and move on.", null));
     }
 }

@@ -204,3 +204,10 @@ diarrhea / Rotgut / Collapse) is explicit and Bloated is a Well-Fed side effect 
 | Torch light desyncs on `placeAt` repositioning [1-6] | Premise obsolete: no teleport/descent in the continuous-map design; `placeAt` is test-only. |
 | Composite debuff query seam [1-7] | **DELIVERED**: Story 1.8's `getActiveDebuffLabels` (Task 3, 10 tests). |
 | E-key quick-eat can auto-feed a poison mushroom [1-7] | **DELIVERED**: Story 1.8's backpack selection replaced `firstWhere` (F-09 closed). |
+
+---
+
+## Deferred from: code review of 2-1-text-forward-dialogue-nodes-with-safe-pause (2026-08-08)
+
+- **Bond and disposition effects emit identical strings; disposition never names its NPC.** The controller's `bondLine` and `dispositionLine` both return "He warms to you."/"His eyes narrow." (SPD-tone placeholders, Decision 4's examples). No authored node stacks both effects today, so no collision in-game — but 2.2+ content with real NPC names will need distinct per-NPC disposition lines. [core/src/main/java/com/margins/rogue/narrative/DialogController.java]
+- **N-key smoke scene re-fires node-entry effects on re-open** — closing and pressing N again rebuilds the scene and re-fires the Bond gain, the coal gift (an infinite item source behind a debug key), and the disposition shift. Acceptable for the throwaway verification seam (Decision 8 supersedes it), but the pattern — scene entry-effects re-firing on re-entry, with `KEY_SMOKE_READ` written but never read back — must NOT carry into 2.2's real intro authoring. [core/src/main/java/com/margins/rogue/narrative/SampleDialog.java]

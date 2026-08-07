@@ -153,4 +153,62 @@ class DialogueEffectTest {
         assertEquals(-1, s.getFlagStore().get("disposition.aldric"), "a negative delta cools the NPC");
         assertTrue(s.getMessageLog().contains("His eyes narrow."), "the shift is observed in the log");
     }
+
+    @Test
+    void giveItemWithInvalidTypeOrCountIsASilentNoOp() {
+        // Authoring-contract hardening (review finding): a negative type is the EMPTY-slot sentinel
+        // in Inventory — passing it through tryAdd would corrupt a backpack slot; a zero count would
+        // "succeed" while changing nothing. Both are malformed authoring → a silent no-op.
+        RunState s = run();
+        DialogController c = new DialogController();
+        DialogNode node = new DialogNode("gift", new DialogOption("go", null))
+                .withEffect(new DialogEffect.GiveItem(-1, 1))
+                .withEffect(new DialogEffect.GiveItem(Supply.COAL.ordinal(), 0));
+        int before = s.getMessageLog().size();
+        c.start(node, s);
+        assertEquals(0, s.getInventory().count(Supply.COAL.ordinal()), "nothing lands for an invalid gift");
+        assertEquals(0, s.getInventory().backpackStackCount(), "no slot is consumed by a zero-count gift");
+        assertEquals(before, s.getMessageLog().size(), "malformed gifts emit no line");
+    }
+
+    @Test
+    void takeItemWithInvalidTypeOrCountIsASilentNoOp() {
+        RunState s = run();
+        DialogController c = new DialogController();
+        DialogNode node = new DialogNode("give", new DialogOption("go", null))
+                .withEffect(new DialogEffect.TakeItem(-1, 1))
+                .withEffect(new DialogEffect.TakeItem(Supply.COAL.ordinal(), 0));
+        int before = s.getMessageLog().size();
+        c.start(node, s);
+        assertEquals(0, s.getInventory().count(Supply.COAL.ordinal()), "nothing is removed by an invalid take");
+        assertEquals(before, s.getMessageLog().size(), "malformed takes emit no line");
+    }
+
+    @Test
+    void dispositionZeroDeltaOrNullNpcIsASilentNoOp() {
+        // Review finding: delta 0 previously claimed "His eyes narrow." with no mutation; a null
+        // npc wrote a garbage "disposition.null" key. Both are malformed authoring → a no-op.
+        RunState s = run();
+        DialogController c = new DialogController();
+        DialogNode node = new DialogNode("read", new DialogOption("go", null))
+                .withEffect(new DialogEffect.Disposition("aldric", 0))
+                .withEffect(new DialogEffect.Disposition(null, 1));
+        int before = s.getMessageLog().size();
+        c.start(node, s);
+        assertEquals(0, s.getFlagStore().get("disposition.aldric"), "a zero delta shifts nothing");
+        assertEquals(0, s.getFlagStore().get("disposition.null"), "a null npc writes no garbage key");
+        assertEquals(before, s.getMessageLog().size(), "malformed dispositions emit no line");
+    }
+
+    @Test
+    void setFlagWithNullKeyIsSkippedNotPersisted() {
+        // Review finding: a null key used to be silently persisted as an unreachable garbage entry.
+        RunState s = run();
+        DialogController c = new DialogController();
+        DialogNode node = new DialogNode("sets", new DialogOption("go", null))
+                .withFlag(null, 1);
+        c.start(node, s);
+        assertEquals(0, s.getFlagStore().get("null"), "a null key is never persisted");
+        assertEquals(0, s.getFlagStore().get(null), "no null-key entry exists in the store");
+    }
 }

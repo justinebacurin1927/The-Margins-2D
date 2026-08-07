@@ -1,6 +1,6 @@
 # Story 2.1: Text-forward dialogue nodes with safe pause
 
-Status: review
+Status: done
 baseline_commit: 56ff4db
 
 <!-- Note: Validation is optional. Run validate-create-story for quality check before dev-story. -->
@@ -90,6 +90,34 @@ So that reading and choosing never costs me a turn (FR-19, AD-14).
   - [x] All core seams headless, no libGDX types (AD-2): `DialogueGateTest`, `DialogueEffectTest`, `DialogueSafePauseTest` (in `core/src/test/java/com/margins/rogue/narrative/`).
   - [x] Serialization: 2.1 adds NO new persisted field to RunState (Decision 4/5 — the controller/surface are transient; effects flow through existing persisted stores). Pin a save round-trip leaves the dialogue closed and `FlagStore`/`Inventory` round-trip unchanged (AD-6 rule satisfied by construction).
   - [x] Full suite green (`mvn -o clean install`), no regressions in the 205 existing tests (especially `DialogControllerTest`, `SceneEffectsTest`, `RunStatePersistenceTest`).
+
+### Review Findings (code review, 2026-08-08)
+
+**Decision needed:**
+
+- [x] [Review][Decision] **SET_FLAG is silent, but the spec says every effect emits.** Decision 4 ("Every kind emits one SPD-tone line … no silent mutation"), Task 2 ("every effect emits; no silent mutation"), Task 5's observation pin ("every effect's line IS in `getMessageLog()`"), and the carried observation-discipline lesson all explicitly include flags. The implementation returns `null` for SetFlag (`DialogController.java:113`) and pins it in `setFlagIsSilentBookkeeping` — a deviation the spec never granted. **RESOLVED 2026-08-08 (user): ratify silent.** SET_FLAG stays a silent scene-bookkeeping write by design — its observation is the node text + test capture-compare, and every player-facing effect (Bond, give/take, disposition) already emits. This amends Decision 4/Task 2/Task 5's "every kind emits" wording to carve out SET_FLAG (recorded in the Change Log).
+
+**Patches:**
+
+- [x] [Review][Patch] **R to restart is swallowed while a dialogue is open** — Decision 6 + Task 3 route R ("closes the scene before restarting"); `handleInput` returns in the dialogue branch before any R check, and `handleDialogueInput` has no R case. Restart impossible until ESC. [core/src/main/java/com/margins/MarginScreen.java:109]
+- [x] [Review][Patch] **Smoke scene root carries a speaker on narration text** — Task 4 requires a "narrator root (nullable speaker)"; `.withSpeaker("Aldric")` renders "Aldric: Aldric squats by the fire…". [core/src/main/java/com/margins/rogue/narrative/SampleDialog.java:61]
+- [x] [Review][Patch] **Smoke scene INSTINCT gate 9 makes the flagged/disposition node unreachable in-game** — fresh INSTINCT is 7, so the `read` branch (the tour of the NON-1 flag + disposition effects) always lands on `noRead`; only the VOICE-success / INSTINCT-fail gate directions are reachable. [core/src/main/java/com/margins/rogue/narrative/SampleDialog.java:65]
+- [x] [Review][Patch] **Decision 7's zero-option terminal node is never exercised and its "[SPACE] continue" affordance is not rendered** — every smoke-scene node carries a "Leave" option (the javadoc claims "an optionless closing node"), and `renderDialoguePage` draws no continue hint for zero-option nodes. [core/src/main/java/com/margins/MarginScreen.java:332]
+- [x] [Review][Patch] **Dialogue text region is unbounded** — a long node text wraps down into the bottom-anchored choices block (overlap). [core/src/main/java/com/margins/MarginScreen.java:343]
+- [x] [Review][Patch] **`wrapText` NPEs on a null `node.text`** — the node ctor does not validate text; null labels are already defended, text should be too. [core/src/main/java/com/margins/MarginScreen.java:358]
+- [x] [Review][Patch] **giveItemLine/takeItemLine pass invalid type/count to `Inventory`** — type −1 matches the `EMPTY` sentinel and silently corrupts a backpack slot; count ≤ 0 "succeeds" and emits a false line. The `Inventory` javadoc warns −1 "would silently corrupt the backpack". [core/src/main/java/com/margins/rogue/narrative/DialogController.java:132]
+- [x] [Review][Patch] **dispositionLine emits a false line for delta 0 and writes "disposition.null" for a null npc** — a zero-delta effect claims "His eyes narrow." with no mutation (the silent-mutation bug class inverted). [core/src/main/java/com/margins/rogue/narrative/DialogController.java:148]
+- [x] [Review][Patch] **SetFlag with a null key is silently persisted** — `FlagStore.set(null, v)` stores a garbage unreachable key. [core/src/main/java/com/margins/rogue/narrative/DialogController.java:113]
+- [x] [Review][Patch] **bondLine bakes in the two Bond tags, duplicating FlagStore's tag→delta authority** — a third Bond tag with a non-zero delta would mutate Bond while the controller emits nothing (silent mutation, the exact class this story targets). [core/src/main/java/com/margins/rogue/narrative/DialogController.java:124]
+- [x] [Review][Patch] **Stale "beside `uiMode`" javadoc in DialogController** — no `uiMode` exists in the new MarginScreen (doc drift introduced by this story's rewrite). [core/src/main/java/com/margins/rogue/narrative/DialogController.java:27]
+- [x] [Review][Patch] **Stale `appendMessages` javadoc** — "Called by TurnEngine (AD-4)" under-describes the new second caller (DialogController); the sole-mutator claim stays true. [core/src/main/java/com/margins/rogue/state/RunState.java:318]
+
+*All 12 patches applied 2026-08-08 (full suite 232 tests, 0 failures — up from 228; 4 new authoring-guard tests in DialogueEffectTest).*
+
+**Deferred:**
+
+- [x] [Review][Defer] **Bond and disposition emit identical strings; disposition never names its NPC** [core/src/main/java/com/margins/rogue/narrative/DialogController.java:129] — deferred, pre-existing SPD-tone placeholder; 2.2+ content with real NPC names will need distinct per-NPC lines.
+- [x] [Review][Defer] **N-key smoke scene re-fires effects on re-open** (farmable coal / repeatable Bond behind a debug key) [core/src/main/java/com/margins/rogue/narrative/SampleDialog.java] — deferred, superseded by 2.2 removing the N debug key; the pattern (scene entry-effects re-firing on re-entry) must not carry into 2.2's real intro authoring.
 
 ## Dev Notes
 
@@ -207,3 +235,4 @@ Claude Opus 4.8 (1M context)
 |------|-----|--------|
 | 2026-08-08 | Create | Story 2.1 created (Status: ready-for-dev) with the carried epic-1 retro lessons — observation discipline, log-window policy, authoring-contract hardening (carry #5), AD-6 rule — and the brownfield dialogue engine (DialogNode/DialogController/SceneEffects/FlagStore) ratified rather than rebuilt. |
 | 2026-08-08 | Dev | Implemented Story 2.1 (all 6 tasks). `GateStat` stat-agnostic gate (VOICE primary, FR-19); `DialogEffect` five-kind node-entry effect model executed by the controller with SPD log append (observation discipline); dialogue surface + structural safe pause in MarginScreen (AD-14); hardened SampleDialog smoke scene (N key); authoring-contract + serialization pins. 228 core tests green. |
+| 2026-08-08 | Review | 3-layer adversarial code review (Blind Hunter / Edge Case Hunter / Acceptance Auditor). 1 decision + 12 patches + 2 deferred + 10 dismissed. **Decision (user): ratify SET_FLAG silent** — this amends Decision 4/Task 2/Task 5's "every kind emits" wording to carve out SET_FLAG as scene bookkeeping (observed via node text + capture-compare); every player-facing effect still emits. All 12 patches applied: R-restart routed during a live scene (Decision 6), smoke scene root → narrator + INSTINCT gate 9→5 + `read` → zero-option terminal page (Task 4/Decision 7, "[SPACE] continue" hint), dialogue text capped above the choices block, null-text guard, authoring-effect guards in DialogController (give/take invalid type/count, disposition null/zero, SetFlag null key), bondLine derives the observation from the actual Bond delta (no baked-in tag set), stale `uiMode` + `appendMessages` javadocs fixed. 232 core tests green (4 new). Story → done. |

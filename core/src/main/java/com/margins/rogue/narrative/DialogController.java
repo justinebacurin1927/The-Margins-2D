@@ -24,8 +24,8 @@ import java.util.List;
  * turn engine, the clock, or the survival tracks — reading and choosing cost no
  * turn.
  *
- * <p>The controller is transient view-session state held by the screen (beside
- * {@code uiMode}); an in-progress scene is not part of {@code RunState}/save. The
+ * <p>The controller is transient view-session state held by the screen; an
+ * in-progress scene is not part of {@code RunState}/save. The
  * narrative state that must persist (flags, Bond, disposition) lives in
  * {@code RunState}'s FlagStore (AD-7) and is written here through the store.
  *
@@ -111,7 +111,7 @@ public class DialogController {
      *  instanceof chains (Java 17 — no pattern switch); the sealed interface makes this exhaustive. */
     private String apply(DialogEffect e, RunState state) {
         if (e instanceof DialogEffect.SetFlag f) {
-            state.getFlagStore().set(f.key(), f.value());
+            if (f.key() != null) state.getFlagStore().set(f.key(), f.value()); // a null key is malformed authoring — skip
             return null; // scene bookkeeping — the node text is the observation
         }
         if (e instanceof DialogEffect.Bond b) return bondLine(state.getFlagStore(), b.tag());
@@ -121,15 +121,22 @@ public class DialogController {
         return null; // unreachable — sealed DialogEffect is exhaustive here
     }
 
+    /** Emit the Bond observation by the ACTUAL Bond shift, not a hardcoded tag set — FlagStore owns
+     *  the tag→delta authority, so a future third tag with a non-zero delta still observes (a Bond
+     *  shift can never mutate silently). A null/unknown tag shifts nothing → no line. */
     private String bondLine(FlagStore fs, String tag) {
-        if (!FlagStore.BOND_TAG_HONEST.equals(tag) && !FlagStore.BOND_TAG_DISMISSIVE.equals(tag)) {
-            return null; // unknown tag — applyBondTag is a no-op, nothing player-facing changed
-        }
+        int before = fs.getBond();
         fs.applyBondTag(tag);
-        return FlagStore.BOND_TAG_HONEST.equals(tag) ? "He warms to you." : "His eyes narrow.";
+        if (fs.getBond() > before) return "He warms to you.";
+        if (fs.getBond() < before) return "His eyes narrow.";
+        return null; // no Bond change — nothing player-facing happened
     }
 
+    /** Malformed authoring (type &lt; 0, count &le; 0) is a no-op: {@code Inventory} reserves −1 as the
+     *  empty-slot sentinel and would otherwise silently corrupt the backpack, and a zero-count gift
+     *  would "succeed" while changing nothing. Returns null (nothing player-facing changed). */
     private String giveItemLine(RunState state, int type, int count) {
+        if (type < 0 || count <= 0) return null;
         String name = nameFor(state, type);
         if (state.getInventory().tryAdd(type, count) == Inventory.AddResult.ADDED) {
             return "He hands you " + (count > 1 ? count + " " + name : "a " + name) + ".";
@@ -138,6 +145,7 @@ public class DialogController {
     }
 
     private String takeItemLine(RunState state, int type, int count) {
+        if (type < 0 || count <= 0) return null;
         String name = nameFor(state, type);
         if (state.getInventory().remove(type, count)) {
             return "You give him " + (count > 1 ? count + " " + name : "the " + name) + ".";
@@ -145,7 +153,10 @@ public class DialogController {
         return "You don't have " + (count > 1 ? "that much " + name : "the " + name) + ".";
     }
 
+    /** A null npc writes a garbage "disposition.null" key; a zero delta shifts nothing yet would
+     *  claim "His eyes narrow." — both malformed authoring, both a silent no-op here. */
     private String dispositionLine(FlagStore fs, String npc, int delta) {
+        if (npc == null || delta == 0) return null;
         fs.add("disposition." + npc, delta);
         return delta > 0 ? "He warms to you." : "His eyes narrow.";
     }
