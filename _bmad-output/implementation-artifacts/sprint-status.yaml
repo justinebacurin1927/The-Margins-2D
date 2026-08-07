@@ -55,7 +55,7 @@
 #   item is now folded into new Story 1.1's acceptance criteria (AD-6).
 
 generated: 2026-08-06
-last_updated: 2026-08-08  # Epic 1 retro complete (epic-1-retro-2026-08-08); carries #1/#3/#4 closed, #2 re-committed; Epic 1 done
+last_updated: 2026-08-08  # Story 2.1 created (ready-for-dev) with carried retro lessons; Epic 2 in-progress; Epic 1 done
 project: The Margin
 project_key: NOKEY
 tracking_system: file-system
@@ -75,8 +75,8 @@ development_status:
   epic-1-retrospective: done
 
   # Epic 2 — The Fall of Corneo (Act 0 intro + dialog/quest foundation)
-  epic-2: backlog
-  2-1-text-forward-dialogue-nodes-with-safe-pause: backlog
+  epic-2: in-progress
+  2-1-text-forward-dialogue-nodes-with-safe-pause: ready-for-dev
   2-2-the-skippable-paged-text-intro: backlog
   2-3-aldrics-diegetic-tutorial: backlog
   2-4-aldrics-capture-and-the-rescue-seed: backlog
