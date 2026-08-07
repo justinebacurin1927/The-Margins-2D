@@ -36,7 +36,8 @@ public enum TrueIdentity {
     FILTERED_WATER_ID("Filtered water") { public void apply(RoguePlayer p) { p.drink(50); } },
     BOILED_WATER_ID("Boiled water")     { public void apply(RoguePlayer p) { p.drink(60); } },
     COAL_ID("Coal")                     { public void apply(RoguePlayer p) { /* fuel — inert on use */ } },
-    SALT_ID("Salt")                     { public void apply(RoguePlayer p) { /* storage — inert on use */ } };
+    SALT_ID("Salt")                     { public void apply(RoguePlayer p) { /* storage — inert on use */ } },
+    WOOD_ID("Wood")                     { public void apply(RoguePlayer p) { /* fuel/material — inert on use */ } };
 
     private final String displayName;
 

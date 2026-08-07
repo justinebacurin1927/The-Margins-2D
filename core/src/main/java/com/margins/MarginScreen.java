@@ -100,6 +100,7 @@ public class MarginScreen implements Screen {
         // stack — a stopgap until the Story 1.8 HUD adds real item selection.
         if (down(Input.Keys.C))     return PlayerAction.collect(facing);
         if (down(Input.Keys.B))     return PlayerAction.buildCampfire(facing);
+        if (down(Input.Keys.T))     return PlayerAction.craftTorch(facing); // Story 1.6: 1 Wood + 1 Coal
         if (down(Input.Keys.K)) { int t = firstWhere(s -> s.cooksTo() != null);   if (t >= 0) return PlayerAction.cook(t, facing); }
         if (down(Input.Keys.F)) { int t = firstWhere(s -> s.filtersTo() != null); if (t >= 0) return PlayerAction.filter(t, facing); }
         if (down(Input.Keys.V)) { int t = firstWhere(s -> s.boilsTo() != null);   if (t >= 0) return PlayerAction.boil(t, facing); }

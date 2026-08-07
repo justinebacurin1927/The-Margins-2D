@@ -32,7 +32,10 @@ public enum Supply {
     RIVER_WATER("River Water", TrueIdentity.RIVER_WATER_ID),
     FILTERED_WATER("Filtered Water", TrueIdentity.FILTERED_WATER_ID),
     BOILED_WATER("Boiled Water", TrueIdentity.BOILED_WATER_ID),
-    SALT("Salt", TrueIdentity.SALT_ID);
+    SALT("Salt", TrueIdentity.SALT_ID),
+    // Story 1.6 craft material (FR-7): fuel for the torch (1 Wood + 1 Coal). Single-identity
+    // (inert on use — a material, not consumed via USE), so the H1 no-RNG-draw rule applies.
+    WOOD("Wood", TrueIdentity.WOOD_ID);
 
     private final String displayName;
     private final TrueIdentity[] possible;
@@ -49,7 +52,7 @@ public enum Supply {
 
     /** Spent on use, except inert types (the Sealed Letter, and fuel/storage that aren't eaten). */
     public boolean isConsumedOnUse() {
-        return this != SEALED_LETTER && this != COAL && this != SALT;
+        return this != SEALED_LETTER && this != COAL && this != SALT && this != WOOD;
     }
 
     /** A food/water provision consumed for nourishment (Story 1.5), vs. containers/fuel/storage. */

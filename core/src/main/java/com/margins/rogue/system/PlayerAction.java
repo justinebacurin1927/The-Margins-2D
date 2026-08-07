@@ -10,7 +10,9 @@ public class PlayerAction {
         MOVE, ATTACK, BLOCK, WAIT, USE, DROP, PICKUP, DISTRACT,
         // Story 1.5 (FR-6): survival crafting actions. COLLECT/BUILD_CAMPFIRE take no itemType;
         // COOK/FILTER/BOIL act on the given backpack itemType (the raw meat / raw water stack).
-        COLLECT, BUILD_CAMPFIRE, COOK, FILTER, BOIL
+        COLLECT, BUILD_CAMPFIRE, COOK, FILTER, BOIL,
+        // Story 1.6 (FR-7): craft the carried torch from the backpack's Wood + Coal.
+        CRAFT_TORCH
     }
 
     public final Kind kind;
@@ -65,6 +67,10 @@ public class PlayerAction {
 
     public static PlayerAction buildCampfire(int dir) {
         return new PlayerAction(Kind.BUILD_CAMPFIRE, 0, 0, dir, -1);
+    }
+
+    public static PlayerAction craftTorch(int dir) {
+        return new PlayerAction(Kind.CRAFT_TORCH, 0, 0, dir, -1);
     }
 
     public static PlayerAction cook(int itemType, int dir) {

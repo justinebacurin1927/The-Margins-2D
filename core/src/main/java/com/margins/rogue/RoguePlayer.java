@@ -415,15 +415,35 @@ public class RoguePlayer {
     }
 
     /** One acted turn: harm at the extreme bands (Frozen/Overheated) every turn spent there, and
-     *  drift one step toward Neutral (the driver-less baseline; weather/fire arrive later).
-     *  Harm-per-turn, not a counter cadence: a driver-less meter can only be briefly extreme, so a
-     *  counter cadence (e.g. every 3rd turn) would almost never fire before drift exits the band.
-     *  Rates are starting calibration — Story 1.6 re-balances under a real weather driver. */
+     *  drift one step toward Neutral. This is the driver-less fallback: TemperatureSystem routes
+     *  here only when there is no Cold Snap and no fire (Story 1.6) — the real drivers (the
+     *  weather and the campfire) apply their deltas via {@link #adjustTemperature}/{@link #warmTo}
+     *  and then call {@link #tickTemperatureHarm()}. Harm-per-turn, not a counter cadence: a
+     *  driver-less meter can only be briefly extreme, so a counter cadence (e.g. every 3rd turn)
+     *  would almost never fire before drift exits the band. */
     public void tickTemperature() {
-        TempBand band = getTempBand();
-        if (band == TempBand.FROZEN || band == TempBand.OVERHEATED) hurtRaw(1);
+        // Harm-then-drift (unchanged from Story 1.2): the harm uses the PRE-drift band. The Story
+        // 1.6 driver branches apply their delta first, then call tickTemperatureHarm() (the
+        // post-delta band) — a deliberate, slightly more forgiving ordering for the weather/fire
+        // paths (a player warming out of Frozen at a fire is not harmed that turn).
+        tickTemperatureHarm();
         if (temperature > 0) temperature--;
         else if (temperature < 0) temperature++;
+    }
+
+    /** The shared cost of exposure: 1 HP per turn spent in an extreme band (Frozen/Overheated).
+     *  Called by {@link #tickTemperature()} before its drift and by the Story 1.6 driver branches
+     *  after their delta, so the band that decides the harm is the band spent at. */
+    public void tickTemperatureHarm() {
+        TempBand band = getTempBand();
+        if (band == TempBand.FROZEN || band == TempBand.OVERHEATED) hurtRaw(1);
+    }
+
+    /** Warm toward a comfort cap: apply {@code amount} (already net of any cold driver) but never
+     *  exceed {@code cap} — and never the meter's +100 ceiling, whichever is lower. A fire warms
+     *  you to the top of the WARM band but never into HOT/OVERHEATED (AC-2, Story 1.6). */
+    public void warmTo(int amount, int cap) {
+        temperature = Math.max(-100, Math.min(Math.min(cap, 100), temperature + amount));
     }
 
     public boolean isAlive() {

@@ -79,6 +79,11 @@ public class RunState {
     // SPOIL_INTERVAL a SpoilageSystem advances perishable food one stage. Field-initialized (AD-6).
     private int spoilageClock = 0;
     private int spoilageProgress = 0; // accrued spoilage (salt-aware); drives the advance, M2-review
+    // Torch burn (FR-7, Story 1.6): acted turns of carried light remaining, 0 = none. Set by
+    // lightTorch() (the craft) and burned down by tickTorch() on the acted path; on expiry the
+    // light reverts to the campfire (a stationary source) or goes dark. Field-initialized (AD-6)
+    // so a pre-1.6 save loads at 0 (no torch).
+    private int torchTurns = 0;
     private long seed;
     private transient Random rng;
     private boolean lastStandUsed;        // persisted: one reprieve per run (FR-16/17)
@@ -207,6 +212,7 @@ public class RunState {
         clearCampfire(); // and no campfire built (Story 1.5)
         this.spoilageClock = 0;
         this.spoilageProgress = 0;
+        this.torchTurns = 0; // and no torch lit (Story 1.6)
         generateFloor();
         spawnStartingCompanion();
         rollWeather(); // and rolls its own weather
@@ -304,6 +310,11 @@ public class RunState {
     /** The weather in effect this cycle (FR-5). Effects live in later stories (1.4/1.5/1.6/3.x). */
     public Weather getWeather() { return weather; }
 
+    /** Test/development hook (precedent: {@code RoguePlayer#setSkill}): pin the cycle's weather.
+     *  Production never calls this — {@link #rollWeather()} owns the weather (AD-5). Tests use it
+     *  to isolate a driver (Story 1.6 pins CLEAR / COLD_SNAP for seed-independent drivers). */
+    public void setWeather(Weather w) { weather = w; }
+
     /** Which 170-turn cycle the run is in (0-based). */
     public int getCycleNumber() { return cycleNumber; }
 
@@ -357,6 +368,35 @@ public class RunState {
         int dx = Math.abs(player.getTileX() - campfireX);
         int dy = Math.abs(player.getTileY() - campfireY);
         return dx + dy <= 1;
+    }
+
+    /** The carried light's remaining burn (acted turns), 0 = none (FR-7, Story 1.6). */
+    public int getTorchTurns() { return torchTurns; }
+
+    /** Light the torch (Story 1.6 craft): the burn countdown starts and the light is set to the
+     *  player's tile. The single-slot light model (AD-18) means the torch takes over from any
+     *  campfire light; on expiry it reverts (see {@link #tickTorch}). A burn of ≤ 0 is refused —
+     *  a lit light must always have a burn, else {@code tickTorch}'s early-return would leave it
+     *  lit forever (review guard). */
+    public void lightTorch(int burnTurns) {
+        if (burnTurns <= 0) return;
+        torchTurns = burnTurns;
+        setLight(player.getTileX(), player.getTileY());
+    }
+
+    /** One acted turn with a torch lit: burn it down. The light follows the player each turn; on
+     *  expiry it reverts to the campfire (a stationary source) or goes dark — never a stale torch
+     *  light at a tile the player left. A no-op when no torch is lit. */
+    public void tickTorch() {
+        if (torchTurns <= 0) return;
+        torchTurns--;
+        if (torchTurns > 0) {
+            setLight(player.getTileX(), player.getTileY());
+        } else if (hasCampfire()) {
+            setLight(campfireX, campfireY);
+        } else {
+            clearLight();
+        }
     }
 
     /** The food-spoilage clock (FR-6): elapsed acted turns driving {@code SpoilageSystem}. */

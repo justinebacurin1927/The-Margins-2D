@@ -54,6 +54,7 @@ class SurvivalTickTest {
     @Test
     void realActionTicksAllFour() {
         RunState s = new RunState(1L);
+        s.setWeather(Weather.CLEAR); // Story 1.6 driver: pin so the temperature drift is deterministic
         TurnEngine te = new TurnEngine();
         RoguePlayer p = s.getPlayer();
         p.adjustTemperature(10); // Warm-ish, so the drift-toward-Neutral tick is observable
@@ -74,6 +75,7 @@ class SurvivalTickTest {
         // exposure tick (Frozen) earns the one-per-run reprieve instead of death. If the
         // pipeline were reordered to checkLastStand first, the reprieve would not fire.
         RunState s = new RunState(1L);
+        s.setWeather(Weather.CLEAR); // pin: the Cold Snap driver is irrelevant to the reprieve ordering
         TurnEngine te = new TurnEngine();
         RoguePlayer p = s.getPlayer();
         p.adjustTemperature(-100);    // Frozen — the next acted turn deals -1 HP

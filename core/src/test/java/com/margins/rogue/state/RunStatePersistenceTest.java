@@ -274,6 +274,44 @@ class RunStatePersistenceTest {
     }
 
     @Test
+    void torchTurnsAndLightSurviveRoundTrip() {
+        // AC (Story 1.6 / AD-6): the torch burn countdown is persisted state — a load must not
+        // reset it (that would silently extend a torch past its burn).
+        RunState s = new RunState(42L);
+        s.lightTorch(37);
+
+        RunState loaded = json().fromJson(RunState.class, json().toJson(s));
+        loaded.restoreAfterLoad();
+
+        assertEquals(37, loaded.getTorchTurns(), "the torch burn countdown survives the load");
+        assertTrue(loaded.hasLight(), "the lit torch survives");
+        assertEquals(s.getLightX(), loaded.getLightX(), "the light's tile survives");
+        assertEquals(s.getLightY(), loaded.getLightY(), "the light's tile survives");
+    }
+
+    @Test
+    void preStory16SaveLoadsWithCampfireLightAndNoTorch() {
+        // AD-6: a genuine pre-1.6 (1.5-era) save carries a built campfire with a lit light but no
+        // torchTurns key. Loading it must keep the campfire light and default the torch to 0 — the
+        // real migration hazard is torchTurns missing while hasLight() stays true. (Review fix: the
+        // old test removed lightX/lightY too, emulating a pre-1.4 save instead — a 1.5-era campfire
+        // light must survive.)
+        RunState withData = new RunState(7L);
+        withData.setCampfire(9, 14);
+        withData.setLight(9, 14); // the campfire lights its own tile (Story 1.5)
+        JsonValue root = new JsonReader().parse(json().toJson(withData));
+        root.remove("torchTurns"); // emulate a save written before the field existed
+
+        RunState fromOld = json().fromJson(RunState.class, root.toJson(JsonWriter.OutputType.json));
+        fromOld.restoreAfterLoad();
+
+        assertEquals(0, fromOld.getTorchTurns(), "an old save loads with no torch");
+        assertTrue(fromOld.hasLight(), "the campfire light survives the load");
+        assertEquals(9, fromOld.getLightX(), "the light is still the campfire's tile");
+        assertEquals(14, fromOld.getLightY(), "the light is still the campfire's tile");
+    }
+
+    @Test
     void companionSurvivesRoundTripWithMapReinjected() {
         RunState s = new RunState(42L);
         assertNotNull(s.getActiveCompanion(), "a run starts with Galleon");

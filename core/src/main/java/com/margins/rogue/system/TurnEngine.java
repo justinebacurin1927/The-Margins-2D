@@ -133,6 +133,26 @@ public class TurnEngine {
                 acted = true;
                 break;
             }
+            case CRAFT_TORCH: {
+                // A torch (Story 1.6, FR-7): 1 Wood + 1 Coal craft the carried light that moves
+                // with the player and burns down over ~one Night (TorchSystem). Refused without
+                // materials OR while a torch already burns — no turn, mirroring the inert-USE
+                // precedent (a torch can't be extinguished, so a refresh is pure waste; review
+                // decision: refuse while lit).
+                if (state.getTorchTurns() > 0) {
+                    result.messages.add("A torch already burns.");
+                } else if (state.getInventory().count(Supply.WOOD.ordinal()) >= 1
+                        && state.getInventory().count(Supply.COAL.ordinal()) >= 1) {
+                    state.getInventory().remove(Supply.WOOD.ordinal(), 1);
+                    state.getInventory().remove(Supply.COAL.ordinal(), 1);
+                    state.lightTorch(TorchSystem.TORCH_BURN);
+                    result.messages.add("Crafted a torch.");
+                    acted = true;
+                } else {
+                    result.messages.add("A torch needs Wood and Coal.");
+                }
+                break;
+            }
             case COOK:
                 acted = CookingSystem.cook(state, action.itemType, result.messages);
                 break;
@@ -151,12 +171,13 @@ public class TurnEngine {
             // checkLastStand so lethal thirst/cold honors the Last-Stand reprieve (AD-5).
             HungerSystem.tick(player);
             ThirstSystem.tick(player);
-            TemperatureSystem.tick(player);
+            TemperatureSystem.tick(state); // the weather + fire drivers need the whole run (Story 1.6)
             SpoilageSystem.tick(state); // food ages on the acted path (FR-6, Story 1.5)
             state.tickClock();
             DetectionSystem.update(state); // advance awareness before enemies move (AD-4)
             CompanionSystem.follow(state); // the ally moves in the Companion+Enemy-AI phase (AD-4, AD-10)
             CombatSystem.enemyPhase(state, result.messages);
+            TorchSystem.tick(state); // burn the torch (if lit) before its light/noise step (AD-4, Story 1.6)
             LightSystem.emitNoise(state); // a lit camp/torch is audible (AD-18): enqueue before resolve
             NoiseSystem.resolve(state); // Noise resolve step (AD-4)
             if (action.kind == PlayerAction.Kind.WAIT) {
