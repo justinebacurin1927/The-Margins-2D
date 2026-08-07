@@ -1,6 +1,6 @@
 # Story 2.2: The skippable paged text intro
 
-Status: review
+Status: done
 
 <!-- Note: Validation is optional. Run validate-create-story for quality check before dev-story. -->
 
@@ -90,6 +90,18 @@ so that I get the story without being forced to read it (FR-1).
   - [x] `mvn -o clean install` — full suite green, no regressions in the 232 existing tests.
   - [x] Serialization: 2.2 adds NO new persisted field to `RunState` (Decision 7 — the controller/surface are transient; the intro writes nothing). AD-6 rule satisfied by construction.
 
+### Review Findings (code review, 2026-08-08)
+
+3-layer adversarial review (Blind Hunter + Edge Case Hunter + Acceptance Auditor, Opus, fresh contexts) on the `main...story-2-2` diff. Auditor confirmed all 3 ACs + all 7 Decisions + all mandated deletions. Triage: 1 decision, 2 patches, 0 deferred, 5 dismissed.
+
+- [x] [Review][Decision] The authored `\n\n` paragraph break on the hand-off page does not render — `CorneoIntro`'s last page embeds `"...was gone.\n\n" + "You flee into the pines..."`, but `MarginScreen.wrapText` splits on `" "` only, so the `\n\n` stays glued inside a token and the intended blank-line break before the seeded line is lost. All 3 layers converged. **RESOLVED (Justine, 2026-08-08): split the seeded line onto its own zero-option page.** The `\n\n` is gone, the iconic hand-off line gets its own beat, the untestable `\n`-render path is eliminated, and `CorneoIntro` stays fully headless-tested. Page count 6→7.
+- [x] [Review][Patch] `restart()` closes the dialogue surface but never the intro [MarginScreen.java restart()] — **APPLIED**: added `intro.end()` alongside `dialog.end()` so restart closes any open surface (invariant now enforced, not lifecycle-accidental).
+- [x] [Review][Patch] `IntroController.start()` has inconsistent list ownership [IntroController.java:34-40] — **APPLIED**: the non-empty path now defensively copies (`new ArrayList<>(pages)`), matching the empty path; the controller owns its list, never an aliased caller's, and the `ArrayList` import stays earned.
+
+All 3 findings resolved 2026-08-08 (decision fixed as a patch + 2 patches applied). Full suite green (239 tests, 0 failures).
+
+Dismissed (5, recorded for the trail): (1) no test for the `\n` render path — addressed by the decision fix, and `wrapText`/`renderTextPage` live in a libGDX screen (AD-2, not headless-testable); (2) E-advance is a "hidden/untested key" — E is spec'd (Decision 2 "SPACE/E advance"), and the footer showing the primary key only mirrors the ratified 2.1 dialogue footer; (3) ESC-skip screen routing untested — the screen is thin glue (AD-2), and the enforcing `IntroController.end()` IS headless-tested (2.1 precedent); (4) intro-precedes-dialogue ordering untested — same libGDX limitation, and the intro is the only surface open at construction; (5) the safe-pause comment "overstates" its proof — the docs already explicitly state the enforcer is the screen branch, not the controller test.
+
 ## Dev Notes
 
 ### Current state (what exists, to preserve)
@@ -168,7 +180,7 @@ Claude Opus 4.8 (1M context)
 ### Completion Notes List
 
 - **Task 1** — `IntroController`: pure-model sequencing authority, no libGDX, **no RunState** (Decision 1 — structurally cannot tick). `index = -1` is the inactive sentinel; `advance()` past the last page and `end()` both close; `advance()`/`end()`/`start(empty)` are defensive no-ops.
-- **Task 2** — `CorneoIntro.build()`: 6 zero-option, null-speaker narration pages (before ×2 / fall ×3 / hand-off ×1). No effects, no flags. The hand-off page ends on the 1.8 seeded line ("You flee into the pines. Aldric is beside you.") so the intro dovetails into the run's already-seeded log.
+- **Task 2** — `CorneoIntro.build()`: 7 zero-option, null-speaker narration pages (before ×2 / fall ×3 / hand-off ×2 — the seeded line is its own page after the code review). No effects, no flags. The hand-off page ends on the 1.8 seeded line ("You flee into the pines. Aldric is beside you.") so the intro dovetails into the run's already-seeded log.
 - **Task 3** — `MarginScreen`: added the `intro` field (transient, not on RunState); opens `CorneoIntro.build()` in the constructor (fresh run only — NOT in `restart()`); intro branch sits BEFORE the dialogue branch in `handleInput` and returns before `readAction` (structural safe pause — no `PlayerAction`, no tick, no turn); `handleIntroInput()` = SPACE/E advance, ESC skip; render routes through a shared `renderTextPage(node, footer)` (refactored from `renderDialoguePage`) so the intro reuses the 2.1 speaker/text/wrap drawing and shows the "[SPACE] continue   [ESC] skip" footer.
 - **Task 4** — Deleted `SampleDialog.java`; removed the N-key binding + import from `MarginScreen`; removed `DialogueSafePauseTest.sceneKeysAreNamespaced` (its namespace was the smoke scene's; the intro adds no keys, so the pin was vacuous — the per-scene key rule stays pinned by `SceneEffectsTest`). No dangling `SampleDialog`/`KEY_SMOKE_READ` references remain (only a javadoc mention in `CorneoIntro`). This also resolves the 2.1 deferred N-key re-fire finding (text-only intro = no entry-effect to re-fire).
 - **Task 5** — `IntroControllerTest`: sequencing (in-order walk, last-page close, skip-from-any-page, null-when-inactive, closed no-ops, empty-start), the content pin (≥3 beats, every page null-speaker / zero-option / effect-free, the three beat markers), and the structural safe-pause pin (driving the full intro leaves clock + four tracks unchanged).
@@ -189,3 +201,4 @@ Claude Opus 4.8 (1M context)
 |------|-----|--------|
 | 2026-08-08 | Create | Story 2.2 created (Status: ready-for-dev) from epics.md Story 2.2 + PRD §4.1/FR-1 + AD-14, carrying the 2.1 review lessons (controller-level safe-pause pin is structural; narration has no speaker; zero-option node = terminal page; AD-6 transient rule) and resolving the 2.1 deferred N-key pattern by Decision 6 (smoke scene removed) + Decision 7 (text-only pages). |
 | 2026-08-08 | Dev | Implemented all 6 tasks. New `IntroController` (no RunState — structurally cannot tick) + `CorneoIntro` (6 zero-option narration pages, before/fall/hand-off). `MarginScreen`: intro opens on a fresh run (constructor, not restart), safe-pause branch before `readAction`, `handleIntroInput` (SPACE/E advance, ESC skip), shared `renderTextPage` with the "[SPACE] continue   [ESC] skip" footer. Removed `SampleDialog` + the N debug key + the vacuous `sceneKeysAreNamespaced` pin. Full suite green (239 tests, 0 failures). No new persisted field (AD-6 by construction). Status → review. |
+| 2026-08-08 | Review | 3-layer adversarial code review (all 3 ACs + 7 Decisions + deletions confirmed by the Acceptance Auditor). Triage: 1 decision, 2 patches, 5 dismissed. Decision resolved by splitting the seeded hand-off line onto its own page (fixes the `\n\n`/wrapText render bug, now 7 pages). Patches applied: `restart()` also calls `intro.end()`; `IntroController.start()` defensively copies its page list. Full suite green (239 tests, 0 failures). Status → done. |

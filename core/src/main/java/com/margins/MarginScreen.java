@@ -130,6 +130,7 @@ public class MarginScreen implements Screen {
      *  finding) instead of silently re-showing the opening line. */
     private void restart() {
         dialog.end();
+        intro.end(); // close any open surface — symmetric with dialog.end() (review: keep the invariant honest)
         state.restart();
         FovSystem.compute(state);
         gameOver = false;

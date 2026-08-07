@@ -29,14 +29,15 @@ public class IntroController {
     private List<DialogNode> pages = new ArrayList<>();
     private int index = -1; // -1 = inactive (no scene open)
 
-    /** Open the intro at the first page. An empty (or null) list leaves the intro inactive. */
+    /** Open the intro at the first page. An empty (or null) list leaves the intro inactive. The
+     *  pages are defensively copied — the controller owns its own list, never an aliased caller's. */
     public void start(List<DialogNode> pages) {
         if (pages == null || pages.isEmpty()) {
             this.pages = new ArrayList<>();
             this.index = -1;
             return;
         }
-        this.pages = pages;
+        this.pages = new ArrayList<>(pages);
         this.index = 0;
     }
 

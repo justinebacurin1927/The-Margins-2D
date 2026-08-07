@@ -50,7 +50,10 @@ public final class CorneoIntro {
                 new DialogNode(
                         "So Klein ran, and Aldric ran with him, down off the wall and out through the north "
                         + "postern into the trees, the fire at their backs turning the low clouds orange. They "
-                        + "did not stop until the sound of it was gone.\n\n"
-                        + "You flee into the pines. Aldric is beside you."));
+                        + "did not stop until the sound of it was gone."),
+                // The seeded 1.8 opening line gets its own page — the hand-off beat, and the exact
+                // line the run's message log already holds when control frees to gameplay.
+                new DialogNode(
+                        "You flee into the pines. Aldric is beside you."));
     }
 }
