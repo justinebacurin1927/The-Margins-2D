@@ -35,7 +35,17 @@ public enum Supply {
     SALT("Salt", TrueIdentity.SALT_ID),
     // Story 1.6 craft material (FR-7): fuel for the torch (1 Wood + 1 Coal). Single-identity
     // (inert on use — a material, not consumed via USE), so the H1 no-RNG-draw rule applies.
-    WOOD("Wood", TrueIdentity.WOOD_ID);
+    WOOD("Wood", TrueIdentity.WOOD_ID),
+
+    // Story 1.7 debuff supplies (FR-8). The mushrooms carry the toxin track (deterministic — no
+    // risk roll); honey/honeycomb/bloodvein/herbal-cure are the cures. All single-identity and
+    // self-evident (name IS the real name), appended last so existing ordinals are unchanged (AD-6).
+    TOXIC_MUSHROOM("Toxic Mushroom", TrueIdentity.TOXIC_MUSHROOM_ID),
+    HONEYMOON_MUSHROOM("Honeymoon Mushroom", TrueIdentity.HONEYMOON_MUSHROOM_ID),
+    HONEY("Honey", TrueIdentity.HONEY_ID),
+    HONEYCOMB("Honeycomb", TrueIdentity.HONEYCOMB_ID),
+    BLOODVEIN_MUSHROOM("Bloodvein Mushroom", TrueIdentity.BLOODVEIN_ID),
+    HERBAL_CURE("Herbal Cure", TrueIdentity.HERBAL_CURE_ID);
 
     private final String displayName;
     private final TrueIdentity[] possible;
@@ -55,26 +65,54 @@ public enum Supply {
         return this != SEALED_LETTER && this != COAL && this != SALT && this != WOOD;
     }
 
-    /** A food/water provision consumed for nourishment (Story 1.5), vs. containers/fuel/storage. */
+    /** The toxin track a provision carries (Story 1.7, FR-8). Mushrooms are deterministic — a
+     *  toxin applies on consumption with no risk roll (the player chose to eat it); everything
+     *  else is NONE and rides the {@link #drinkRisk()} bacterial roll instead. */
+    public enum Toxin { NONE, ROTGUT, HONEYMOON }
+
+    /** A food/water provision consumed for nourishment (Story 1.5), vs. containers/fuel/storage.
+     *  Story 1.7 adds the mushrooms and cures — they must route through ConsumptionSystem too. */
     public boolean isProvision() {
         switch (this) {
             case RAW_MEAT: case HALF_ROTTEN_MEAT: case SPOILED_MEAT: case COOKED_MEAT:
             case WELL_WATER: case POND_WATER: case RIVER_WATER: case FILTERED_WATER: case BOILED_WATER:
+            case TOXIC_MUSHROOM: case HONEYMOON_MUSHROOM:
+            case HONEY: case HONEYCOMB: case BLOODVEIN_MUSHROOM: case HERBAL_CURE:
                 return true;
             default: return false;
         }
     }
 
-    /** The poison risk (percent 0..100) of consuming this provision untreated (FR-6). 0 = safe. */
+    /** The poison risk (percent 0..100) of consuming this provision untreated (FR-6). 0 = safe.
+     *  Bloodvein Mushroom's 90% contamination rides this roll (PRD FR-8, Story 1.7). */
     public int drinkRisk() {
         switch (this) {
             case SPOILED_MEAT:     return 90;
+            case BLOODVEIN_MUSHROOM: return 90; // the cure comes at a 90% poisoning cost (FR-8)
             case POND_WATER:       return 60;
             case HALF_ROTTEN_MEAT: return 40;
             case RIVER_WATER:      return 20; // AC-1: river direct-drink 20%
             case FILTERED_WATER:   return 10; // AC-2: filtration reduces but does not eliminate
             case RAW_MEAT:         return 10;
             default:               return 0;  // COOKED_MEAT, WELL_WATER, BOILED_WATER are safe
+        }
+    }
+
+    /** The toxin this provision carries, or NONE if it rides the bacterial roll instead (FR-8). */
+    public Toxin toxin() {
+        switch (this) {
+            case TOXIC_MUSHROOM:    return Toxin.ROTGUT;
+            case HONEYMOON_MUSHROOM: return Toxin.HONEYMOON;
+            default:                return Toxin.NONE;
+        }
+    }
+
+    /** A medicine (Story 1.7, FR-8): never refused on a full stomach (Decision 6). */
+    public boolean isCure() {
+        switch (this) {
+            case HONEY: case HONEYCOMB: case BLOODVEIN_MUSHROOM: case HERBAL_CURE:
+                return true;
+            default: return false;
         }
     }
 

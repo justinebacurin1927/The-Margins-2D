@@ -37,7 +37,17 @@ public enum TrueIdentity {
     BOILED_WATER_ID("Boiled water")     { public void apply(RoguePlayer p) { p.drink(60); } },
     COAL_ID("Coal")                     { public void apply(RoguePlayer p) { /* fuel — inert on use */ } },
     SALT_ID("Salt")                     { public void apply(RoguePlayer p) { /* storage — inert on use */ } },
-    WOOD_ID("Wood")                     { public void apply(RoguePlayer p) { /* fuel/material — inert on use */ } };
+    WOOD_ID("Wood")                     { public void apply(RoguePlayer p) { /* fuel/material — inert on use */ } },
+
+    // Story 1.7 debuff supplies. The mushroom effects are NOT applied here — the toxin needs the
+    // run (messages) and is deterministic, so ConsumptionSystem routes it to DebuffSystem after
+    // apply(). The cures are pure RoguePlayer state changes (no RNG), so they fit apply().
+    TOXIC_MUSHROOM_ID("Toxic mushroom")     { public void apply(RoguePlayer p) { /* toxin handled by DebuffSystem (needs messages) */ } },
+    HONEYMOON_MUSHROOM_ID("Honeymoon mushroom") { public void apply(RoguePlayer p) { /* toxin handled by DebuffSystem */ } },
+    HONEY_ID("Honey")                       { public void apply(RoguePlayer p) { p.cureWithHoney(); } },
+    HONEYCOMB_ID("Honeycomb")               { public void apply(RoguePlayer p) { p.cureWithHoney(); p.eat(10); } },
+    BLOODVEIN_ID("Bloodvein mushroom")      { public void apply(RoguePlayer p) { p.hurtRaw(5); p.clearBloated(); } }, // 90% risk rides ConsumptionSystem's roll
+    HERBAL_CURE_ID("Herbal cure")           { public void apply(RoguePlayer p) { p.applyHerbalCure(); } };
 
     private final String displayName;
 

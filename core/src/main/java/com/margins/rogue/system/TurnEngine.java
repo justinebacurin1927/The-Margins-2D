@@ -40,6 +40,18 @@ public class TurnEngine {
                     // Bloated slow: a 50% stumble that still spends the turn (spec §1).
                     if (player.isSlowed() && state.rng().nextInt(100) < 50) {
                         result.messages.add("Bloated — you stumble.");
+                    } else if (player.isCrippled()) {
+                        // Delirium's Crippled / Rotgut (Story 1.7, AC-1/AC-2): a 25% paranoid freeze
+                        // and a 50% stumble, both spending the turn — movement is unreliable while
+                        // crippled. One predicate, no ad-hoc flags (spine line 186).
+                        int roll = state.rng().nextInt(100);
+                        if (roll < 25) {
+                            result.messages.add("Paranoia — you freeze.");
+                        } else if (roll < 75) {
+                            result.messages.add("Crippled — you stumble.");
+                        } else {
+                            player.tryMove(action.dx, action.dy);
+                        }
                     } else {
                         player.tryMove(action.dx, action.dy);
                     }
@@ -171,6 +183,7 @@ public class TurnEngine {
             // checkLastStand so lethal thirst/cold honors the Last-Stand reprieve (AD-5).
             HungerSystem.tick(player);
             ThirstSystem.tick(player);
+            DebuffSystem.tick(state, result.messages); // Story 1.7: debuff escalation + Diarrhea's amplified drain (AD-4)
             TemperatureSystem.tick(state); // the weather + fire drivers need the whole run (Story 1.6)
             SpoilageSystem.tick(state); // food ages on the acted path (FR-6, Story 1.5)
             state.tickClock();

@@ -16,27 +16,27 @@ import java.util.ArrayList;
 import static org.junit.jupiter.api.Assertions.*;
 
 /**
- * Consumption poison risk (FR-6, Story 1.5 AC-1): drinking untreated water rolls its source's
- * risk on the seeded RNG (AD-5) — river ~20%, clean water never. On a failed roll the player
- * takes immediate HP harm (the tiered debuffs are Story 1.7). Deterministic per seed.
+ * Consumption poison risk (FR-6, Story 1.5 AC-1 / Story 1.7): drinking untreated water rolls its
+ * source's risk on the seeded RNG (AD-5) — river ~20%, clean water never. On a failed roll the
+ * player starts the tiered bacterial track (Nausea + Diarrhea, Story 1.7) — the onset replaces
+ * Story 1.5's flat HP sting, so "poisoned" is a debuff, not HP harm. Deterministic per seed.
  */
 class WaterRiskTest {
 
-    /** Consume one unit of {@code type} on a fresh seed; return true if it harmed the player. */
-    private static boolean harmed(long seed, Supply type) {
+    /** Consume one unit of {@code type} on a fresh seed; return true if it started the bacterial track. */
+    private static boolean poisoned(long seed, Supply type) {
         RunState s = new RunState(seed);
         s.getInventory().tryAdd(type.ordinal(), 1);
         if (type.isWater()) {
             for (int i = 0; i < 210; i++) s.getPlayer().tickThirst(); // HYDRATED → THIRSTY, so a drink isn't refused (Edge #2)
         }
-        int hpBefore = s.getPlayer().getHp();
         ConsumptionSystem.consume(s, type.ordinal(), new ArrayList<>());
-        return s.getPlayer().getHp() < hpBefore;
+        return s.getPlayer().getBacterialStage() != RoguePlayer.BacterialStage.NONE;
     }
 
-    private static int harmCount(Supply type, int seeds) {
+    private static int poisonCount(Supply type, int seeds) {
         int n = 0;
-        for (long seed = 1; seed <= seeds; seed++) if (harmed(seed, type)) n++;
+        for (long seed = 1; seed <= seeds; seed++) if (poisoned(seed, type)) n++;
         return n;
     }
 
@@ -54,35 +54,34 @@ class WaterRiskTest {
     }
 
     /** Load a run (a save taken right before its first risky consume) and consume one unit of
-     *  {@code type}; return whether it harmed the player. */
-    private static boolean harmedAfterLoad(RunState loaded, Supply type) {
+     *  {@code type}; return whether it started the bacterial track. */
+    private static boolean poisonedAfterLoad(RunState loaded, Supply type) {
         loaded.restoreAfterLoad();
-        int hp = loaded.getPlayer().getHp();
         assertTrue(ConsumptionSystem.consume(loaded, type.ordinal(), new ArrayList<>()),
                 "the loaded run can still consume the provision");
-        return loaded.getPlayer().getHp() < hp;
+        return loaded.getPlayer().getBacterialStage() != RoguePlayer.BacterialStage.NONE;
     }
 
     @Test
-    void cleanWaterNeverHarms() {
-        assertEquals(0, harmCount(Supply.BOILED_WATER, 300), "boiled water is 0% risk");
-        assertEquals(0, harmCount(Supply.WELL_WATER, 300), "well water is stable/safe");
+    void cleanWaterNeverPoisons() {
+        assertEquals(0, poisonCount(Supply.BOILED_WATER, 300), "boiled water is 0% risk");
+        assertEquals(0, poisonCount(Supply.WELL_WATER, 300), "well water is stable/safe");
     }
 
     @Test
-    void riverWaterHarmsAboutTwentyPercent() {
+    void riverWaterPoisonsAboutTwentyPercent() {
         int seeds = 600;
-        int harmed = harmCount(Supply.RIVER_WATER, seeds);
-        double rate = harmed / (double) seeds;
+        int poisoned = poisonCount(Supply.RIVER_WATER, seeds);
+        double rate = poisoned / (double) seeds;
         assertTrue(rate > 0.10 && rate < 0.32,
-                "river direct-drink harms ~20% of the time (was " + rate + ")");
+                "river direct-drink poisons ~20% of the time (was " + rate + ")");
     }
 
     @Test
-    void spoiledMeatAlmostAlwaysHarms() {
+    void spoiledMeatAlmostAlwaysPoisons() {
         int seeds = 300;
-        int harmed = harmCount(Supply.SPOILED_MEAT, seeds);
-        assertTrue(harmed > seeds * 0.75, "spoiled meat (90% risk) usually poisons (was " + harmed + "/" + seeds + ")");
+        int poisoned = poisonCount(Supply.SPOILED_MEAT, seeds);
+        assertTrue(poisoned > seeds * 0.75, "spoiled meat (90% risk) usually poisons (was " + poisoned + "/" + seeds + ")");
     }
 
     @Test
@@ -98,8 +97,8 @@ class WaterRiskTest {
             for (int i = 0; i < 210; i++) s.getPlayer().tickThirst(); // save a THIRSTY player, so the loaded consume isn't refused
             String saved = json().toJson(s);
 
-            boolean a = harmedAfterLoad(json().fromJson(RunState.class, saved), Supply.RIVER_WATER);
-            boolean b = harmedAfterLoad(json().fromJson(RunState.class, saved), Supply.RIVER_WATER);
+            boolean a = poisonedAfterLoad(json().fromJson(RunState.class, saved), Supply.RIVER_WATER);
+            boolean b = poisonedAfterLoad(json().fromJson(RunState.class, saved), Supply.RIVER_WATER);
 
             assertEquals(a, b, "seed " + seed + ": the same save reproduces the same risk roll (AD-5)");
         }

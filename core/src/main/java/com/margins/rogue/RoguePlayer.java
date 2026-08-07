@@ -57,6 +57,18 @@ public class RoguePlayer {
         TempBand(String label) { this.label = label; }
     }
 
+    /** Debuff tiers (FR-8, Story 1.7). The bacterial chain escalates Nausea→Fever→Delirium at
+     *  each stage's course end (turns alone never clear — AC-3); Diarrhea runs parallel and
+     *  amplifies the thirst/hunger drains (lethal if ignored). */
+    public enum BacterialStage {
+        NONE, NAUSEA, FEVER, DELIRIUM
+    }
+
+    /** Diarrhea stages: Stage 1 2× Thirst drain, Stage 2 3× Thirst+Hunger (PRD FR-8). */
+    public enum DiarrheaStage {
+        NONE, STAGE_1, STAGE_2
+    }
+
     /** Food points that bump one tier up (an eat() amount accumulates toward this). */
     private static final int FOOD_PER_TIER = 100;
     /** Water points that bump one thirst tier up (a drink() amount accumulates toward this). */
@@ -83,6 +95,24 @@ public class RoguePlayer {
 
     // Temperature track (FR-4) — the meter only; drivers are Stories 1.3/1.6.
     private int temperature = 0;   // [-100, +100]; 0 = Neutral
+
+    // Debuff track (FR-8, Story 1.7) — the closed status shape (spine line 186). Field-initialized
+    // empty so a save predating the fields loads non-null-empty (AD-6).
+    public static final int NAUSEA_TURNS = 30;           // Nausea course (then escalates to Fever)
+    public static final int FEVER_TURNS = 25;            // Fever course (then escalates to Delirium)
+    public static final int DELIRIUM_TURNS = 40;         // Delirium course (latched until a cure treats it)
+    public static final int DIARRHEA_STAGE_1_TURNS = 30; // before Diarrhea Stage 2 escalation
+    public static final int HONEYMOON_TURNS = 60;        // hidden countdown to Collapse
+    public static final int COLLAPSE_CAP_PERCENT = 40;   // Max-HP % cap until cured
+
+    private BacterialStage bacterialStage = BacterialStage.NONE;
+    private int bacterialTimer;          // turns remaining in the current bacterial stage's course
+    private boolean deliriumTreated;     // a cure item treated Delirium (unlatches its ticking timer)
+    private DiarrheaStage diarrheaStage = DiarrheaStage.NONE;
+    private int diarrheaTimer;           // turns to the next Diarrhea stage (STAGE_1 → STAGE_2)
+    private boolean rotgutCrippled;      // Rotgut's instant Crippled (persists until cured, AC-2)
+    private int honeymoonCountdown;      // hidden Honeymoon countdown; 0 = not poisoned (AC-2)
+    private int maxHpCapPercent;         // Collapse's Max-HP cap; 0 = no cap (AC-2)
 
     private int str;
     private int instinct;
@@ -117,7 +147,10 @@ public class RoguePlayer {
     public int getTileY() { return tileY; }
     public int getFacing() { return facing; }
     public int getHp() { return hp; }
-    public int getMaxHp() { return maxHp; }
+    public int getMaxHp() {
+        // Honeymoon Collapse caps Max HP at a % of base until a cure lifts it (Story 1.7 AC-2).
+        return (maxHpCapPercent > 0) ? Math.max(1, maxHp * maxHpCapPercent / 100) : maxHp;
+    }
     public HungerStatus getStatus() { return status; }
 
     /** Whether eating can still benefit the player (Well Fed is maxed — eat() gains nothing).
@@ -137,8 +170,12 @@ public class RoguePlayer {
 
     public int getStr() {
         // Starving applies Fatigue's -35% max-Strength penalty for its whole duration (spec §1).
-        if (status == HungerStatus.STARVING) return (int) Math.floor(str * 0.65f);
-        return str;
+        // The bacterial track stacks its own STR penalty (Story 1.7, FR-8): Nausea -30%, Fever -40%.
+        float factor = 1f;
+        if (status == HungerStatus.STARVING) factor *= 0.65f;
+        if (bacterialStage == BacterialStage.NAUSEA) factor *= 0.70f;
+        else if (bacterialStage == BacterialStage.FEVER) factor *= 0.60f;
+        return (int) Math.floor(str * factor);
     }
     public int getInstinct() { return instinct; }
     public int getGrit() { return grit; }
@@ -170,11 +207,15 @@ public class RoguePlayer {
     }
 
     /** Effective dodge chance (instinct×3), after Trembling's -15% Agility penalty.
-     *  Trembling can come from Starving (hunger) or Parched (thirst); the penalty is
-     *  applied once, not stacked. Package-private for headless tests. */
+     *  Trembling can come from Starving (hunger) or Parched (thirst); Delirium's Vertigo
+     *  adds a second -15% (multiplicative with Trembling, Story 1.7). The penalties are
+     *  applied once each, not stacked. Package-private for headless tests. */
     int dodgePercent() {
         int eff = instinct;
         if (isTrembling()) {
+            eff = Math.round(eff * 0.85f);
+        }
+        if (isDelirious()) {
             eff = Math.round(eff * 0.85f);
         }
         return eff * 3;
@@ -203,7 +244,7 @@ public class RoguePlayer {
     }
 
     public void heal(int amount) {
-        hp = Math.min(maxHp, hp + amount);
+        hp = Math.min(getMaxHp(), hp + amount);
     }
 
     /** Eat toward the next tier up: FOOD_PER_TIER food points bump one tier. The
@@ -211,6 +252,7 @@ public class RoguePlayer {
      *  tier's duration) is applied by {@link #riseOneTier()}. Well Fed is already
      *  maxed and gains nothing (spec §1). */
     public void eat(int amount) {
+        nourishOut(); // AC-3: eating settles recoverable food-sickness (Nausea/Fever)
         if (status == HungerStatus.WELL_FED) return;
         foodPoints = Math.min(FOOD_PER_TIER, foodPoints + Math.max(0, amount));
         if (foodPoints >= FOOD_PER_TIER) {
@@ -236,9 +278,10 @@ public class RoguePlayer {
         if (hungerTurns <= 0) dropTier();
     }
 
-    /** One acted turn: advance the hunger countdown, then the Well Fed effects
-     *  (Bloated regen + slow timer). Starving runs its own damage cadence. */
-    public void tickHunger() {
+    /** The pure hunger drain: advance the countdown; Starving runs its damage cadence. Does NOT
+     *  run the Well Fed block — an amplified drain (Diarrhea's, Story 1.7 review F-01) must drain
+     *  the meter without accelerating the Bloated regen or shedding the slow. */
+    public void drainHunger() {
         if (status == HungerStatus.STARVING) {
             starveTick++;
             if (starvingStage() == 3) {
@@ -251,6 +294,11 @@ public class RoguePlayer {
             hungerTurns--;
             if (hungerTurns <= 0) dropTier();
         }
+    }
+
+    /** One acted turn: drain hunger, then the Well Fed effects (Bloated regen + slow timer). */
+    public void tickHunger() {
+        drainHunger();
         if (status == HungerStatus.WELL_FED) {
             regenTimer--;
             if (regenTimer <= 0) { heal(1); regenTimer = 3; } // "Bloated" regen: +1 HP every 3 turns
@@ -351,6 +399,7 @@ public class RoguePlayer {
 
     /** Drink toward the next tier up: WATER_PER_TIER points bump one tier (Hydrated is maxed). */
     public void drink(int amount) {
+        nourishOut(); // AC-3: drinking settles recoverable food-sickness (Nausea/Fever)
         if (thirstStatus == ThirstStatus.HYDRATED) return;
         waterPoints = Math.min(WATER_PER_TIER, waterPoints + Math.max(0, amount));
         if (waterPoints >= WATER_PER_TIER) {
@@ -446,6 +495,121 @@ public class RoguePlayer {
         temperature = Math.max(-100, Math.min(Math.min(cap, 100), temperature + amount));
     }
 
+    // --- Debuffs (FR-8, Story 1.7): the tiered status track; DebuffSystem drives the ticking ---
+
+    public BacterialStage getBacterialStage() { return bacterialStage; }
+    /** Turns remaining in the current bacterial stage's course (escalation at 0). */
+    public int getBacterialTimer() { return bacterialTimer; }
+    /** A cure item treated Delirium — only a treated Delirium timer ticks (AC-3). */
+    public boolean isDeliriumTreated() { return deliriumTreated; }
+    public DiarrheaStage getDiarrheaStage() { return diarrheaStage; }
+    public int getDiarrheaTimer() { return diarrheaTimer; }
+    /** Rotgut's instant Crippled, which persists until a cure clears it (AC-2). */
+    public boolean isRotgutCrippled() { return rotgutCrippled; }
+    /** Hidden Honeymoon countdown; 0 = not poisoned. Deliberately no message reveals it (AC-2). */
+    public int getHoneymoonCountdown() { return honeymoonCountdown; }
+    public boolean isCollapsed() { return maxHpCapPercent > 0; }
+
+    /** The movement bundle's predicate: Delirium's Crippled OR Rotgut's Crippled. One source of
+     *  truth for the MOVE stumble/freeze hooks — no ad-hoc flags (spine line 186). */
+    public boolean isCrippled() { return bacterialStage == BacterialStage.DELIRIUM || rotgutCrippled; }
+
+    /** Delirium's Vertigo — the dodge penalty applies only to full Delirium (Story 1.7 Decision 9). */
+    public boolean isDelirious() { return bacterialStage == BacterialStage.DELIRIUM; }
+
+    /** Bacterial onset (a failed contamination roll, or Rotgut): begin Nausea + parallel Diarrhea
+     *  Stage 1. An already-sick player keeps their stage — re-contamination never downgrades. */
+    public void beginBacterial() {
+        if (bacterialStage == BacterialStage.NONE) {
+            bacterialStage = BacterialStage.NAUSEA;
+            bacterialTimer = NAUSEA_TURNS;
+        }
+        if (diarrheaStage == DiarrheaStage.NONE) {
+            diarrheaStage = DiarrheaStage.STAGE_1;
+            diarrheaTimer = DIARRHEA_STAGE_1_TURNS;
+        }
+    }
+
+    /** Rotgut (AC-2): the same onset plus the instant Crippled bundle. */
+    public void beginRotgut() {
+        rotgutCrippled = true;
+        beginBacterial();
+    }
+
+    /** Honeymoon (AC-2): start the hidden countdown. Single active countdown (review F-03): a
+     *  re-dose while one runs is a harmless no-op — it can't postpone the Collapse (hoarding to
+     *  defer it) nor re-arm a post-collapse dose. A cured player (cap lifted) can poison again. */
+    public void beginHoneymoon() {
+        if (honeymoonCountdown <= 0 && !isCollapsed()) honeymoonCountdown = HONEYMOON_TURNS;
+    }
+
+    public void tickBacterialTimer() { bacterialTimer = Math.max(0, bacterialTimer - 1); }
+    public void tickDiarrheaTimer() { diarrheaTimer = Math.max(0, diarrheaTimer - 1); }
+    public void tickHoneymoon() { honeymoonCountdown = Math.max(0, honeymoonCountdown - 1); }
+
+    /** Nausea → Fever at its course end (turns alone never clear — AC-3). */
+    public void escalateToFever() { bacterialStage = BacterialStage.FEVER; bacterialTimer = FEVER_TURNS; }
+
+    /** Fever → Delirium at its course end. The timer is latched until a cure treats it (AC-3). */
+    public void escalateToDelirium() { bacterialStage = BacterialStage.DELIRIUM; bacterialTimer = DELIRIUM_TURNS; }
+
+    /** Diarrhea Stage 1 → Stage 2. The Stage-2 timer latches at 0 — 3× drain forever (lethal if ignored). */
+    public void escalateDiarrhea() { diarrheaStage = DiarrheaStage.STAGE_2; diarrheaTimer = 0; }
+
+    /** A cure item treats Delirium: shorten to 25% of remaining and un-latch the timer (AC-3, PRD FR-8).
+     *  The ×0.25 applies once — a treated Delirium is already unlatched, so a second cure is a no-op
+     *  (review F-04: back-to-back cures shouldn't erase the shortened course). */
+    public void treatDelirium() {
+        if (bacterialStage != BacterialStage.DELIRIUM || deliriumTreated) return;
+        deliriumTreated = true;
+        bacterialTimer = (int) Math.floor(bacterialTimer * 0.25f);
+    }
+
+    /** Clear the whole bacterial track (a cure) — Delirium included. */
+    public void clearBacterial() {
+        bacterialStage = BacterialStage.NONE;
+        bacterialTimer = 0;
+        deliriumTreated = false;
+    }
+
+    public void clearDiarrhea() { diarrheaStage = DiarrheaStage.NONE; diarrheaTimer = 0; }
+    public void clearRotgut() { rotgutCrippled = false; }
+    public void clearBloated() { bloatedSlowTurns = 0; }
+
+    /** Nourish-out (AC-3): eating/drinking clears the recoverable food-sickness (Nausea/Fever).
+     *  Delirium and Diarrhea are NOT cleared by nourishment — only cures remove them. */
+    private void nourishOut() {
+        if (bacterialStage == BacterialStage.NAUSEA || bacterialStage == BacterialStage.FEVER) {
+            bacterialStage = BacterialStage.NONE;
+            bacterialTimer = 0;
+        }
+    }
+
+    /** Honeymoon's collapse (AC-2): cap Max HP at a % of base and clamp current HP to the cap. */
+    public void collapse() {
+        maxHpCapPercent = COLLAPSE_CAP_PERCENT;
+        hp = Math.min(hp, getMaxHp());
+    }
+
+    /** The cure item that lifts the Honeymoon cap. */
+    public void liftCollapse() { maxHpCapPercent = 0; }
+
+    /** Honey / Honeycomb (PRD FR-8): cure Sick/Poisoned — the recoverable bacterial stages and
+     *  Rotgut's effects, plus Diarrhea. Delirium is NOT cleared by honey (only the cure item is). */
+    public void cureWithHoney() {
+        if (bacterialStage == BacterialStage.NAUSEA || bacterialStage == BacterialStage.FEVER) clearBacterial();
+        clearRotgut();
+        clearDiarrhea();
+    }
+
+    /** The generic cure item (HERBAL_CURE): clears Nausea/Fever, treats Delirium (75% shorter),
+     *  and lifts the Honeymoon Collapse cap. */
+    public void applyHerbalCure() {
+        if (bacterialStage == BacterialStage.DELIRIUM) treatDelirium();
+        else if (bacterialStage == BacterialStage.NAUSEA || bacterialStage == BacterialStage.FEVER) clearBacterial();
+        liftCollapse();
+    }
+
     public boolean isAlive() {
         return hp > 0;
     }
@@ -463,5 +627,5 @@ public class RoguePlayer {
     public void setMap(RogueTileMap map) { this.map = map; }
 
     /** Set HP to a specific value (used by the Last Stand reprieve). */
-    public void reviveTo(int value) { this.hp = Math.max(0, Math.min(maxHp, value)); }
+    public void reviveTo(int value) { this.hp = Math.max(0, Math.min(getMaxHp(), value)); }
 }

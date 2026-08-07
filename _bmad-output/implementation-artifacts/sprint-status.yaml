@@ -55,7 +55,7 @@
 #   item is now folded into new Story 1.1's acceptance criteria (AD-6).
 
 generated: 2026-08-06
-last_updated: 2026-08-07  # 1-6 review complete → done; Epic 1 in-progress
+last_updated: 2026-08-08  # 1-6 done; Story 1.7 reviewed + 5 review patches applied → done; Epic 1 in-progress
 project: The Margin
 project_key: NOKEY
 tracking_system: file-system
@@ -70,7 +70,7 @@ development_status:
   1-4-fov-and-light-the-visible-camp-tension: done
   1-5-food-water-and-two-step-purification: done
   1-6-temperature-and-the-campfire-torch: done
-  1-7-the-debuff-system: backlog
+  1-7-the-debuff-system: done
   1-8-the-survival-hud-and-message-log: backlog
   epic-1-retrospective: optional
 

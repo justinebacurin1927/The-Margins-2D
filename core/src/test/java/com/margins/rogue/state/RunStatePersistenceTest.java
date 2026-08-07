@@ -12,8 +12,11 @@ import com.margins.rogue.Weather;
 import com.margins.rogue.item.FloorItem;
 import com.margins.rogue.item.Supply;
 import com.margins.rogue.item.TrueIdentity;
+import com.margins.rogue.system.DebuffSystem;
 import com.margins.rogue.system.SpoilageSystem;
 import org.junit.jupiter.api.Test;
+
+import java.util.ArrayList;
 
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -321,5 +324,116 @@ class RunStatePersistenceTest {
         assertNotNull(c);
         // followStep would NPE if the map were not re-injected — exercise it.
         assertDoesNotThrow(() -> c.followStep(loaded.getPlayer().getTileX(), loaded.getPlayer().getTileY()));
+    }
+
+    @Test
+    void debuffsSurviveRoundTrip() {
+        // AD-6 (Story 1.7): the whole debuff shape is persisted run state — a load must keep the
+        // bacterial stage/timer, the treated flag, the Rotgut cripple, the hidden Honeymoon
+        // countdown AND the Collapse cap (a loaded collapse stays capped — no free recovery).
+        RunState s = new RunState(42L);
+        RoguePlayer p = s.getPlayer();
+        p.beginBacterial();
+        for (int i = 0; i < RoguePlayer.NAUSEA_TURNS; i++) DebuffSystem.tick(s, new ArrayList<>()); // → Fever
+        for (int i = 0; i < RoguePlayer.FEVER_TURNS; i++) DebuffSystem.tick(s, new ArrayList<>()); // → Delirium
+        p.treatDelirium();  // timer ×0.25 + treated
+        p.beginRotgut();    // after Delirium: only the Rotgut cripple lands (no downgrade)
+        p.beginHoneymoon();
+        for (int i = 0; i < 37; i++) p.tickHoneymoon(); // 60 → 23
+        p.collapse();       // Max HP → 8, HP clamped
+
+        int timer = p.getBacterialTimer();
+        int honeymoon = p.getHoneymoonCountdown();
+        int hp = p.getHp();
+
+        RunState loaded = json().fromJson(RunState.class, json().toJson(s));
+        loaded.restoreAfterLoad();
+        RoguePlayer lp = loaded.getPlayer();
+
+        assertEquals(RoguePlayer.BacterialStage.DELIRIUM, lp.getBacterialStage(), "bacterial stage survives");
+        assertEquals(timer, lp.getBacterialTimer(), "bacterial timer survives");
+        assertTrue(lp.isDeliriumTreated(), "the treated flag survives");
+        assertEquals(RoguePlayer.DiarrheaStage.STAGE_2, lp.getDiarrheaStage(), "diarrhea stage survives");
+        assertTrue(lp.isRotgutCrippled(), "the Rotgut cripple survives");
+        assertEquals(honeymoon, lp.getHoneymoonCountdown(), "the hidden Honeymoon countdown survives");
+        assertTrue(lp.isCollapsed(), "the Collapse cap survives the load (no free recovery)");
+        assertEquals(8, lp.getMaxHp(), "capped Max HP survives");
+        assertEquals(hp, lp.getHp(), "clamped HP survives");
+    }
+
+    @Test
+    void preDebuffSaveLoadsEmptyNotNull() {
+        // AD-6: a save predating the Story 1.7 fields loads empty-but-non-null — no bacterial
+        // track, no diarrhea, no toxin, no collapse cap (the field initializers are the defaults).
+        RunState withData = new RunState(7L);
+        withData.getPlayer().beginBacterial(); // so the new keys exist to strip
+        JsonValue root = new JsonReader().parse(json().toJson(withData));
+        JsonValue player = root.get("player");
+        player.remove("bacterialStage");
+        player.remove("bacterialTimer");
+        player.remove("deliriumTreated");
+        player.remove("diarrheaStage");
+        player.remove("diarrheaTimer");
+        player.remove("rotgutCrippled");
+        player.remove("honeymoonCountdown");
+        player.remove("maxHpCapPercent");
+
+        RunState fromOld = json().fromJson(RunState.class, root.toJson(JsonWriter.OutputType.json));
+        fromOld.restoreAfterLoad();
+        RoguePlayer lp = fromOld.getPlayer();
+
+        assertEquals(RoguePlayer.BacterialStage.NONE, lp.getBacterialStage(), "old save has no bacterial track");
+        assertEquals(0, lp.getBacterialTimer());
+        assertFalse(lp.isDeliriumTreated());
+        assertEquals(RoguePlayer.DiarrheaStage.NONE, lp.getDiarrheaStage(), "old save has no diarrhea");
+        assertEquals(0, lp.getDiarrheaTimer());
+        assertFalse(lp.isRotgutCrippled());
+        assertEquals(0, lp.getHoneymoonCountdown());
+        assertFalse(lp.isCollapsed(), "old save has no collapse cap");
+        assertEquals(20, lp.getMaxHp(), "full Max HP on an old save");
+    }
+
+    @Test
+    void restartResetsDebuffs() {
+        // A new run builds a fresh RoguePlayer (RunState.restart → generateFloor), so debuff state
+        // clears for free — assert the contract so a future shared-player refactor can't break it.
+        RunState s = new RunState(42L);
+        RoguePlayer p = s.getPlayer();
+        p.beginBacterial();
+        p.beginHoneymoon();
+        p.collapse();
+        s.restart();
+        RoguePlayer fresh = s.getPlayer();
+        assertEquals(RoguePlayer.BacterialStage.NONE, fresh.getBacterialStage(), "a new run starts clean");
+        assertEquals(RoguePlayer.DiarrheaStage.NONE, fresh.getDiarrheaStage());
+        assertEquals(0, fresh.getHoneymoonCountdown());
+        assertFalse(fresh.isCollapsed(), "no collapse cap on a new run");
+        assertEquals(20, fresh.getMaxHp());
+    }
+
+    @Test
+    void preStory17SaveGrowsTheIdentityBindingForAppendedOrdinals() {
+        // Edge #1-review pattern (append-migration): a 1.6-era save serializes a boundByOrdinal
+        // array of the then-17 Supply values. On load, restoreAfterLoad must grow it for the 6
+        // appended Story 1.7 supplies (mushrooms + cures, single-identity) — else identityOf reads
+        // null and the toxin/cure is silently skipped while the item is consumed.
+        RunState withData = new RunState(7L);
+        JsonValue root = new JsonReader().parse(json().toJson(withData));
+        int pre17Count = 17; // the Supply count at the end of Story 1.6
+        JsonValue bound = root.get("identifyMap").get("boundByOrdinal");
+        for (int i = bound.size - 1; i >= pre17Count; i--) bound.remove(i);
+        JsonValue identified = root.get("identifyMap").get("identifiedByOrdinal");
+        for (int i = identified.size - 1; i >= pre17Count; i--) identified.remove(i);
+
+        RunState fromOld = json().fromJson(RunState.class, root.toJson(JsonWriter.OutputType.json));
+        fromOld.restoreAfterLoad();
+
+        assertEquals(TrueIdentity.TOXIC_MUSHROOM_ID,
+                fromOld.getIdentifyMap().identityOf(Supply.TOXIC_MUSHROOM.ordinal()),
+                "appended ordinals bind to their single identity after the grow (no silent no-op)");
+        assertEquals(TrueIdentity.HONEY_ID, fromOld.getIdentifyMap().identityOf(Supply.HONEY.ordinal()));
+        assertEquals(TrueIdentity.HERBAL_CURE_ID, fromOld.getIdentifyMap().identityOf(Supply.HERBAL_CURE.ordinal()));
+        assertNotNull(fromOld.getIdentifyMap().identityOf(Supply.count() - 1),
+                "every ordinal through the new count is bound");
     }
 }
