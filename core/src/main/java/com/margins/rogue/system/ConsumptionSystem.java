@@ -49,8 +49,12 @@ public final class ConsumptionSystem {
         }
 
         // Nourish-out (AC-3) happens inside eat()/drink() — capture whether the player was sick so
-        // a settle message can follow (a nicety; the clear is the real contract).
+        // a settle message can follow (a nicety; the clear is the real contract). Also capture the
+        // tiers: eating/drinking back UP is notable (Story 1.8 AC-2) and only observable here —
+        // tickHunger/tickThirst never rise, so HungerSystem/ThirstSystem emit drops only.
         boolean sickBefore = sick;
+        RoguePlayer.HungerStatus hungerBefore = p.getStatus();
+        RoguePlayer.ThirstStatus thirstBefore = p.getThirstStatus();
 
         TrueIdentity id = state.getIdentifyMap().identityOf(itemType);
         if (id != null) id.apply(p); // nourishment (eat/drink) or a cure effect
@@ -66,6 +70,10 @@ public final class ConsumptionSystem {
         if (sickBefore && p.getBacterialStage() == RoguePlayer.BacterialStage.NONE) {
             messages.add("Your stomach settles.");
         }
+        // A tier RISE from eating/drinking back up is a notable event (Story 1.8 AC-2) — emitted
+        // here, where the apply that caused it lives (Decision 2's System-observation pattern).
+        if (p.getStatus() != hungerBefore) messages.add(HungerSystem.hungerTierLine(p.getStatus()));
+        if (p.getThirstStatus() != thirstBefore) messages.add(ThirstSystem.thirstTierLine(p.getThirstStatus()));
         return true;
     }
 }

@@ -149,7 +149,7 @@ class DebuffSystemTest {
         RoguePlayer pl = p(s);
         pl.beginBacterial(); // STAGE_1
         int thirst = pl.getThirst();
-        ThirstSystem.tick(pl); // the normal acted-turn thirst tick (pipeline order: Thirst → Debuff)
+        ThirstSystem.tick(pl, messages()); // the normal acted-turn thirst tick (pipeline order: Thirst → Debuff)
         DebuffSystem.tick(s, messages());
         assertEquals(thirst - 2, pl.getThirst(), "Stage 1 adds +1 extra thirst tick per acted turn (2×)");
         assertEquals(RoguePlayer.DiarrheaStage.STAGE_1, pl.getDiarrheaStage());
@@ -163,7 +163,7 @@ class DebuffSystemTest {
         for (int i = 0; i < RoguePlayer.DIARRHEA_STAGE_1_TURNS; i++) DebuffSystem.tick(s, messages());
         assertEquals(RoguePlayer.DiarrheaStage.STAGE_2, pl.getDiarrheaStage(), "escalates at 30 turns");
         int thirst = pl.getThirst(), hunger = pl.getHunger();
-        ThirstSystem.tick(pl);
+        ThirstSystem.tick(pl, messages());
         DebuffSystem.tick(s, messages());
         assertEquals(thirst - 3, pl.getThirst(), "Stage 2 adds +2 thirst (3×)");
         assertEquals(hunger - 2, pl.getHunger(), "and +2 hunger (3×)");
@@ -405,7 +405,7 @@ class DebuffSystemTest {
         // clock (3→2, no heal) and sheds the slow once; the 2 extra drainHunger calls touch neither.
         int hunger = pl.getHunger();
         pl.tickHunger();
-        ThirstSystem.tick(pl);
+        ThirstSystem.tick(pl, messages());
         DebuffSystem.tick(s, messages());
         assertEquals(10, pl.getHp(), "no regen acceleration from the amplified drain (F-01)");
         assertEquals(hunger - 3, pl.getHunger(), "the 3× hunger drain still applies");
@@ -413,7 +413,7 @@ class DebuffSystemTest {
         // 20 acted turns: 50 - 20 = 30 remain (still slowed); the bug shed 3× → 50 - 60, not slowed.
         for (int i = 0; i < 19; i++) {
             pl.tickHunger();
-            ThirstSystem.tick(pl);
+            ThirstSystem.tick(pl, messages());
             DebuffSystem.tick(s, messages());
         }
         assertTrue(pl.isSlowed(), "Bloated slow not shed 3× faster (F-01)");

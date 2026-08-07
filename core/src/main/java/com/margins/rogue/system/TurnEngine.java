@@ -2,6 +2,7 @@ package com.margins.rogue.system;
 
 import com.margins.rogue.RoguePlayer;
 import com.margins.rogue.RogueTile;
+import com.margins.rogue.Weather;
 import com.margins.rogue.item.FloorItem;
 import com.margins.rogue.item.Inventory;
 import com.margins.rogue.item.Supply;
@@ -83,7 +84,16 @@ public class TurnEngine {
                 }
                 if (s != null && state.getInventory().count(action.itemType) > 0) {
                     TrueIdentity id = state.getIdentifyMap().identityOf(action.itemType);
-                    if (id != null) id.apply(player); // effect is the per-seed bound identity (FR-11)
+                    if (id != null) {
+                        // The mystery gamble's apply can change a hunger/thirst tier — observe it like
+                        // ConsumptionSystem does, so the change is announced (review finding: the
+                        // non-provision USE path was the one silent tier-change route).
+                        RoguePlayer.HungerStatus hBefore = player.getStatus();
+                        RoguePlayer.ThirstStatus tBefore = player.getThirstStatus();
+                        id.apply(player); // effect is the per-seed bound identity (FR-11)
+                        if (player.getStatus() != hBefore) result.messages.add(HungerSystem.hungerTierLine(player.getStatus()));
+                        if (player.getThirstStatus() != tBefore) result.messages.add(ThirstSystem.thirstTierLine(player.getThirstStatus()));
+                    }
                     if (s.isConsumedOnUse()) {
                         boolean wasIdentified = state.getIdentifyMap().isIdentified(action.itemType);
                         state.getIdentifyMap().markIdentified(action.itemType); // reveal the whole type (FR-12)
@@ -181,13 +191,23 @@ public class TurnEngine {
             // survival (hunger/thirst/temperature/clock) -> detection -> companion ->
             // enemy -> noise -> checkLastStand -> FOV. Survival ticks run BEFORE
             // checkLastStand so lethal thirst/cold honors the Last-Stand reprieve (AD-5).
-            HungerSystem.tick(player);
-            ThirstSystem.tick(player);
+            HungerSystem.tick(player, result.messages);
+            ThirstSystem.tick(player, result.messages);
+            // Capture AFTER the direct ticks so Diarrhea's amplified drain (DebuffSystem) — which
+            // runs after and can cross ANOTHER tier — still announces its drop (review finding).
+            // The Systems' own observation already caught their ticks' crossing; this catches only
+            // the additional one DebuffSystem caused, so no line duplicates.
+            RoguePlayer.HungerStatus hAfterTicks = player.getStatus();
+            RoguePlayer.ThirstStatus tAfterTicks = player.getThirstStatus();
             DebuffSystem.tick(state, result.messages); // Story 1.7: debuff escalation + Diarrhea's amplified drain (AD-4)
-            TemperatureSystem.tick(state); // the weather + fire drivers need the whole run (Story 1.6)
+            if (player.getStatus() != hAfterTicks) result.messages.add(HungerSystem.hungerTierLine(player.getStatus()));
+            if (player.getThirstStatus() != tAfterTicks) result.messages.add(ThirstSystem.thirstTierLine(player.getThirstStatus()));
+            TemperatureSystem.tick(state, result.messages); // the weather + fire drivers need the whole run (Story 1.6)
             SpoilageSystem.tick(state); // food ages on the acted path (FR-6, Story 1.5)
-            state.tickClock();
-            DetectionSystem.update(state); // advance awareness before enemies move (AD-4)
+            Weather before = state.getWeather();
+            state.tickClock(); // rolls the next cycle's weather at a boundary (FR-5)
+            if (state.getWeather() != before) result.messages.add(state.getWeather().onsetLine());
+            DetectionSystem.update(state, result.messages); // advance awareness before enemies move (AD-4)
             CompanionSystem.follow(state); // the ally moves in the Companion+Enemy-AI phase (AD-4, AD-10)
             CombatSystem.enemyPhase(state, result.messages);
             TorchSystem.tick(state); // burn the torch (if lit) before its light/noise step (AD-4, Story 1.6)
@@ -202,6 +222,12 @@ public class TurnEngine {
             // Recompute sight from the player's (possibly new) position.
             FovSystem.compute(state);
         }
+
+        // The bottom message log (NFR-3, Story 1.8): every turn's messages land here — acted AND
+        // refused (a refusal like "A torch needs Wood and Coal." is feedback the surface must show,
+        // even though it commits no turn — AD-5 honesty and the log are two different facts). The
+        // append runs LAST so the acted-branch emissions (Wait, combat, Last Stand) are included.
+        if (!result.messages.isEmpty()) state.appendMessages(result.messages);
 
         return result;
     }

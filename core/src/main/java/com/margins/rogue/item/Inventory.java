@@ -131,6 +131,32 @@ public class Inventory {
         return (slot >= 0 && slot < BACKPACK_STACKS) ? counts[slot] : 0;
     }
 
+    /** Index of the next occupied stack strictly after {@code from}, wrapping past the end to 0;
+     *  -1 when the backpack is empty. The screen's selection cycle (Story 1.8, deferral F-09): it
+     *  skips empty slots, so a single-stack backpack wraps back to itself in one full lap. Uses
+     *  {@link Math#floorMod} so any negative {@code from} (a fresh, no-selection cycle) stays a
+     *  valid slot index rather than indexing a negative array slot. */
+    public int nextOccupiedStack(int from) {
+        for (int step = 1; step <= BACKPACK_STACKS; step++) {
+            int slot = Math.floorMod(from + step, BACKPACK_STACKS);
+            if (types[slot] != EMPTY) return slot;
+        }
+        return EMPTY; // every slot empty — nothing to select
+    }
+
+    /** Index of the previous occupied stack strictly before {@code from}, wrapping past the start
+     *  to the last occupied; -1 when the backpack is empty. The mirror of {@link #nextOccupiedStack}
+     *  (Story 1.8 review — the screen's backward cycle walked 7 forward steps, which only equals
+     *  "back" when the occupied count divides 8): forward and back must step symmetrically over the
+     *  ring on any occupied count. A fresh (no-selection) backward press lands on the last occupied. */
+    public int previousOccupiedStack(int from) {
+        for (int step = 1; step <= BACKPACK_STACKS; step++) {
+            int slot = Math.floorMod(from - step, BACKPACK_STACKS);
+            if (types[slot] != EMPTY) return slot;
+        }
+        return EMPTY; // every slot empty — nothing to select
+    }
+
     /** Number of occupied backpack stacks (0..{@value #BACKPACK_STACKS}). */
     public int backpackStackCount() {
         int n = 0;

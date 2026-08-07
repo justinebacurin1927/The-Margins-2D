@@ -10,6 +10,8 @@ import com.margins.rogue.system.TurnEngine;
 import com.margins.rogue.system.TurnResult;
 import org.junit.jupiter.api.Test;
 
+import java.util.ArrayList;
+
 import static org.junit.jupiter.api.Assertions.*;
 
 /**
@@ -150,7 +152,7 @@ class TorchTest {
         assertTrue(s.hasLight(), "the torch is lit");
         assertFalse(s.isPlayerAtFire(), "no campfire — the player is not at a fire");
 
-        for (int i = 0; i < 10; i++) TemperatureSystem.tick(s);
+        for (int i = 0; i < 10; i++) TemperatureSystem.tick(s, new ArrayList<>());
 
         assertTrue(s.getPlayer().getTemperature() < 0, "the torch does not warm — the player freezes");
     }

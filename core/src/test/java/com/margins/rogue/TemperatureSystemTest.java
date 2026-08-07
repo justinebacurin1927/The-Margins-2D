@@ -4,6 +4,8 @@ import com.margins.rogue.state.RunState;
 import com.margins.rogue.system.TemperatureSystem;
 import org.junit.jupiter.api.Test;
 
+import java.util.ArrayList;
+
 import static org.junit.jupiter.api.Assertions.*;
 
 /**
@@ -67,7 +69,7 @@ class TemperatureSystemTest {
         RoguePlayer p = s.getPlayer();
         p.adjustTemperature(40); // Warm — not an extreme band
         int hp = p.getHp();
-        for (int i = 0; i < 40; i++) TemperatureSystem.tick(s);
+        for (int i = 0; i < 40; i++) TemperatureSystem.tick(s, new ArrayList<>());
         assertEquals(0, p.getTemperature(), "drifts back to Neutral absent a driver");
         assertEquals(RoguePlayer.TempBand.NEUTRAL, p.getTempBand());
         assertEquals(hp, p.getHp(), "no harm outside the extreme bands");
@@ -79,12 +81,12 @@ class TemperatureSystemTest {
         RoguePlayer p = s.getPlayer();
         p.adjustTemperature(-100); // Frozen
         int hp = p.getHp();
-        TemperatureSystem.tick(s);
-        TemperatureSystem.tick(s);
+        TemperatureSystem.tick(s, new ArrayList<>());
+        TemperatureSystem.tick(s, new ArrayList<>());
         assertEquals(hp - 2, p.getHp(), "Frozen costs -1 HP per turn spent there");
-        while (p.getTempBand() == RoguePlayer.TempBand.FROZEN) TemperatureSystem.tick(s); // drift out
+        while (p.getTempBand() == RoguePlayer.TempBand.FROZEN) TemperatureSystem.tick(s, new ArrayList<>()); // drift out
         int hpOut = p.getHp();
-        TemperatureSystem.tick(s); // now Cold
+        TemperatureSystem.tick(s, new ArrayList<>()); // now Cold
         assertEquals(hpOut, p.getHp(), "harm stops once the meter leaves the extreme band");
     }
 
@@ -94,9 +96,9 @@ class TemperatureSystemTest {
     void coldSnapDropsTwoPerTurnAndReachesFrozenInsideOneNight() {
         RunState s = state(Weather.COLD_SNAP);
         RoguePlayer p = s.getPlayer();
-        for (int i = 0; i < 10; i++) TemperatureSystem.tick(s);
+        for (int i = 0; i < 10; i++) TemperatureSystem.tick(s, new ArrayList<>());
         assertEquals(-20, p.getTemperature(), "Cold Snap onset is -2/turn");
-        for (int i = 10; i < 40; i++) TemperatureSystem.tick(s);
+        for (int i = 10; i < 40; i++) TemperatureSystem.tick(s, new ArrayList<>());
         assertEquals(RoguePlayer.TempBand.FROZEN, p.getTempBand(),
                 "from Neutral, a Cold Snap reaches Frozen (≤ -80) in 40 turns — inside one 70-turn Night");
     }
@@ -106,11 +108,11 @@ class TemperatureSystemTest {
         // AC-1: recovery once the Snap ends is +1/turn — half the -2 onset.
         RunState s = state(Weather.COLD_SNAP);
         RoguePlayer p = s.getPlayer();
-        for (int i = 0; i < 10; i++) TemperatureSystem.tick(s);
+        for (int i = 0; i < 10; i++) TemperatureSystem.tick(s, new ArrayList<>());
         assertEquals(-20, p.getTemperature(), "10 Cold Snap turns: -20");
 
         s.setWeather(Weather.CLEAR);
-        for (int i = 0; i < 10; i++) TemperatureSystem.tick(s);
+        for (int i = 0; i < 10; i++) TemperatureSystem.tick(s, new ArrayList<>());
         assertEquals(-10, p.getTemperature(), "recovery is +1/turn — half the -2 onset");
     }
 
@@ -122,7 +124,7 @@ class TemperatureSystemTest {
         RoguePlayer p = s.getPlayer();
         p.adjustTemperature(-78); // Cold, two below the Frozen line
         int hp = p.getHp();
-        TemperatureSystem.tick(s); // -2 → -80 (Frozen)
+        TemperatureSystem.tick(s, new ArrayList<>()); // -2 → -80 (Frozen)
         assertEquals(hp - 1, p.getHp(), "the post-delta band decides: dropping into Frozen harms now");
     }
 
@@ -134,7 +136,7 @@ class TemperatureSystemTest {
         RoguePlayer p = s.getPlayer();
         s.setCampfire(p.getTileX(), p.getTileY());
         assertTrue(s.isPlayerAtFire());
-        for (int i = 0; i < 10; i++) TemperatureSystem.tick(s);
+        for (int i = 0; i < 10; i++) TemperatureSystem.tick(s, new ArrayList<>());
         assertEquals(20, p.getTemperature(),
                 "at the fire under a Cold Snap the player nets +2/turn (4 warmth − 2 onset)");
         assertTrue(p.getTemperature() > 0, "the fire 'solves warmth' even in the cold");
@@ -145,7 +147,7 @@ class TemperatureSystemTest {
         RunState s = state(Weather.CLEAR);
         RoguePlayer p = s.getPlayer();
         s.setCampfire(p.getTileX(), p.getTileY());
-        for (int i = 0; i < 60; i++) TemperatureSystem.tick(s); // well past the cap
+        for (int i = 0; i < 60; i++) TemperatureSystem.tick(s, new ArrayList<>()); // well past the cap
         assertEquals(TemperatureSystem.FIRE_COMFORT, p.getTemperature(),
                 "warmth caps at the top of the WARM band");
         assertEquals(RoguePlayer.TempBand.WARM, p.getTempBand(),
@@ -158,14 +160,14 @@ class TemperatureSystemTest {
         RunState s = state(Weather.CLEAR);
         RoguePlayer p = s.getPlayer();
         s.setCampfire(p.getTileX(), p.getTileY());
-        TemperatureSystem.tick(s);
+        TemperatureSystem.tick(s, new ArrayList<>());
         int warmed = p.getTemperature();
         assertTrue(warmed > 0, "standing at the fire warms");
 
         // Walk away: the warmth stops and the meter drifts back toward Neutral.
         p.placeAt(p.getTileX() + 3, p.getTileY() + 3);
         assertFalse(s.isPlayerAtFire());
-        for (int i = 0; i < 20; i++) TemperatureSystem.tick(s);
+        for (int i = 0; i < 20; i++) TemperatureSystem.tick(s, new ArrayList<>());
         assertTrue(p.getTemperature() < warmed, "away from the fire the warmth stops and fades");
     }
 }

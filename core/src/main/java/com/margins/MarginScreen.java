@@ -7,6 +7,7 @@ import com.badlogic.gdx.graphics.Color;
 import com.badlogic.gdx.graphics.GL20;
 import com.badlogic.gdx.graphics.OrthographicCamera;
 import com.badlogic.gdx.graphics.g2d.BitmapFont;
+import com.badlogic.gdx.graphics.g2d.GlyphLayout;
 import com.badlogic.gdx.graphics.g2d.SpriteBatch;
 import com.badlogic.gdx.graphics.glutils.ShapeRenderer;
 import com.badlogic.gdx.utils.viewport.FitViewport;
@@ -22,7 +23,8 @@ import com.margins.rogue.state.RunState;
 import com.margins.rogue.system.FovSystem;
 import com.margins.rogue.system.PlayerAction;
 import com.margins.rogue.system.TurnEngine;
-import com.margins.rogue.system.TurnResult;
+
+import java.util.List;
 
 /**
  * First playable vertical slice for The Margin — SPD-style: 2D top-down tiles
@@ -44,8 +46,12 @@ public class MarginScreen implements Screen {
     private final RunState state = new RunState();
     private final TurnEngine turnEngine = new TurnEngine();
 
-    private String message = "You flee into the pines. Aldric is beside you. [WASD] move.";
     private boolean gameOver = false;
+    /** Selected backpack slot (0..7), -1 = none yet. Screen state only — reset on restart (Task 5). */
+    private int selectedSlot = -1;
+    private static final int LOG_LINES = 5; // the bottom log shows the last ~5 lines (NFR-3, AD-15)
+    /** Single source for the death line — the log seed and the overlay must never drift (review finding). */
+    private static final String GAME_OVER_LINE = "You fell in the margins.   [R] begin again";
 
     public MarginScreen() {
         FovSystem.compute(state);
@@ -70,22 +76,30 @@ public class MarginScreen implements Screen {
         RoguePlayer p = state.getPlayer();
 
         if (!p.isAlive()) {
-            gameOver = true;
-            message = "You fell in the margins.   [R] begin again";
+            // The game-over line is seeded into the log once — the log is the text surface (AC-1);
+            // the red overlay keeps it prominent. [R] restarts: fresh seeded log, selection cleared.
+            if (!gameOver) {
+                gameOver = true;
+                state.appendMessages(List.of(GAME_OVER_LINE));
+            }
             if (Gdx.input.isKeyJustPressed(Input.Keys.R)) {
                 state.restart();
                 FovSystem.compute(state);
                 gameOver = false;
-                message = "Another life. [WASD] move.";
+                selectedSlot = -1;
+                // Restart feedback (deletion-check finding): a new life announces itself instead of
+                // silently re-showing the opening line.
+                state.appendMessages(List.of("Another life. [WASD] move."));
             }
             return;
         }
 
+        // A consumed selection (its stack was used up) resets the selection so E/K/F/V don't
+        // silently no-op on a now-empty slot (edge-review finding).
+        if (selectedSlot >= 0 && state.getInventory().backpackType(selectedSlot) < 0) selectedSlot = -1;
+
         PlayerAction action = readAction(p.getFacing());
-        if (action == null) return;
-        TurnResult result = turnEngine.advance(state, action);
-        String m = result.lastMessage();
-        if (m != null) message = m;
+        if (action != null) turnEngine.advance(state, action); // the log is fed inside the engine (AD-4)
     }
 
     private PlayerAction readAction(int facing) {
@@ -96,26 +110,38 @@ public class MarginScreen implements Screen {
         if (down(Input.Keys.Q))     return PlayerAction.attack(facing);
         if (down(Input.Keys.G))     return PlayerAction.pickup(facing);
         if (down(Input.Keys.SPACE)) return PlayerAction.wait(facing);
-        // Story 1.5 survival crafting. Cook/Filter/Boil/Eat act on the FIRST matching backpack
-        // stack — a stopgap until the Story 1.8 HUD adds real item selection.
-        if (down(Input.Keys.C))     return PlayerAction.collect(facing);
-        if (down(Input.Keys.B))     return PlayerAction.buildCampfire(facing);
-        if (down(Input.Keys.T))     return PlayerAction.craftTorch(facing); // Story 1.6: 1 Wood + 1 Coal
-        if (down(Input.Keys.K)) { int t = firstWhere(s -> s.cooksTo() != null);   if (t >= 0) return PlayerAction.cook(t, facing); }
-        if (down(Input.Keys.F)) { int t = firstWhere(s -> s.filtersTo() != null); if (t >= 0) return PlayerAction.filter(t, facing); }
-        if (down(Input.Keys.V)) { int t = firstWhere(s -> s.boilsTo() != null);   if (t >= 0) return PlayerAction.boil(t, facing); }
-        if (down(Input.Keys.E)) { int t = firstWhere(Supply::isProvision);        if (t >= 0) return PlayerAction.use(t, facing); }
+        // Story 1.5/1.6 survival crafting. Cook/Filter/Boil/Eat act on the SELECTED backpack stack
+        // (Task 5 — F-09: no first-match quick-eat): a selection that isn't actionable stays inert.
+        if (down(Input.Keys.C)) return PlayerAction.collect(facing);
+        if (down(Input.Keys.B)) return PlayerAction.buildCampfire(facing);
+        if (down(Input.Keys.T)) return PlayerAction.craftTorch(facing); // Story 1.6: 1 Wood + 1 Coal
+        Supply s = Supply.byOrdinal(selectedType());
+        if (down(Input.Keys.K) && s != null && s.cooksTo() != null)   return PlayerAction.cook(s.ordinal(), facing);
+        if (down(Input.Keys.F) && s != null && s.filtersTo() != null) return PlayerAction.filter(s.ordinal(), facing);
+        if (down(Input.Keys.V) && s != null && s.boilsTo() != null)   return PlayerAction.boil(s.ordinal(), facing);
+        if (down(Input.Keys.E) && s != null && s.isProvision())       return PlayerAction.use(s.ordinal(), facing);
+        // Backpack selection cycle (Task 5): TAB / ] forward, [ backward. Not a turn — returns null.
+        if (down(Input.Keys.TAB) || down(Input.Keys.RIGHT_BRACKET)) return cycleSelection(1);
+        if (down(Input.Keys.LEFT_BRACKET)) return cycleSelection(-1);
         return null;
     }
 
-    /** The type id of the first backpack stack whose Supply matches, or -1 (Story 1.5 stopgap). */
-    private int firstWhere(java.util.function.Predicate<Supply> pred) {
+    /** The selected stack's type, or -1 when nothing is selected (or the slot went empty). */
+    private int selectedType() {
+        return selectedSlot < 0 ? -1 : state.getInventory().backpackType(selectedSlot);
+    }
+
+    /** Move the selection one occupied stack forward (dir &gt; 0) or back (dir &lt; 0); returns null
+     *  (not a turn action) so no turn commits. Forward and back are symmetric mirrors on the ring
+     *  (review finding): a backward press steps to the previous occupied stack, never 7 forwards. */
+    private PlayerAction cycleSelection(int dir) {
         Inventory inv = state.getInventory();
-        for (int i = 0; i < Inventory.BACKPACK_STACKS; i++) {
-            Supply s = Supply.byOrdinal(inv.backpackType(i));
-            if (s != null && pred.test(s)) return inv.backpackType(i);
+        if (dir > 0) {
+            selectedSlot = inv.nextOccupiedStack(selectedSlot);
+        } else {
+            selectedSlot = inv.previousOccupiedStack(selectedSlot);
         }
-        return -1;
+        return null;
     }
 
     private boolean down(int key) { return Gdx.input.isKeyJustPressed(key); }
@@ -190,14 +216,62 @@ public class MarginScreen implements Screen {
         batch.getProjectionMatrix().setToOrtho2D(0, 0, WW, WH);
         batch.begin();
 
+        // HP + the four survival tracks (AC-1) — split across two lines so a long label can't overflow.
         font.setColor(Color.WHITE);
-        font.draw(batch, "HP " + p.getHp() + "/" + p.getMaxHp() + "    " + p.hungerLabel(), 8, WH - 8);
-        font.draw(batch, message, 8, 42);
+        font.draw(batch, "HP " + p.getHp() + "/" + p.getMaxHp() + "    " + p.hungerLabel()
+                + "    " + p.thirstLabel(), 8, WH - 8);
+        // Track 4 is the clock + weather — "Day 45    Clear" (DayPhase is a bare enum, formatted here).
+        font.draw(batch, p.tempLabel() + "    " + (state.isDay() ? "Day" : "Night") + " " + state.getClockTurns()
+                + "    " + state.getWeather().label(), 8, WH - 22);
+
+        // Active-debuff row (Decision 4) — blank when clean.
+        List<String> debuffs = p.getActiveDebuffLabels();
+        if (!debuffs.isEmpty()) {
+            font.setColor(0.90f, 0.55f, 0.30f, 1f);
+            font.draw(batch, String.join("   ", debuffs), 8, WH - 36);
+        }
+
+        renderBackpackRow();
+
+        // The bottom message log (NFR-3, AD-15): the PRIMARY text surface — the last ~5 lines,
+        // newest at the bottom edge. Read from the core-owned log (AD-1); never built here.
+        List<String> log = state.getMessageLog();
+        int start = Math.max(0, log.size() - LOG_LINES);
+        int y = 22 + 14 * (log.size() - 1 - start);
+        font.setColor(Color.WHITE);
+        for (int i = start; i < log.size(); i++) {
+            font.draw(batch, log.get(i), 8, y);
+            y -= 14;
+        }
+
+        // Game over — a prominent centered overlay (the line is also in the log above).
+        if (gameOver) {
+            font.setColor(0.95f, 0.25f, 0.20f, 1f);
+            font.draw(batch, GAME_OVER_LINE, (WW - new GlyphLayout(font, GAME_OVER_LINE).width) / 2f, WH / 2f);
+        }
 
         font.setColor(0.55f, 0.55f, 0.55f, 1f);
-        font.draw(batch, "WASD move   Q attack   G grab   SPACE wait", 8, 20);
+        font.draw(batch, "WASD move   Q attack   G grab   SPACE wait   TAB select   E use", 8, 8);
 
         batch.end();
+    }
+
+    /** Backpack row (Task 5): each occupied stack as "name xN", the selected one highlighted;
+     *  empty slots blank. The names come from the identify map (identified vs mystery, FR-12). */
+    private void renderBackpackRow() {
+        Inventory inv = state.getInventory();
+        int x = 8;
+        for (int slot = 0; slot < Inventory.BACKPACK_STACKS; slot++) {
+            int type = inv.backpackType(slot);
+            if (type < 0) continue; // empty slot — blank
+            boolean sel = slot == selectedSlot;
+            String label = state.getIdentifyMap().displayNameFor(type) + " x" + inv.backpackCount(slot);
+            float w = new GlyphLayout(font, label).width;
+            if (x + w > WW) break; // no room left — stop before the right edge (edge-review finding)
+            font.setColor(sel ? 0.96f : 0.70f, sel ? 0.90f : 0.75f, sel ? 0.72f : 0.70f, 1f);
+            font.draw(batch, label, x, WH - 50);
+            x += (int) w + 12;
+        }
     }
 
     @Override public void resize(int w, int h) { viewport.update(w, h); }

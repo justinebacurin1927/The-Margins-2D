@@ -26,6 +26,18 @@ public enum Weather {
 
     public String label() { return label; }
 
+    /** SPD text-forward line for this weather's ONSET (Story 1.8 AC-2): what the bottom message
+     *  log shows when the type rolls in at a cycle boundary. Mirrors {@link #label()} — core, AD-2. */
+    public String onsetLine() {
+        switch (this) {
+            case RAIN:      return "Rain settles over the pines.";
+            case FOG:       return "Fog swallows the trees.";
+            case STORM:     return "Storm rolls in.";
+            case COLD_SNAP: return "A cold snap grips the woods.";
+            default:        return "The skies clear.";
+        }
+    }
+
     /** Weighted roll over the FR-5 distribution (weights sum to 100). Draws from the seeded RNG (AD-5).
      *  The roll cap derives from the weights so a future nonzero-weight type is never silently
      *  un-rollable, and a weights-sum below the cap can't silently bias CLEAR. */

@@ -4,6 +4,8 @@ import com.margins.rogue.RoguePlayer;
 import com.margins.rogue.Weather;
 import com.margins.rogue.state.RunState;
 
+import java.util.List;
+
 /**
  * Turn pipeline step: advance temperature exposure (AD-4). Mirrors {@link HungerSystem}.
  *
@@ -30,21 +32,48 @@ public final class TemperatureSystem {
      *  is 49: a fire warms you to comfortable but never into HOT/OVERHEATED (AC-2 guard). */
     public static final int FIRE_COMFORT = 49;
 
-    /** One acted turn: apply the weather + fire drivers, then the extreme-band harm. */
-    public static void tick(RunState state) {
+    /** One acted turn: apply the weather + fire drivers, then the extreme-band harm. Emits an SPD
+     *  line when the band WORSHENS (Story 1.8 AC-2) — the extreme entries are the lethal ones and
+     *  must be loud; recovery toward Neutral is silent because the direction-implying lines would
+     *  misread on warming (review finding: "The chill deepens" firing as the meter rises). */
+    public static void tick(RunState state, List<String> messages) {
         RoguePlayer p = state.getPlayer();
+        RoguePlayer.TempBand before = p.getTempBand();
         boolean coldSnap = state.getWeather() == Weather.COLD_SNAP;
         if (state.isPlayerAtFire()) {
             // Fire warmth beats Cold Snap: the player nets +2/turn on the fire tile under a Snap
             // (4 warmth − 2 onset) — the fire genuinely "solves warmth" (AC-2).
             p.warmTo(FIRE_WARMTH - (coldSnap ? COLD_SNAP_ONSET : 0), FIRE_COMFORT);
+            p.tickTemperatureHarm(); // post-delta band decides the harm on the driver branches
         } else if (coldSnap) {
             p.adjustTemperature(-COLD_SNAP_ONSET);
+            p.tickTemperatureHarm();
         } else {
             // The driver-less baseline: drift toward Neutral at half the onset rate (+1/turn).
             p.tickTemperature(); // includes its own harm (harm-then-drift ordering)
-            return;
         }
-        p.tickTemperatureHarm(); // post-delta band decides the harm on the driver branches
+        RoguePlayer.TempBand after = p.getTempBand();
+        if (after != before && bandDistance(after) > bandDistance(before)) {
+            messages.add(tempBandLine(after)); // only the movement AWAY from Neutral is a notable event
+        }
+    }
+
+    /** Distance of a band from Neutral (TempBand.NEUTRAL is the 3rd entry): 0 = neutral, 1 = one
+     *  band out (Chilled/Warm), 2 = Cold/Hot, 3 = Frozen/Overheated. Increasing = worsening. */
+    private static int bandDistance(RoguePlayer.TempBand band) {
+        return Math.abs(band.ordinal() - RoguePlayer.TempBand.NEUTRAL.ordinal());
+    }
+
+    /** SPD text-forward line for a temperature band (Story 1.8 AC-2). */
+    private static String tempBandLine(RoguePlayer.TempBand band) {
+        switch (band) {
+            case FROZEN:     return "The cold sinks in — Frozen.";
+            case COLD:       return "The chill deepens — Cold.";
+            case CHILLED:    return "A chill creeps in.";
+            case WARM:       return "Warmth returns.";
+            case HOT:        return "The heat presses in.";
+            case OVERHEATED: return "Overheated!";
+            default:         return "The temperature settles.";
+        }
     }
 }

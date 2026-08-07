@@ -14,6 +14,7 @@ import com.margins.rogue.item.Inventory;
 import com.margins.rogue.item.Supply;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.Random;
 
@@ -90,6 +91,12 @@ public class RunState {
     private transient boolean lastStand;  // turn-scoped desperate flag set when the reprieve fires
     // Transient, regenerated each turn (not saved); field initializer keeps it non-null after a Json load.
     private transient List<NoiseEvent> noiseQueue = new ArrayList<>();
+    // The bottom message log (NFR-3, AD-15, Story 1.8): the primary text surface, bounded and
+    // session-scoped. Transient so it never enters the save graph (AD-6) — a reloaded run starts
+    // fresh (seeded) via the ctor. Owned here (AD-3), appended by TurnEngine (AD-4), rendered by
+    // the screen (AD-1). Field initializer keeps it non-null after a Json load.
+    public static final int MESSAGE_LOG_CAP = 50;
+    private transient List<String> messageLog = new ArrayList<>();
 
     public RunState() {
         this(System.nanoTime());
@@ -115,6 +122,7 @@ public class RunState {
         generateFloor();
         spawnStartingCompanion();
         rollWeather(); // cycle 0's weather, drawn LAST so layout/identity draws stay on the pre-1.3 stream
+        seedMessageLog(); // the opening line, so the surface is never empty at first render
     }
 
     /** Builds the continuous region and places a fresh player and enemies (run start/restart). */
@@ -178,6 +186,10 @@ public class RunState {
      */
     public void restoreAfterLoad() {
         this.rng = new Random(seed);
+        // The message log is transient, so a loaded run's log content must not depend on which ctor
+        // ran during Json load (review finding) — a resumed run opens with the same seeded line a
+        // restarted one does.
+        seedMessageLog();
         // IdentifyMap is a persisted field — it loads with the run, so the resumed
         // run keeps its per-seed binding (verified by round-trip); no rebuild needed.
         // Reconcile a save predating the weather/cycle fields (Story 1.3): the no-arg ctor
@@ -216,6 +228,7 @@ public class RunState {
         generateFloor();
         spawnStartingCompanion();
         rollWeather(); // and rolls its own weather
+        seedMessageLog(); // a new run clears the old log and re-opens with the opening line
     }
 
     /**
@@ -296,6 +309,24 @@ public class RunState {
     }
     /** The save-format version this run was created/loaded under (AD-6). */
     public int getSaveVersion() { return saveVersion; }
+
+    /** The bottom message log (NFR-3, Story 1.8): the primary text surface, in emission order.
+     *  Transient and bounded — the screen renders the last lines; an unmodifiable view so the log
+     *  has exactly one writer (appendMessages, called by TurnEngine — AD-4). */
+    public List<String> getMessageLog() { return Collections.unmodifiableList(messageLog); }
+
+    /** Append a turn's messages to the log, trimming past the cap (oldest first). Called by
+     *  TurnEngine (AD-4) for acted AND refused turns — the log is the surface for all feedback. */
+    public void appendMessages(List<String> messages) {
+        messageLog.addAll(messages);
+        while (messageLog.size() > MESSAGE_LOG_CAP) messageLog.remove(0);
+    }
+
+    /** Clear the log and open it with the story's opening line (run start / restart). */
+    private void seedMessageLog() {
+        messageLog.clear();
+        messageLog.add("You flee into the pines. Aldric is beside you.");
+    }
 
     /** Elapsed turns on the Day/Night clock (FR-4). */
     public int getClockTurns() { return clockTurns; }

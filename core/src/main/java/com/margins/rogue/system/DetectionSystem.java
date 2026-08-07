@@ -6,6 +6,8 @@ import com.margins.rogue.RoguePlayer;
 import com.margins.rogue.RogueTileMap;
 import com.margins.rogue.state.RunState;
 
+import java.util.List;
+
 /**
  * Advances each enemy's {@link Detection} state (AD-9): radius + line-of-sight,
  * no directional cones. Runs as a pipeline step before enemy movement (AD-4).
@@ -19,11 +21,16 @@ public final class DetectionSystem {
 
     private DetectionSystem() {}
 
-    public static void update(RunState state) {
+    public static void update(RunState state, List<String> messages) {
         RogueTileMap map = state.getTileMap();
         RoguePlayer player = state.getPlayer();
         int px = player.getTileX();
         int py = player.getTileY();
+
+        // Story 1.8 AC-2: at most one line per escalation KIND per turn (the first UNAWARE→SUSPICIOUS
+        // and the first SUSPICIOUS→ALERTED) — a full garrison escalating together reads once, not N times.
+        boolean someoneSpotted = false;
+        boolean someoneAlerted = false;
 
         for (RogueEnemy e : state.getEnemies()) {
             if (!e.isAlive()) continue;
@@ -34,9 +41,17 @@ public final class DetectionSystem {
                 e.setLastSeen(px, py);
                 if (e.getDetection() == Detection.UNAWARE) {
                     e.setDetection(Detection.SUSPICIOUS);
+                    if (!someoneSpotted) {
+                        messages.add("Something stirs in the trees.");
+                        someoneSpotted = true;
+                    }
                 } else if (e.getDetection() == Detection.SUSPICIOUS
                         && e.getSightTurns() >= ALERT_AFTER_SIGHT_TURNS) {
                     e.setDetection(Detection.ALERTED);
+                    if (!someoneAlerted) {
+                        messages.add("A patrol has spotted you!");
+                        someoneAlerted = true;
+                    }
                 }
             } else {
                 e.setSightTurns(0);

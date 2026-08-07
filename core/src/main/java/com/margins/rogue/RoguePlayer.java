@@ -1,5 +1,7 @@
 package com.margins.rogue;
 
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Random;
 
 public class RoguePlayer {
@@ -509,6 +511,25 @@ public class RoguePlayer {
     /** Hidden Honeymoon countdown; 0 = not poisoned. Deliberately no message reveals it (AC-2). */
     public int getHoneymoonCountdown() { return honeymoonCountdown; }
     public boolean isCollapsed() { return maxHpCapPercent > 0; }
+
+    /** The active debuff labels for the HUD (Story 1.8 AC-1): an ordered list of what's hurting the
+     *  player — the bacterial stage (with its remaining timer), the parallel Diarrhea (with its
+     *  timer; Stage 2 latches at 0), Rotgut, and the Honeymoon Collapse cap. Composes ONLY the
+     *  closed shape (no new flags — spine line 186). The Honeymoon countdown itself stays hidden
+     *  (AC-2): it NEVER appears here, even while it ticks toward Collapse. */
+    public List<String> getActiveDebuffLabels() {
+        List<String> labels = new ArrayList<>();
+        switch (bacterialStage) {
+            case NAUSEA:   labels.add("Nausea (" + bacterialTimer + ")"); break;
+            case FEVER:    labels.add("Fever (" + bacterialTimer + ")"); break;
+            case DELIRIUM: labels.add("Delirium (" + bacterialTimer + ")"); break;
+            default:       break; // NONE — nothing to compose
+        }
+        if (diarrheaStage != DiarrheaStage.NONE) labels.add("Diarrhea (" + diarrheaTimer + ")");
+        if (rotgutCrippled) labels.add("Rotgut");
+        if (isCollapsed()) labels.add("Collapsed (max HP " + getMaxHp() + ")");
+        return labels;
+    }
 
     /** The movement bundle's predicate: Delirium's Crippled OR Rotgut's Crippled. One source of
      *  truth for the MOVE stumble/freeze hooks — no ad-hoc flags (spine line 186). */
