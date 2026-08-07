@@ -25,8 +25,8 @@ import static org.junit.jupiter.api.Assertions.*;
  * turn loop is still suspended (the 1.8 silent-mutation lesson).
  *
  * <p>Authoring-contract hardening (the old engine's deferred findings): >4-option
- * nodes navigate, null labels never crash, and scene keys stay namespaced /
- * single-authority.
+ * nodes navigate and null labels never crash. (The per-scene key-namespacing pin was
+ * removed with SampleDialog in Story 2.2; SceneEffectsTest keeps that contract.)
  */
 class DialogueSafePauseTest {
 
@@ -115,14 +115,9 @@ class DialogueSafePauseTest {
         assertSame(leaf, c.getCurrent(), "the null-labeled option still advances");
     }
 
-    @Test
-    void sceneKeysAreNamespacedPerScene() {
-        // The authoring-contract key rule (the old multi-cache collision finding): keys are
-        // per-scene and single-authority — two scenes never share a namespace.
-        assertEquals("scene.smoke.read", SampleDialog.KEY_SMOKE_READ);
-        assertNotEquals(SceneEffects.KEY_CACHE_REVEALED, SampleDialog.KEY_SMOKE_READ,
-                "two scenes never share a key namespace");
-    }
+    // (The old smoke-scene namespacing pin was removed with SampleDialog in Story 2.2 — the intro
+    //  adds no keys, so the assertion was vacuous; the per-scene key rule stays pinned by
+    //  SceneEffectsTest's KEY_CACHE_* contract.)
 
     // --- serialization (AD-6) ---
 

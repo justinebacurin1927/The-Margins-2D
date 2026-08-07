@@ -20,8 +20,9 @@ import com.margins.rogue.RogueTileMap;
 import com.margins.rogue.item.FloorItem;
 import com.margins.rogue.item.Inventory;
 import com.margins.rogue.item.Supply;
+import com.margins.rogue.narrative.CorneoIntro;
 import com.margins.rogue.narrative.DialogController;
-import com.margins.rogue.narrative.SampleDialog;
+import com.margins.rogue.narrative.IntroController;
 import com.margins.rogue.state.RunState;
 import com.margins.rogue.system.FovSystem;
 import com.margins.rogue.system.PlayerAction;
@@ -52,6 +53,9 @@ public class MarginScreen implements Screen {
     /** Story 2.1: the open dialogue scene, if any. Transient view-session state (NOT on
      *  RunState — AD-6); while {@code isActive()} the turn loop is suspended (AD-14). */
     private final DialogController dialog = new DialogController();
+    /** Story 2.2: the Act 0 paged-text intro, opened once on a fresh run (below). Transient
+     *  view-session state (NOT on RunState — AD-6); takes no RunState, so it cannot tick (AD-14). */
+    private final IntroController intro = new IntroController();
 
     private boolean gameOver = false;
     /** Selected backpack slot (0..7), -1 = none yet. Screen state only — reset on restart (Task 5). */
@@ -62,6 +66,9 @@ public class MarginScreen implements Screen {
 
     public MarginScreen() {
         FovSystem.compute(state);
+        // A fresh RunState = a new run: play the Act 0 intro once (Decision 5). restart() does NOT
+        // replay it — a new life after death already knows the story.
+        intro.start(CorneoIntro.build());
     }
 
     @Override
@@ -93,6 +100,14 @@ public class MarginScreen implements Screen {
             return;
         }
 
+        // Story 2.2 safe pause (AD-14): the Act 0 intro plays at app start, before any dialogue can
+        // open, so its branch sits first. While it is active only intro keys route and every gameplay
+        // key is swallowed — no PlayerAction, so no turn and no survival tick. The controller takes
+        // no RunState (it cannot tick); the screen only forwards advance/skip and renders the page.
+        if (intro.isActive()) {
+            handleIntroInput();
+            return;
+        }
         // Story 2.1 safe pause (AD-14): while a scene is open, only dialogue keys route and every
         // gameplay key is swallowed — no PlayerAction, so no turn and no survival tick. The
         // screen only forwards indices and renders the controller's node (AD-1); it never mutates
@@ -143,13 +158,19 @@ public class MarginScreen implements Screen {
         // Backpack selection cycle (Task 5): TAB / ] forward, [ backward. Not a turn — returns null.
         if (down(Input.Keys.TAB) || down(Input.Keys.RIGHT_BRACKET)) return cycleSelection(1);
         if (down(Input.Keys.LEFT_BRACKET)) return cycleSelection(-1);
-        // Story 2.1 smoke scene (verification seam — superseded by the 2.2 intro, which removes
-        // this key). N is free (key audit in the story); opens the scene, no turn committed.
-        if (down(Input.Keys.N)) {
-            dialog.start(SampleDialog.build(), state);
-            return null;
-        }
         return null;
+    }
+
+    /** Story 2.2 (AD-14): the intro input surface while the paged intro is open. SPACE/E advance one
+     *  page (the last page closes the intro); ESC skips straight to gameplay in one action (Decision 2).
+     *  Everything else is swallowed. Forwarding only (AD-1) — the controller owns page navigation, and
+     *  nothing here produces a PlayerAction, so the turn loop stays suspended (no tick, no turn). */
+    private void handleIntroInput() {
+        if (Gdx.input.isKeyJustPressed(Input.Keys.SPACE) || Gdx.input.isKeyJustPressed(Input.Keys.E)) {
+            intro.advance();
+        } else if (Gdx.input.isKeyJustPressed(Input.Keys.ESCAPE)) {
+            intro.end();
+        }
     }
 
     /** Story 2.1 (AD-14): the dialogue input surface while a scene is open. Number keys pick a
@@ -281,13 +302,15 @@ public class MarginScreen implements Screen {
 
         renderBackpackRow();
 
-        // The bottom message log (NFR-3, AD-15): the PRIMARY text surface. Story 2.1 log-window
-        // policy (Decision 1): while a scene is open it shows the DIALOGUE PAGE (speaker + node
-        // text + numbered choices), not the last-5 event lines; the event window — now including
-        // the effect outcomes the scene appended — resumes when the scene closes. The log is
-        // core-owned (AD-1); never built here.
-        if (dialog.isActive()) {
-            renderDialoguePage();
+        // The bottom message log (NFR-3, AD-15): the PRIMARY text surface. Log-window policy (2.1
+        // Decision 1, extended to the 2.2 intro): while the intro or a dialogue scene is open it
+        // shows that PAGE (speaker + text + choices/footer), not the last-5 event lines; the event
+        // window resumes when the page closes. The intro plays first (app start), so it takes
+        // precedence. The log is core-owned (AD-1); never built here.
+        if (intro.isActive()) {
+            renderTextPage(intro.getCurrent(), "[SPACE] continue   [ESC] skip");
+        } else if (dialog.isActive()) {
+            renderTextPage(dialog.getCurrent(), "[SPACE] continue");
         } else {
             List<String> log = state.getMessageLog();
             int start = Math.max(0, log.size() - LOG_LINES);
@@ -329,12 +352,13 @@ public class MarginScreen implements Screen {
         }
     }
 
-    /** Story 2.1: the dialogue page (AD-15 — the bottom log IS the text-forward surface). Draws
-     *  the speaker (nullable → narration, no prefix), the wrapped node text below the HUD rows,
-     *  and the numbered choices at the bottom edge. A null option label renders defensively
+    /** The text-forward page (AD-15 — the bottom log IS the text surface), shared by the 2.1
+     *  dialogue scene and the 2.2 intro. Draws the speaker (nullable → narration, no prefix), the
+     *  wrapped node text below the HUD rows, and the numbered choices at the bottom edge. A
+     *  zero-option node (a terminal dialogue node, or every intro page — Decision 7) shows the
+     *  {@code footer} affordance instead of choices. A null option label renders defensively
      *  (authoring contract — the controller navigates by index, never by label). */
-    private void renderDialoguePage() {
-        DialogNode node = dialog.getCurrent();
+    private void renderTextPage(DialogNode node, String footer) {
         if (node == null) return;
 
         int y = WH - 66; // below the HP/tracks/debuff/backpack rows
@@ -362,11 +386,11 @@ public class MarginScreen implements Screen {
             font.draw(batch, (i + 1) + ". " + label, 8, cy);
             cy -= 14;
         }
-        // Decision 7: a terminal (zero-option) node is a text page closed by SPACE/E — the hint is
-        // the affordance that it's a page, not a dead end.
+        // Decision 7: a zero-option node is a text page closed by an advance key — the footer is the
+        // affordance that it's a page, not a dead end (dialogue: "[SPACE] continue"; intro: adds skip).
         if (node.options.length == 0) {
             font.setColor(0.55f, 0.55f, 0.55f, 1f);
-            font.draw(batch, "[SPACE] continue", 8, 22);
+            font.draw(batch, footer, 8, 22);
         }
     }
 
