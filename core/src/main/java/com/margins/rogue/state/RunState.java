@@ -62,6 +62,13 @@ public class RunState {
     // defaults (AD-6); cycleNumber = clockTurns / CYCLE_LENGTH, the cycle last rolled.
     private Weather weather = Weather.CLEAR;
     private int cycleNumber = 0;
+    // Active light source (FR-5/FR-7, Story 1.4): the tile of a lit campfire/torch, or -1 = none.
+    // A positioned light (not a player boolean) because AD-18 emits the light's noise at ITS tile
+    // and a campfire (1.5) is stationary — after Klein walks away, the fire's tile != his tile.
+    // Field-initialized to none so a save predating these fields loads light-less (AD-6). The
+    // campfire/torch ITEMS that set this are Stories 1.5/1.6; here it is queryable state + wiring.
+    private int lightX = -1;
+    private int lightY = -1;
     private long seed;
     private transient Random rng;
     private boolean lastStandUsed;        // persisted: one reprieve per run (FR-16/17)
@@ -185,6 +192,7 @@ public class RunState {
         this.flagStore = new FlagStore(); // narrative state is run-scoped (AD-7): a new run resets flags + Bond
         this.clockTurns = 0; // a new run starts at Day 0 (FR-5)
         this.cycleNumber = 0;
+        clearLight(); // a fresh run has no camp/torch lit (Story 1.4)
         generateFloor();
         spawnStartingCompanion();
         rollWeather(); // and rolls its own weather
@@ -300,6 +308,22 @@ public class RunState {
     public void rollWeather() {
         weather = Weather.roll(rng);
     }
+
+    /** Whether a light source (campfire/torch) is currently lit (FR-5/FR-7, Story 1.4). Both
+     *  coordinates must be set — the "-1 = none" sentinel lives on the pair, so a half-set light
+     *  (one coord still -1) is treated as unlit rather than emitting noise at an off-map row. */
+    public boolean hasLight() { return lightX >= 0 && lightY >= 0; }
+
+    /** The lit source's tile (FOV restoration + the tile its noise is emitted from, AD-18). */
+    public int getLightX() { return lightX; }
+    public int getLightY() { return lightY; }
+
+    /** Light a source at a tile. Driven by the campfire (1.5, a fixed tile) and torch (1.6, the
+     *  player's tile) — Story 1.4 provides the state + FOV/noise wiring, not the items. */
+    public void setLight(int x, int y) { lightX = x; lightY = y; }
+
+    /** Extinguish the active light (none). */
+    public void clearLight() { lightX = -1; lightY = -1; }
 
     public long getSeed() { return seed; }
 

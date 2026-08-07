@@ -122,6 +122,7 @@ public class TurnEngine {
             DetectionSystem.update(state); // advance awareness before enemies move (AD-4)
             CompanionSystem.follow(state); // the ally moves in the Companion+Enemy-AI phase (AD-4, AD-10)
             CombatSystem.enemyPhase(state, result.messages);
+            LightSystem.emitNoise(state); // a lit camp/torch is audible (AD-18): enqueue before resolve
             NoiseSystem.resolve(state); // Noise resolve step (AD-4)
             if (action.kind == PlayerAction.Kind.WAIT) {
                 result.messages.add("Wait");

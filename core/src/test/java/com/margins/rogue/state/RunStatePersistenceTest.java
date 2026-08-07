@@ -181,6 +181,37 @@ class RunStatePersistenceTest {
     }
 
     @Test
+    void lightSurvivesRoundTrip() {
+        // AD-6 (Story 1.4): a lit camp is persisted world state — a load keeps the fire on its tile.
+        RunState s = new RunState(42L);
+        s.setLight(13, 21);
+
+        RunState loaded = json().fromJson(RunState.class, json().toJson(s));
+        loaded.restoreAfterLoad();
+
+        assertTrue(loaded.hasLight(), "the lit source survives the load");
+        assertEquals(13, loaded.getLightX(), "the light's tile survives");
+        assertEquals(21, loaded.getLightY(), "the light's tile survives");
+    }
+
+    @Test
+    void preLightSaveLoadsWithoutLight() {
+        // AD-6: a save predating the light fields (pre-1.4) loads light-less — the honest default,
+        // never a crash (the -1 sentinel is the field initializer libGDX Json runs on a missing key).
+        RunState withData = new RunState(7L);
+        JsonValue root = new JsonReader().parse(json().toJson(withData));
+        root.remove("lightX");
+        root.remove("lightY"); // emulate a save written before the fields existed
+
+        RunState fromOld = json().fromJson(RunState.class, root.toJson(JsonWriter.OutputType.json));
+        fromOld.restoreAfterLoad();
+
+        assertFalse(fromOld.hasLight(), "an old save loads with no lit source");
+        assertEquals(-1, fromOld.getLightX(), "the light's x defaults to the none sentinel");
+        assertEquals(-1, fromOld.getLightY(), "the light's y defaults to the none sentinel");
+    }
+
+    @Test
     void companionSurvivesRoundTripWithMapReinjected() {
         RunState s = new RunState(42L);
         assertNotNull(s.getActiveCompanion(), "a run starts with Galleon");

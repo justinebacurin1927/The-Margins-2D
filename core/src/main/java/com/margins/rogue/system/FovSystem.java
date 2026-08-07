@@ -1,6 +1,7 @@
 package com.margins.rogue.system;
 
 import com.margins.rogue.RogueTileMap;
+import com.margins.rogue.Weather;
 import com.margins.rogue.state.RunState;
 
 /**
@@ -8,9 +9,17 @@ import com.margins.rogue.state.RunState;
  * Recomputes which tiles the player can currently see and accumulates the
  * explored set. Walls ({@link RogueTileMap#isOpaque}) block sight; doors are
  * transparent. Runs as a pipeline step (AD-4) after the player acts.
+ *
+ * <p>The sight radius is DYNAMIC (AD-18, Story 1.4): Night or Fog shrink it, a lit
+ * source (campfire/torch) restores it but still below the clear-day baseline. The
+ * shadowcasting itself is unchanged — only the radius it runs to varies.
  */
 public final class FovSystem {
-    public static final int RADIUS = 8; // PRD Balance: FOV sight radius
+    // FOV sight radii (PRD Balance / bible starting calibration — the PRD locks no exact value).
+    // The invariant DARK < LIT < DAY is what makes "light restores but reduced" (AC-2) true.
+    public static final int DAY_RADIUS = 8;  // clear-day baseline
+    public static final int DARK_RADIUS = 4; // Night or Fog (AC-1)
+    public static final int LIT_RADIUS = 6;  // a light restores sight, still < day (AC-2)
 
     // Per-octant transform multipliers for the 8 shadowcasting octants.
     private static final int[] XX = {1, 0, 0, -1, -1, 0, 0, 1};
@@ -40,26 +49,39 @@ public final class FovSystem {
         return true;
     }
 
-    public static void compute(RunState state) {
-        compute(state.getTileMap(), state.getPlayer().getTileX(), state.getPlayer().getTileY());
+    /**
+     * The player's current sight radius (AD-18): Night or Fog shrink the ambient radius, and a
+     * lit source can only ever RESTORE sight upward — never reduce it. So a torch in the dark
+     * lifts 4→6, but a torch in clear day leaves the baseline 8 untouched (a fire adds nothing
+     * to daylight, and must not penalize it). This is the honest reading of "restores it but
+     * still below the clear-day baseline."
+     */
+    public static int radiusFor(RunState state) {
+        int ambient = (!state.isDay() || state.getWeather() == Weather.FOG) ? DARK_RADIUS : DAY_RADIUS;
+        return state.hasLight() ? Math.max(ambient, LIT_RADIUS) : ambient;
     }
 
-    /** Map-level entry point (headless-testable with a hand-built map). */
-    public static void compute(RogueTileMap map, int px, int py) {
+    public static void compute(RunState state) {
+        compute(state.getTileMap(), state.getPlayer().getTileX(), state.getPlayer().getTileY(),
+                radiusFor(state));
+    }
+
+    /** Map-level entry point at a given sight radius (headless-testable with a hand-built map). */
+    public static void compute(RogueTileMap map, int px, int py, int radius) {
         map.clearVisible();
         map.setVisible(px, py, true);
         map.setExplored(px, py, true);
         for (int oct = 0; oct < 8; oct++) {
-            castLight(map, px, py, 1, 1.0f, 0.0f, XX[oct], XY[oct], YX[oct], YY[oct]);
+            castLight(map, px, py, 1, 1.0f, 0.0f, XX[oct], XY[oct], YX[oct], YY[oct], radius);
         }
     }
 
     private static void castLight(RogueTileMap map, int cx, int cy, int row,
                                   float start, float end,
-                                  int xx, int xy, int yx, int yy) {
+                                  int xx, int xy, int yx, int yy, int radius) {
         if (start < end) return;
         float nextStart = start;
-        for (int i = row; i <= RADIUS; i++) {
+        for (int i = row; i <= radius; i++) {
             boolean blocked = false;
             for (int dx = -i, dy = -i; dx <= 0; dx++) {
                 int mapX = cx + dx * xx + dy * xy;
@@ -68,7 +90,7 @@ public final class FovSystem {
                 float rSlope = (dx + 0.5f) / (dy - 0.5f);
                 if (rSlope > start) continue;
                 if (lSlope < end) break;
-                if (dx * dx + dy * dy <= RADIUS * RADIUS) {
+                if (dx * dx + dy * dy <= radius * radius) {
                     map.setVisible(mapX, mapY, true);
                     map.setExplored(mapX, mapY, true);
                 }
@@ -80,9 +102,9 @@ public final class FovSystem {
                         blocked = false;
                         start = nextStart;
                     }
-                } else if (map.isOpaque(mapX, mapY) && i < RADIUS) {
+                } else if (map.isOpaque(mapX, mapY) && i < radius) {
                     blocked = true;
-                    castLight(map, cx, cy, i + 1, start, lSlope, xx, xy, yx, yy);
+                    castLight(map, cx, cy, i + 1, start, lSlope, xx, xy, yx, yy, radius);
                     nextStart = rSlope;
                 }
             }
