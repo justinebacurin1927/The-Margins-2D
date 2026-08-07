@@ -6,7 +6,12 @@ package com.margins.rogue.system;
  * {@code dir} uses RoguePlayer facing constants (SOUTH=0, NORTH=1, WEST=2, EAST=3).
  */
 public class PlayerAction {
-    public enum Kind { MOVE, ATTACK, BLOCK, WAIT, USE, DROP, PICKUP, DISTRACT }
+    public enum Kind {
+        MOVE, ATTACK, BLOCK, WAIT, USE, DROP, PICKUP, DISTRACT,
+        // Story 1.5 (FR-6): survival crafting actions. COLLECT/BUILD_CAMPFIRE take no itemType;
+        // COOK/FILTER/BOIL act on the given backpack itemType (the raw meat / raw water stack).
+        COLLECT, BUILD_CAMPFIRE, COOK, FILTER, BOIL
+    }
 
     public final Kind kind;
     public final int dx;
@@ -52,5 +57,25 @@ public class PlayerAction {
 
     public static PlayerAction distract(int dir) {
         return new PlayerAction(Kind.DISTRACT, 0, 0, dir, -1);
+    }
+
+    public static PlayerAction collect(int dir) {
+        return new PlayerAction(Kind.COLLECT, 0, 0, dir, -1);
+    }
+
+    public static PlayerAction buildCampfire(int dir) {
+        return new PlayerAction(Kind.BUILD_CAMPFIRE, 0, 0, dir, -1);
+    }
+
+    public static PlayerAction cook(int itemType, int dir) {
+        return new PlayerAction(Kind.COOK, 0, 0, dir, itemType);
+    }
+
+    public static PlayerAction filter(int itemType, int dir) {
+        return new PlayerAction(Kind.FILTER, 0, 0, dir, itemType);
+    }
+
+    public static PlayerAction boil(int itemType, int dir) {
+        return new PlayerAction(Kind.BOIL, 0, 0, dir, itemType);
     }
 }

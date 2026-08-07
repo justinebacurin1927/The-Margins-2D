@@ -88,6 +88,7 @@ public class RoguePlayer {
     private int instinct;
     private int grit;
     private int voice;
+    private int skill; // FR-11 horizontal-growth axis: governs cooking/purification rolls (Story 1.5)
 
     private boolean blocking;
     private transient RogueTileMap map;
@@ -107,6 +108,7 @@ public class RoguePlayer {
         this.instinct = 7;
         this.grit = 5;
         this.voice = 3;
+        this.skill = 5;
 
         this.blocking = false;
     }
@@ -117,6 +119,10 @@ public class RoguePlayer {
     public int getHp() { return hp; }
     public int getMaxHp() { return maxHp; }
     public HungerStatus getStatus() { return status; }
+
+    /** Whether eating can still benefit the player (Well Fed is maxed — eat() gains nothing).
+     *  ConsumptionSystem refuses a provision when this is false (Edge #2-review). */
+    public boolean canEat() { return status != HungerStatus.WELL_FED; }
     /** Turns remaining in the current hunger tier (persisted across save/load). */
     public int getHunger() { return hungerTurns; }
 
@@ -137,6 +143,9 @@ public class RoguePlayer {
     public int getInstinct() { return instinct; }
     public int getGrit() { return grit; }
     public int getVoice() { return voice; }
+    public int getSkill() { return skill; }
+    /** Set SKILL (FR-11): the horizontal-growth axis. Growth-by-knowledge raises it in a later story. */
+    public void setSkill(int value) { skill = value; }
 
     public boolean tryMove(int dx, int dy) {
         int nx = tileX + dx;
@@ -315,6 +324,10 @@ public class RoguePlayer {
     // --- Thirst (FR-4): a parallel track to hunger; Parched drains -2 HP / 5 turns ---
 
     public ThirstStatus getThirstStatus() { return thirstStatus; }
+
+    /** Whether drinking can still benefit the player (Hydrated is maxed — drink() gains nothing).
+     *  ConsumptionSystem refuses a provision when this is false (Edge #2-review). */
+    public boolean canDrink() { return thirstStatus != ThirstStatus.HYDRATED; }
     /** Turns remaining in the current thirst tier (persisted across save/load). */
     public int getThirst() { return thirstTurns; }
 

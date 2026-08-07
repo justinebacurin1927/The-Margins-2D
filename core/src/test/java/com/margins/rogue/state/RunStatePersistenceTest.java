@@ -10,6 +10,9 @@ import com.margins.rogue.RogueEnemy;
 import com.margins.rogue.RoguePlayer;
 import com.margins.rogue.Weather;
 import com.margins.rogue.item.FloorItem;
+import com.margins.rogue.item.Supply;
+import com.margins.rogue.item.TrueIdentity;
+import com.margins.rogue.system.SpoilageSystem;
 import org.junit.jupiter.api.Test;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -209,6 +212,65 @@ class RunStatePersistenceTest {
         assertFalse(fromOld.hasLight(), "an old save loads with no lit source");
         assertEquals(-1, fromOld.getLightX(), "the light's x defaults to the none sentinel");
         assertEquals(-1, fromOld.getLightY(), "the light's y defaults to the none sentinel");
+    }
+
+    @Test
+    void campfireAndSpoilageClockSurviveRoundTrip() {
+        // AD-6 (Story 1.5): the campfire tile, the spoilage clock AND its accrual (M2-review)
+        // are persisted world state — a load must not reset spoilage progress.
+        RunState s = new RunState(42L);
+        s.setCampfire(9, 14);
+        for (int i = 0; i < 7; i++) SpoilageSystem.tick(s); // no salt → +2 accrual per turn
+
+        RunState loaded = json().fromJson(RunState.class, json().toJson(s));
+        loaded.restoreAfterLoad();
+
+        assertTrue(loaded.hasCampfire(), "the campfire survives the load");
+        assertEquals(9, loaded.getCampfireX(), "the campfire tile survives");
+        assertEquals(14, loaded.getCampfireY(), "the campfire tile survives");
+        assertEquals(7, loaded.getSpoilageClock(), "the spoilage clock survives");
+        assertEquals(14, loaded.getSpoilageProgress(), "the spoilage accrual survives");
+    }
+
+    @Test
+    void preFoodWaterSaveLoadsDefaults() {
+        // AD-6: a save predating the Story 1.5 fields loads with no campfire and a zeroed clock.
+        RunState withData = new RunState(7L);
+        JsonValue root = new JsonReader().parse(json().toJson(withData));
+        root.remove("campfireX");
+        root.remove("campfireY");
+        root.remove("spoilageClock");
+        root.remove("spoilageProgress");
+
+        RunState fromOld = json().fromJson(RunState.class, root.toJson(JsonWriter.OutputType.json));
+        fromOld.restoreAfterLoad();
+
+        assertFalse(fromOld.hasCampfire(), "an old save loads with no campfire");
+        assertEquals(0, fromOld.getSpoilageClock(), "and a zeroed spoilage clock");
+    }
+
+    @Test
+    void preStory15SaveGrowsTheIdentityBindingForAppendedOrdinals() {
+        // Edge #1-review: a post-AD-8 pre-1.5 save serializes a boundByOrdinal array of the then-5
+        // Supply values. On load, restoreAfterLoad must grow it for the appended ordinals (binding
+        // the single-identity types to possible[0], no RNG draw) — else identityOf(new ordinal)
+        // reads null and nourishment is silently skipped while the item is consumed + risk rolled.
+        RunState withData = new RunState(7L);
+        JsonValue root = new JsonReader().parse(json().toJson(withData));
+        JsonValue bound = root.get("identifyMap").get("boundByOrdinal");
+        for (int i = bound.size - 1; i >= 5; i--) bound.remove(i); // pre-1.5 had 5 Supply values
+        JsonValue identified = root.get("identifyMap").get("identifiedByOrdinal");
+        for (int i = identified.size - 1; i >= 5; i--) identified.remove(i);
+
+        RunState fromOld = json().fromJson(RunState.class, root.toJson(JsonWriter.OutputType.json));
+        fromOld.restoreAfterLoad();
+
+        assertEquals(TrueIdentity.RAW_MEAT_ID, fromOld.getIdentifyMap().identityOf(Supply.RAW_MEAT.ordinal()),
+                "appended ordinals bind to their single identity after the grow (no silent no-op)");
+        assertEquals(TrueIdentity.COAL_ID, fromOld.getIdentifyMap().identityOf(Supply.COAL.ordinal()),
+                "the tail of the enum is covered too");
+        assertNotNull(fromOld.getIdentifyMap().identityOf(Supply.count() - 1),
+                "every ordinal through the new count is bound");
     }
 
     @Test

@@ -16,6 +16,8 @@ import com.margins.rogue.RoguePlayer;
 import com.margins.rogue.RogueTile;
 import com.margins.rogue.RogueTileMap;
 import com.margins.rogue.item.FloorItem;
+import com.margins.rogue.item.Inventory;
+import com.margins.rogue.item.Supply;
 import com.margins.rogue.state.RunState;
 import com.margins.rogue.system.FovSystem;
 import com.margins.rogue.system.PlayerAction;
@@ -94,7 +96,25 @@ public class MarginScreen implements Screen {
         if (down(Input.Keys.Q))     return PlayerAction.attack(facing);
         if (down(Input.Keys.G))     return PlayerAction.pickup(facing);
         if (down(Input.Keys.SPACE)) return PlayerAction.wait(facing);
+        // Story 1.5 survival crafting. Cook/Filter/Boil/Eat act on the FIRST matching backpack
+        // stack — a stopgap until the Story 1.8 HUD adds real item selection.
+        if (down(Input.Keys.C))     return PlayerAction.collect(facing);
+        if (down(Input.Keys.B))     return PlayerAction.buildCampfire(facing);
+        if (down(Input.Keys.K)) { int t = firstWhere(s -> s.cooksTo() != null);   if (t >= 0) return PlayerAction.cook(t, facing); }
+        if (down(Input.Keys.F)) { int t = firstWhere(s -> s.filtersTo() != null); if (t >= 0) return PlayerAction.filter(t, facing); }
+        if (down(Input.Keys.V)) { int t = firstWhere(s -> s.boilsTo() != null);   if (t >= 0) return PlayerAction.boil(t, facing); }
+        if (down(Input.Keys.E)) { int t = firstWhere(Supply::isProvision);        if (t >= 0) return PlayerAction.use(t, facing); }
         return null;
+    }
+
+    /** The type id of the first backpack stack whose Supply matches, or -1 (Story 1.5 stopgap). */
+    private int firstWhere(java.util.function.Predicate<Supply> pred) {
+        Inventory inv = state.getInventory();
+        for (int i = 0; i < Inventory.BACKPACK_STACKS; i++) {
+            Supply s = Supply.byOrdinal(inv.backpackType(i));
+            if (s != null && pred.test(s)) return inv.backpackType(i);
+        }
+        return -1;
     }
 
     private boolean down(int key) { return Gdx.input.isKeyJustPressed(key); }
@@ -155,6 +175,9 @@ public class MarginScreen implements Screen {
         switch (t) {
             case RogueTile.WALL:        r = 0.16f; g = 0.18f; b = 0.15f; break; // dark trunk/rock
             case RogueTile.DOOR:        r = 0.45f; g = 0.34f; b = 0.20f; break; // wood
+            case RogueTile.WELL:        r = 0.30f; g = 0.45f; b = 0.60f; break; // stone well (blue-grey)
+            case RogueTile.POND:        r = 0.18f; g = 0.40f; b = 0.42f; break; // murky pond
+            case RogueTile.RIVER:       r = 0.22f; g = 0.52f; b = 0.72f; break; // running river
             default:                    r = 0.26f; g = 0.33f; b = 0.23f; break; // forest floor
         }
         if (!visible) { r *= 0.45f; g *= 0.45f; b *= 0.50f; } // fog memory

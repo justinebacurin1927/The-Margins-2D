@@ -35,6 +35,23 @@ class IdentifyMapTest {
     }
 
     @Test
+    void singleIdentityTypesDoNotDrawFromTheRng() {
+        // H1-review: binding a single-identity type must not consume a seeded draw (AD-5) — each
+        // such type would otherwise shift the stream for every downstream consumer. The build
+        // should leave the RNG exactly as if it drew once per AMBIGUOUS (2+ identity) type only.
+        int ambiguous = 0;
+        for (Supply s : Supply.values()) if (s.possibleIdentities().length > 1) ambiguous++;
+
+        Random a = new Random(42L);
+        IdentifyMap.build(a);
+        Random b = new Random(42L);
+        for (int i = 0; i < ambiguous; i++) b.nextInt(2); // the only legitimate draws
+
+        assertEquals(a.nextInt(100), b.nextInt(100),
+                "IdentifyMap.build drew only for ambiguous types — the stream is aligned");
+    }
+
+    @Test
     void outOfRangeOrdinalsAreSafe() {
         IdentifyMap m = IdentifyMap.build(new Random(7));
         assertNull(m.identityOf(-1));

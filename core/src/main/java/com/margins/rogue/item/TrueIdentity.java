@@ -21,7 +21,22 @@ public enum TrueIdentity {
     RENDERED_FAT("Rendered fat")   { public void apply(RoguePlayer p) { p.heal(4); } },
     BANDAGES("Bandages")           { public void apply(RoguePlayer p) { p.heal(6); } },
     OLD_RAGS("Old rags")           { public void apply(RoguePlayer p) { /* no effect, weight only */ } },
-    INERT_LETTER("Sealed letter")  { public void apply(RoguePlayer p) { /* inert in MVP */ } };
+    INERT_LETTER("Sealed letter")  { public void apply(RoguePlayer p) { /* inert in MVP */ } },
+
+    // Story 1.5 provisions. apply() is the NOURISHMENT only; the poison-risk roll (which needs
+    // the seeded RNG) is added on top by ConsumptionSystem for risky provisions (FR-6). Coal and
+    // Salt are not consumed via use (fuel / storage) — their apply is inert.
+    RAW_MEAT_ID("Raw meat")             { public void apply(RoguePlayer p) { p.eat(30); } },
+    HALF_ROTTEN_ID("Half-rotten meat")  { public void apply(RoguePlayer p) { p.eat(20); } },
+    SPOILED_MEAT_ID("Spoiled meat")     { public void apply(RoguePlayer p) { p.eat(10); } },
+    COOKED_MEAT_ID("Cooked meat")       { public void apply(RoguePlayer p) { p.eat(60); } },
+    WELL_WATER_ID("Well water")         { public void apply(RoguePlayer p) { p.drink(60); } },
+    RIVER_WATER_ID("River water")       { public void apply(RoguePlayer p) { p.drink(50); } },
+    POND_WATER_ID("Pond water")         { public void apply(RoguePlayer p) { p.drink(50); } },
+    FILTERED_WATER_ID("Filtered water") { public void apply(RoguePlayer p) { p.drink(50); } },
+    BOILED_WATER_ID("Boiled water")     { public void apply(RoguePlayer p) { p.drink(60); } },
+    COAL_ID("Coal")                     { public void apply(RoguePlayer p) { /* fuel — inert on use */ } },
+    SALT_ID("Salt")                     { public void apply(RoguePlayer p) { /* storage — inert on use */ } };
 
     private final String displayName;
 

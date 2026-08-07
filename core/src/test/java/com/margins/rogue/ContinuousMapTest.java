@@ -34,12 +34,16 @@ class ContinuousMapTest {
 
     @Test
     void mapHasNoStairsTiles() {
+        // AD-8 retired floor descent — no stairs/descent tiles. Water-source features (Well/Pond/
+        // River, Story 1.5) are the only other valid tiles; every tile must be one of these known
+        // types (a stray stairs tile would be an int outside this set).
         RogueTileMap m = new RunState(99L).getTileMap();
         for (int x = 0; x < m.getWidth(); x++) {
             for (int y = 0; y < m.getHeight(); y++) {
                 int t = m.getTile(x, y);
-                assertTrue(t == RogueTile.WALL || t == RogueTile.FLOOR || t == RogueTile.DOOR,
-                        "only WALL/FLOOR/DOOR remain after AD-8; found " + t + " at (" + x + "," + y + ")");
+                assertTrue(t == RogueTile.WALL || t == RogueTile.FLOOR || t == RogueTile.DOOR
+                                || RogueTile.isWaterSource(t),
+                        "only WALL/FLOOR/DOOR + water sources remain after AD-8; found " + t + " at (" + x + "," + y + ")");
             }
         }
     }

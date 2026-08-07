@@ -69,6 +69,16 @@ public class RunState {
     // campfire/torch ITEMS that set this are Stories 1.5/1.6; here it is queryable state + wiring.
     private int lightX = -1;
     private int lightY = -1;
+    // Campfire fire-station (FR-6/FR-7, Story 1.5): the tile of a built campfire, or -1 = none.
+    // It is the fire that cooking/boiling require (player must be at/adjacent). Distinct from the
+    // light tile so a torch (1.6, carried light) never counts as a cooking fire. Field-initialized
+    // (AD-6). WARMTH is Story 1.6 — the campfire here only cooks/purifies/lights/is-exposed.
+    private int campfireX = -1;
+    private int campfireY = -1;
+    // Food-spoilage clock (FR-6, Story 1.5): advances on acted turns like clockTurns; every
+    // SPOIL_INTERVAL a SpoilageSystem advances perishable food one stage. Field-initialized (AD-6).
+    private int spoilageClock = 0;
+    private int spoilageProgress = 0; // accrued spoilage (salt-aware); drives the advance, M2-review
     private long seed;
     private transient Random rng;
     private boolean lastStandUsed;        // persisted: one reprieve per run (FR-16/17)
@@ -175,6 +185,7 @@ public class RunState {
         // (AD-6 migration contract.)
         if (weather == null) weather = Weather.CLEAR;
         cycleNumber = clockTurns / CYCLE_LENGTH;
+        if (identifyMap != null) identifyMap.reconcile(Supply.count()); // grow a pre-1.5 save's shorter binding
         player.setMap(tileMap);
         for (RogueEnemy e : enemies) {
             e.setMap(tileMap);
@@ -193,6 +204,9 @@ public class RunState {
         this.clockTurns = 0; // a new run starts at Day 0 (FR-5)
         this.cycleNumber = 0;
         clearLight(); // a fresh run has no camp/torch lit (Story 1.4)
+        clearCampfire(); // and no campfire built (Story 1.5)
+        this.spoilageClock = 0;
+        this.spoilageProgress = 0;
         generateFloor();
         spawnStartingCompanion();
         rollWeather(); // and rolls its own weather
@@ -324,6 +338,37 @@ public class RunState {
 
     /** Extinguish the active light (none). */
     public void clearLight() { lightX = -1; lightY = -1; }
+
+    /** Whether a campfire is built (a fire station for cooking/boiling, FR-6). */
+    public boolean hasCampfire() { return campfireX >= 0 && campfireY >= 0; }
+
+    public int getCampfireX() { return campfireX; }
+    public int getCampfireY() { return campfireY; }
+
+    /** Build the campfire at a tile (Story 1.5). Also lights it (AD-18: FOV restore + exposure). */
+    public void setCampfire(int x, int y) { campfireX = x; campfireY = y; }
+
+    /** Extinguish the campfire (none). */
+    public void clearCampfire() { campfireX = -1; campfireY = -1; }
+
+    /** True when the player is on or 4-adjacent to the campfire — the range for cooking/boiling. */
+    public boolean isPlayerAtFire() {
+        if (!hasCampfire()) return false;
+        int dx = Math.abs(player.getTileX() - campfireX);
+        int dy = Math.abs(player.getTileY() - campfireY);
+        return dx + dy <= 1;
+    }
+
+    /** The food-spoilage clock (FR-6): elapsed acted turns driving {@code SpoilageSystem}. */
+    public int getSpoilageClock() { return spoilageClock; }
+
+    /** Advance the spoilage clock one acted turn (called from the acted branch, AD-5). */
+    public void tickSpoilageClock() { spoilageClock++; }
+
+    /** The accrued spoilage (salt-aware, M2-review): the mechanism behind the clock. */
+    public int getSpoilageProgress() { return spoilageProgress; }
+    public void addSpoilageProgress(int amount) { spoilageProgress += amount; }
+    public void subtractSpoilageProgress(int amount) { spoilageProgress -= amount; }
 
     public long getSeed() { return seed; }
 

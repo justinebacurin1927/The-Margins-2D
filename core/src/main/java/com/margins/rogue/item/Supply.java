@@ -16,7 +16,23 @@ public enum Supply {
     SEALED_WATERSKIN("Sealed Waterskin", TrueIdentity.CLEAN_WATER, TrueIdentity.TAINTED),
     SMALL_TIN("Small Tin", TrueIdentity.FEVERWORT, TrueIdentity.RENDERED_FAT),
     FOLDED_CLOTH("Folded Cloth", TrueIdentity.BANDAGES, TrueIdentity.OLD_RAGS),
-    SEALED_LETTER("Sealed Letter", TrueIdentity.INERT_LETTER);
+    SEALED_LETTER("Sealed Letter", TrueIdentity.INERT_LETTER),
+
+    // Story 1.5 provisions (FR-6). Self-evident, deterministic single-identity types — their
+    // Supply name IS the real name, so they read correctly without the identify gamble. Appended
+    // last so existing ordinals (and old saves) are unchanged (AD-6). Spoilage/cook/purify are
+    // type-swaps (remove old + add new) within the stack model — the taxonomy below is the data.
+    COAL("Coal", TrueIdentity.COAL_ID),
+    RAW_MEAT("Raw Meat", TrueIdentity.RAW_MEAT_ID),
+    HALF_ROTTEN_MEAT("Half-Rotten Meat", TrueIdentity.HALF_ROTTEN_ID),
+    SPOILED_MEAT("Spoiled Meat", TrueIdentity.SPOILED_MEAT_ID),
+    COOKED_MEAT("Cooked Meat", TrueIdentity.COOKED_MEAT_ID),
+    WELL_WATER("Well Water", TrueIdentity.WELL_WATER_ID),
+    POND_WATER("Pond Water", TrueIdentity.POND_WATER_ID),
+    RIVER_WATER("River Water", TrueIdentity.RIVER_WATER_ID),
+    FILTERED_WATER("Filtered Water", TrueIdentity.FILTERED_WATER_ID),
+    BOILED_WATER("Boiled Water", TrueIdentity.BOILED_WATER_ID),
+    SALT("Salt", TrueIdentity.SALT_ID);
 
     private final String displayName;
     private final TrueIdentity[] possible;
@@ -31,9 +47,73 @@ public enum Supply {
         return possible;
     }
 
-    /** All types are spent on use except the inert Sealed Letter. */
+    /** Spent on use, except inert types (the Sealed Letter, and fuel/storage that aren't eaten). */
     public boolean isConsumedOnUse() {
-        return this != SEALED_LETTER;
+        return this != SEALED_LETTER && this != COAL && this != SALT;
+    }
+
+    /** A food/water provision consumed for nourishment (Story 1.5), vs. containers/fuel/storage. */
+    public boolean isProvision() {
+        switch (this) {
+            case RAW_MEAT: case HALF_ROTTEN_MEAT: case SPOILED_MEAT: case COOKED_MEAT:
+            case WELL_WATER: case POND_WATER: case RIVER_WATER: case FILTERED_WATER: case BOILED_WATER:
+                return true;
+            default: return false;
+        }
+    }
+
+    /** The poison risk (percent 0..100) of consuming this provision untreated (FR-6). 0 = safe. */
+    public int drinkRisk() {
+        switch (this) {
+            case SPOILED_MEAT:     return 90;
+            case POND_WATER:       return 60;
+            case HALF_ROTTEN_MEAT: return 40;
+            case RIVER_WATER:      return 20; // AC-1: river direct-drink 20%
+            case FILTERED_WATER:   return 10; // AC-2: filtration reduces but does not eliminate
+            case RAW_MEAT:         return 10;
+            default:               return 0;  // COOKED_MEAT, WELL_WATER, BOILED_WATER are safe
+        }
+    }
+
+    /** A drink (water) provision vs. a food (meat) provision — ConsumptionSystem picks the
+     *  "already full" refusal guard by this (Edge #2-review). */
+    public boolean isWater() {
+        switch (this) {
+            case WELL_WATER: case POND_WATER: case RIVER_WATER: case FILTERED_WATER: case BOILED_WATER:
+                return true;
+            default: return false;
+        }
+    }
+
+    /** The next food-spoilage stage this type advances to over time, or null if it resists / n/a.
+     *  Cooked meat and every water type resist the spoilage ladder (FR-6). */
+    public Supply spoilsTo() {
+        switch (this) {
+            case RAW_MEAT:         return HALF_ROTTEN_MEAT;
+            case HALF_ROTTEN_MEAT: return SPOILED_MEAT;
+            default:               return null; // SPOILED_MEAT terminal; COOKED_MEAT + waters resist
+        }
+    }
+
+    /** The meat this type cooks into at a fire, or null if not cookable. */
+    public Supply cooksTo() {
+        return (this == RAW_MEAT || this == HALF_ROTTEN_MEAT) ? COOKED_MEAT : null;
+    }
+
+    /** The filtered water this raw water yields (SKILL-gated), or null if not filterable. */
+    public Supply filtersTo() {
+        switch (this) {
+            case WELL_WATER: case POND_WATER: case RIVER_WATER: return FILTERED_WATER;
+            default: return null;
+        }
+    }
+
+    /** The clean water this raw/filtered water yields when boiled (needs fire + coal), or null. */
+    public Supply boilsTo() {
+        switch (this) {
+            case WELL_WATER: case POND_WATER: case RIVER_WATER: case FILTERED_WATER: return BOILED_WATER;
+            default: return null;
+        }
     }
 
     public String displayName() {

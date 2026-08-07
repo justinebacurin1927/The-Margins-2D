@@ -76,6 +76,18 @@ public class FloorGenerator {
             centers.add(new int[]{r.cx(), r.cy()});
         }
 
+        // Water sources (FR-6, Story 1.5): stamp a Well / Pond / River at the centers of rooms
+        // 1..3 (the player starts at room 0). Placed WITHOUT drawing from `rand`, so the seeded
+        // actor/supply placement stream is untouched by the water-source addition — for a given
+        // seed, layout and supply drops reproduce exactly as they would with no water stamping
+        // (AD-5; the single-identity Supply bindings in IdentifyMap also draw nothing, H1-review).
+        // A minimal forward-pull — Epic 3 folds water sources into the real world-structure gen.
+        int[] sources = {RogueTile.WELL, RogueTile.POND, RogueTile.RIVER};
+        for (int i = 0; i < sources.length && i + 1 < centers.size(); i++) {
+            int[] c = centers.get(i + 1);
+            map.setTile(c[0], c[1], sources[i]);
+        }
+
         return new FloorResult(map, centers);
     }
 

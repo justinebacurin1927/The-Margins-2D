@@ -1,11 +1,14 @@
 package com.margins.rogue.system;
 
 import com.margins.rogue.RoguePlayer;
+import com.margins.rogue.RogueTile;
 import com.margins.rogue.item.FloorItem;
 import com.margins.rogue.item.Inventory;
 import com.margins.rogue.item.Supply;
 import com.margins.rogue.item.TrueIdentity;
 import com.margins.rogue.state.RunState;
+
+import java.util.List;
 
 /**
  * Advances one turn by running systems in fixed order (AD-4):
@@ -57,6 +60,15 @@ public class TurnEngine {
                 break;
             case USE: {
                 Supply s = Supply.byOrdinal(action.itemType);
+                // All provisions (FR-6) route through ConsumptionSystem: it applies nourishment,
+                // rolls the poison risk for risky ones (raw/rotten/spoiled meat, river/pond/
+                // filtered water) and refuses a wasted drink/eat (Edge #2-review). The original
+                // mystery supplies keep the identityOf().apply path below (their effect is the
+                // per-seed bound identity, FR-11).
+                if (s != null && s.isProvision()) {
+                    acted = ConsumptionSystem.consume(state, action.itemType, result.messages);
+                    break;
+                }
                 if (s != null && state.getInventory().count(action.itemType) > 0) {
                     TrueIdentity id = state.getIdentifyMap().identityOf(action.itemType);
                     if (id != null) id.apply(player); // effect is the per-seed bound identity (FR-11)
@@ -108,6 +120,28 @@ public class TurnEngine {
                 acted = CompanionSystem.distract(state, result.messages);
                 break;
             }
+            // Story 1.5 survival crafting (FR-6). Each returns whether a turn was spent; a refused
+            // action (no source/fire/coal/room) commits no turn, mirroring the inert-USE precedent.
+            case COLLECT:
+                acted = collectWater(state, result.messages);
+                break;
+            case BUILD_CAMPFIRE: {
+                int px = player.getTileX(), py = player.getTileY();
+                state.setCampfire(px, py);
+                state.setLight(px, py); // AD-18: the campfire lights (FOV) and is exposed (noise)
+                result.messages.add("Built a campfire.");
+                acted = true;
+                break;
+            }
+            case COOK:
+                acted = CookingSystem.cook(state, action.itemType, result.messages);
+                break;
+            case FILTER:
+                acted = PurificationSystem.filter(state, action.itemType, result.messages);
+                break;
+            case BOIL:
+                acted = PurificationSystem.boil(state, action.itemType, result.messages);
+                break;
         }
 
         if (acted) {
@@ -118,6 +152,7 @@ public class TurnEngine {
             HungerSystem.tick(player);
             ThirstSystem.tick(player);
             TemperatureSystem.tick(player);
+            SpoilageSystem.tick(state); // food ages on the acted path (FR-6, Story 1.5)
             state.tickClock();
             DetectionSystem.update(state); // advance awareness before enemies move (AD-4)
             CompanionSystem.follow(state); // the ally moves in the Companion+Enemy-AI phase (AD-4, AD-10)
@@ -135,5 +170,32 @@ public class TurnEngine {
         }
 
         return result;
+    }
+
+    /** Collect raw water from a source tile on or 4-adjacent to the player (FR-6, Story 1.5).
+     *  Returns false (no turn) when no source is in reach or the backpack is full. */
+    private static boolean collectWater(RunState state, List<String> messages) {
+        RoguePlayer p = state.getPlayer();
+        int[][] spots = {{0, 0}, {1, 0}, {-1, 0}, {0, 1}, {0, -1}};
+        for (int[] d : spots) {
+            Supply water = waterFor(state.getTileMap().getTile(p.getTileX() + d[0], p.getTileY() + d[1]));
+            if (water == null) continue;
+            if (state.getInventory().tryAdd(water.ordinal(), 1) == Inventory.AddResult.ADDED) {
+                messages.add("Collected " + water.displayName() + ".");
+                return true;
+            }
+            messages.add("Backpack full."); // a source is here but no room — no turn (like pickup)
+            return false;
+        }
+        return false; // no source in reach → no turn
+    }
+
+    private static Supply waterFor(int tile) {
+        switch (tile) {
+            case RogueTile.WELL:  return Supply.WELL_WATER;
+            case RogueTile.POND:  return Supply.POND_WATER;
+            case RogueTile.RIVER: return Supply.RIVER_WATER;
+            default:              return null;
+        }
     }
 }
