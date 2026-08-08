@@ -2,8 +2,10 @@ package com.margins.rogue.narrative;
 
 import com.margins.rogue.RogueTile;
 import com.margins.rogue.RogueTileMap;
+import com.margins.rogue.item.Supply;
 import com.margins.rogue.state.RunState;
 import com.margins.rogue.system.PlayerAction;
+import com.margins.rogue.system.TurnEngine;
 import org.junit.jupiter.api.Test;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -31,10 +33,30 @@ class TutorialControllerTest {
         m.setTile(px, py - 1, RogueTile.FLOOR);
     }
 
-    /** Put a blocking trunk directly east of the player (cover for the hide check). */
+    /** Put a blocking trunk directly east of the player (cover for the matcher-level hide check). */
     private void putCover(RunState s) {
         int px = s.getPlayer().getTileX(), py = s.getPlayer().getTileY();
         s.getTileMap().setTile(px + 1, py, RogueTile.WALL);
+    }
+
+    /** Put a blocking trunk two tiles east with walkable ground between, so a committed move east
+     *  ends the player adjacent to cover (the honest hide pin — the player actually moves). Call
+     *  while the player is still at the tile the two moves will leave from. */
+    private void putCoverAhead(RunState s) {
+        int px = s.getPlayer().getTileX(), py = s.getPlayer().getTileY();
+        RogueTileMap m = s.getTileMap();
+        m.setTile(px + 2, py, RogueTile.FLOOR);
+        m.setTile(px + 3, py, RogueTile.WALL);
+    }
+
+    /** Drive a turn the way the screen does (Story 2.3 review H1): the coach observes only
+     *  COMMITTED turns — if the engine refused the action (no clock advance, e.g. a wall bump or an
+     *  empty collect), {@code onAction} is NOT called, so a control the player never performed is
+     *  never acknowledged. This mirrors the {@code advanceAnimated} gate in MarginScreen. */
+    private void commitAndObserve(TutorialController t, RunState s, PlayerAction a) {
+        int before = s.getClockTurns();
+        new TurnEngine().advance(s, a);
+        if (s.getClockTurns() != before) t.onAction(a, s);
     }
 
     private PlayerAction move() { return PlayerAction.move(1, 0, 3); }
@@ -96,8 +118,20 @@ class TutorialControllerTest {
         RunState s = run();
         TutorialController t = new TutorialController();
         t.begin(s);
-        t.onAction(PlayerAction.use(0, 3), s);
+        t.onAction(PlayerAction.use(Supply.COOKED_MEAT.ordinal(), 3), s);
         assertTrue(s.getMessageLog().contains(TutorialController.Control.EAT.ack));
+    }
+
+    @Test
+    void drinkingWaterDoesNotCheckOffEat() {
+        RunState s = run();
+        TutorialController t = new TutorialController();
+        t.begin(s);
+        // A drink (WELL_WATER is a provision but not a food) must not demonstrate "eat" (review m1).
+        t.onAction(PlayerAction.use(Supply.WELL_WATER.ordinal(), 3), s);
+        assertFalse(s.getMessageLog().contains(TutorialController.Control.EAT.ack),
+                "drinking water is not eating");
+        assertTrue(t.isActive(), "the coach stays active — eat was not satisfied by a drink");
     }
 
     @Test
@@ -129,20 +163,45 @@ class TutorialControllerTest {
     void moveIntoCoverChecksOffHideButAMoveInTheOpenDoesNot() {
         RunState s = run();
         clearNeighbours(s);
+        putCoverAhead(s); // WALL two east + walkable ground between — player still at the start tile
         TutorialController t = new TutorialController();
         t.begin(s);
-        t.onAction(move(), s); // removes MOVE first (earlier in the list)
 
-        // A move in the open must NOT check off hide.
-        t.onAction(move(), s);
+        // A REAL committed move into open floor checks off MOVE (first in the list), NOT hide.
+        commitAndObserve(t, s, move());
+        assertTrue(s.getMessageLog().contains(TutorialController.Control.MOVE.ack),
+                "a real committed move demonstrates move");
         assertFalse(s.getMessageLog().contains(TutorialController.Control.HIDE.ack),
-                "a move with no cover adjacent does not demonstrate hide");
+                "a move into open floor does not demonstrate hide");
 
-        // Now put a trunk beside the player: a move into cover checks off hide.
-        putCover(s);
-        t.onAction(move(), s);
+        // A REAL committed move INTO cover (ending adjacent to the trunk) checks off hide.
+        commitAndObserve(t, s, move());
         assertTrue(s.getMessageLog().contains(TutorialController.Control.HIDE.ack),
-                "a move adjacent to cover demonstrates hide");
+                "a real committed move ending adjacent to cover demonstrates hide");
+    }
+
+    @Test
+    void refusedActionIsNeverAcknowledged() {
+        RunState s = run();
+        clearNeighbours(s);
+        TutorialController t = new TutorialController();
+        t.begin(s);
+        int clock = s.getClockTurns();
+        int logSize = s.getMessageLog().size();
+
+        // A wall-bump is a REFUSED turn: the engine does not advance the clock. The screen's H1
+        // gate withholds onAction on refused turns (commitAndObserve mirrors that contract), so the
+        // coach must NEVER acknowledge a control the player did not actually perform — key-mashing a
+        // blocked direction must not "learn" move or hide (review H1, AC-2).
+        int px = s.getPlayer().getTileX(), py = s.getPlayer().getTileY();
+        s.getTileMap().setTile(px + 1, py, RogueTile.WALL); // block the move east
+        commitAndObserve(t, s, move());
+
+        assertEquals(clock, s.getClockTurns(), "a wall-bump commits no turn");
+        assertEquals(logSize, s.getMessageLog().size(),
+                "a refused action is never acknowledged as a performed control");
+        assertFalse(s.getMessageLog().contains(TutorialController.Control.MOVE.ack),
+                "blocked movement does not demonstrate move");
     }
 
     // --- out-of-order completion ---
@@ -158,7 +217,7 @@ class TutorialControllerTest {
         t.onAction(move(), s);                        // MOVE (open)
         t.onAction(PlayerAction.cook(0, 3), s);       // CRAFT
         t.onAction(PlayerAction.collect(3), s);       // SCAVENGE
-        t.onAction(PlayerAction.use(0, 3), s);        // EAT
+        t.onAction(PlayerAction.use(Supply.COOKED_MEAT.ordinal(), 3), s); // EAT (a food, review m1)
         assertFalse(t.isComplete(), "five learned, not yet complete");
         putCover(s);
         t.onAction(move(), s);                        // HIDE -> the sixth
@@ -178,11 +237,13 @@ class TutorialControllerTest {
         int thirst = s.getPlayer().getThirst();
         int temp = s.getPlayer().getTemperature();
         int hp = s.getPlayer().getHp();
+        int stacks = s.getInventory().backpackStackCount();
         s.getFlagStore().set("probe", 5);
         int flag = s.getFlagStore().get("probe");
 
         TutorialController t = new TutorialController();
         t.begin(s);
+        int logSize = s.getMessageLog().size();
         t.onAction(move(), s); // the coach observes — it does not advance the turn
 
         assertEquals(clock, s.getClockTurns(), "onAction commits no turn (TurnEngine owns ticking)");
@@ -191,6 +252,9 @@ class TutorialControllerTest {
         assertEquals(temp, s.getPlayer().getTemperature(), "temperature untouched");
         assertEquals(hp, s.getPlayer().getHp(), "HP untouched");
         assertEquals(flag, s.getFlagStore().get("probe"), "no FlagStore mutation");
+        assertEquals(stacks, s.getInventory().backpackStackCount(), "no Inventory mutation");
+        assertEquals(logSize + 2, s.getMessageLog().size(),
+                "the observation appends exactly the ack + the next prompt (its only side effect)");
     }
 
     @Test
@@ -212,6 +276,28 @@ class TutorialControllerTest {
         t.skip();
         assertFalse(t.isActive(), "skip stops the coaching");
         assertFalse(t.isComplete(), "skip is an abort — it does not trip Story 2.4's completion seam");
+    }
+
+    @Test
+    void skipAfterCompletionResetsTheCompletionFlag() {
+        RunState s = run();
+        clearNeighbours(s);
+        TutorialController t = new TutorialController();
+        t.begin(s);
+        // Learn all six and complete (the restart path: skip() is called on a completed tutorial).
+        t.onAction(PlayerAction.wait(3), s); // REST
+        t.onAction(move(), s);               // MOVE
+        t.onAction(PlayerAction.cook(0, 3), s); // CRAFT
+        t.onAction(PlayerAction.collect(3), s); // SCAVENGE
+        t.onAction(PlayerAction.use(Supply.COOKED_MEAT.ordinal(), 3), s); // EAT
+        putCover(s);
+        t.onAction(move(), s);               // HIDE -> complete
+        assertTrue(t.isComplete(), "the tutorial completed");
+
+        t.skip(); // the screen calls this on restart() for the next life
+        assertFalse(t.isComplete(),
+                "a post-death life that never ran the tutorial must not read as complete (review M1)");
+        assertFalse(t.isActive(), "skip stops the coaching on the new life");
     }
 
     // --- content pin ---

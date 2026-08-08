@@ -2,6 +2,7 @@ package com.margins.rogue.narrative;
 
 import com.margins.rogue.RogueTile;
 import com.margins.rogue.RogueTileMap;
+import com.margins.rogue.item.Supply;
 import com.margins.rogue.state.RunState;
 import com.margins.rogue.system.PlayerAction;
 import com.margins.rogue.system.PlayerAction.Kind;
@@ -96,10 +97,13 @@ public class TutorialController {
     }
 
     /** Abort coaching without completing (the restart path — a new life after death gets no
-     *  coaching, and Story 2.4's completion seam is not spuriously tripped). */
+     *  coaching, and Story 2.4's completion seam is not spuriously tripped). Also resets a prior
+     *  completion so a post-death life that never ran the tutorial does not read as complete
+     *  (review M1: completion is per-life, not per screen session). */
     public void skip() {
         armed = false;
         active = false;
+        completed = false;
     }
 
     /** Whether the coach is currently prompting (a scene is NOT suspended — this is live play). */
@@ -117,19 +121,30 @@ public class TutorialController {
         switch (c) {
             case MOVE:     return action.kind == Kind.MOVE;
             case SCAVENGE: return action.kind == Kind.COLLECT;
-            case EAT:      return action.kind == Kind.USE;
+            case EAT:      return action.kind == Kind.USE && isFoodUse(action);
             case CRAFT:    return action.kind == Kind.BUILD_CAMPFIRE || action.kind == Kind.COOK
                                 || action.kind == Kind.FILTER || action.kind == Kind.BOIL
                                 || action.kind == Kind.CRAFT_TORCH;
-            case HIDE:     return action.kind == Kind.MOVE && adjacentToCover(state);
+            case HIDE:     return action.kind == Kind.MOVE && movedIntoCover(state);
             case REST:     return action.kind == Kind.WAIT;
             default:       return false;
         }
     }
 
-    /** True when the player now stands orthogonally adjacent to a blocking (opaque) trunk/rock —
-     *  "put a trunk between you and the road" (Decision 2: hide = move into cover). */
-    private boolean adjacentToCover(RunState state) {
+    /** A USE that consumes a FOOD provision (not water or a cure) — drinking must not check off
+     *  "eat" (review m1). */
+    private boolean isFoodUse(PlayerAction action) {
+        if (action.itemType < 0) return false;
+        Supply s = Supply.byOrdinal(action.itemType);
+        return s != null && s.isFood();
+    }
+
+    /** True when this MOVE ended the player adjacent to a blocking (opaque) trunk/rock — "moving to
+     *  a tile adjacent to a blocking trunk/rock" (spec Decision 2). Only reached on a COMMITTED move
+     *  (the H1 seam gate), so a refused wall-bump or an open-field move never demonstrates hide; the
+     *  check does not consider the move's direction (the fiction is simplified to "ended next to
+     *  cover" — the trunk's exact side is a cosmetic nit, not a spec requirement). */
+    private boolean movedIntoCover(RunState state) {
         int px = state.getPlayer().getTileX();
         int py = state.getPlayer().getTileY();
         RogueTileMap map = state.getTileMap();

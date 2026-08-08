@@ -344,13 +344,17 @@ public class MarginScreen implements Screen {
 
         PlayerAction action = readAction(p.getFacing());
         if (action != null) {
-            advanceAnimated(action);
-            tutorial.onAction(action, state);  // Story 2.3: the passive coach observes the committed turn
+            // Story 2.3 review fix (H1): the coach observes only COMMITTED turns. advanceAnimated
+            // returns whether the engine actually advanced the clock (refused actions — a wall bump,
+            // an empty collect, a craft without materials — commit no turn and must not be
+            // acknowledged as a performed control).
+            if (advanceAnimated(action)) tutorial.onAction(action, state);
         }
     }
 
-    /** Capture actor positions, resolve one normal turn, then animate the resulting deltas. */
-    private void advanceAnimated(PlayerAction action) {
+    /** Capture actor positions, resolve one normal turn, then animate the resulting deltas.
+     *  Returns whether the turn committed (the engine refused the action / it was a wall bump). */
+    private boolean advanceAnimated(PlayerAction action) {
         RoguePlayer player = state.getPlayer();
         int playerX = player.getTileX(), playerY = player.getTileY();
         int clockBefore = state.getClockTurns();
@@ -363,7 +367,7 @@ public class MarginScreen implements Screen {
         for (RogueEnemy enemy : state.getEnemies()) before.put(enemy, new EnemySnapshot(enemy));
 
         TurnResult result = turnEngine.advance(state, action); // log is fed inside the engine (AD-4)
-        if (state.getClockTurns() == clockBefore) return;       // refused action / wall bump: no turn
+        if (state.getClockTurns() == clockBefore) return false; // refused action / wall bump: no turn
 
         if (playerX != player.getTileX() || playerY != player.getTileY()) {
             playerMotion = new Motion(playerX, playerY, player.getTileX(), player.getTileY());
@@ -402,6 +406,7 @@ public class MarginScreen implements Screen {
                 }
             }
         }
+        return true; // the clock advanced — this action committed a turn
     }
 
     /** Restart the run: close any open scene, reset state, recompute FOV, clear the backpack

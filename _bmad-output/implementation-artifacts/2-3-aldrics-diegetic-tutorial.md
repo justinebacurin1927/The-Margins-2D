@@ -1,6 +1,6 @@
 # Story 2.3: Aldric's diegetic tutorial
 
-Status: review
+Status: done
 
 <!-- Note: Validation is optional. Run validate-create-story for quality check before dev-story. -->
 
@@ -75,7 +75,7 @@ so that I learn to play without tooltips or UI chrome (FR-2).
 - [x] **Task 3 — Wire the tutorial into the screen (AC: 1, 2, 3)**
   - [x] `MarginScreen`: `private final TutorialController tutorial = new TutorialController();` — transient view-session state, NOT on RunState (AD-6, Decision 7). Arm it for a fresh run.
   - [x] Start seam (Decision 6): in `handleInput`, after the intro branch returns while the intro is active, call `tutorial.begin(state)` once the intro is inactive (the guard makes it a safe every-frame call). The first Aldric prompt appends right as gameplay opens, after the 1.8 seeded line.
-  - [x] Observe seam (Decision 1): after `turnEngine.advance(state, action)` commits a real turn, call `tutorial.onAction(action, state)` so the coach checks off the performed control and prompts the next. Only on a committed turn (`action != null`); never returns/short-circuits a `PlayerAction` — the AD-4 branch is untouched.
+  - [x] Observe seam (Decision 1): after `turnEngine.advance(state, action)` commits a real turn, call `tutorial.onAction(action, state)` so the coach checks off the performed control and prompts the next. Only on a COMMITTED turn — the screen's `advanceAnimated` returns whether the engine advanced the clock (review H1 corrected the earlier `action != null` wording: a non-null action is not a committed turn, since the engine refuses wall-bumps, empty collects, material-less crafts, etc.); never returns/short-circuits a `PlayerAction` — the AD-4 branch is untouched.
   - [x] `restart()`: add `tutorial.skip()` (a new life after death gets no coaching — Decision 6), symmetric with the `dialog.end()`/`intro.end()` closes already there.
   - [x] No new render surface — Aldric's lines are ordinary log lines (AD-15); the existing bottom-log render shows them. Do NOT add chrome.
 
@@ -187,9 +187,21 @@ Claude Opus 4.8 (1M context)
 - **Modified:** `core/src/main/java/com/margins/MarginScreen.java` (tutorial field + begin-seam after intro close + observe-seam after advance + `restart()` skip)
 - **Modified:** `core/src/main/java/com/margins/rogue/state/RunState.java` (appendMessages javadoc — third caller; no behavior change)
 
+### Review Findings
+
+Code review run 2026-08-09 (3-layer: Blind Hunter + Edge Case Hunter + Acceptance Auditor, all on commit `a2c2005`). All `patch` findings applied and checked.
+
+- [x] [Review][Patch] **H1 — Observe seam fed intents, not committed turns (refused actions checked off controls and could complete the tutorial)** [`core/src/main/java/com/margins/MarginScreen.java:348`] — `tutorial.onAction` was called unconditionally after `advanceAnimated`, but the engine refuses many non-null actions (wall-bump MOVE, empty COLLECT, material-less crafts, USE-when-full). Fixed: `advanceAnimated` now returns whether the clock advanced; the screen calls `onAction` only on a committed turn. AC-2 protected.
+- [x] [Review][Patch] **M1 — `skip()` never reset `completed`; a restart after a completed tutorial left `isComplete()` true on the new life** [`core/src/main/java/com/margins/rogue/narrative/TutorialController.java`] — `skip()` now also clears `completed` (completion is per-life, not per screen session). Pinned by `skipAfterCompletionResetsTheCompletionFlag`.
+- [x] [Review][Patch] **M2 — Tests never drove a real committed turn; the hide test never moved the player** [`core/src/test/java/com/margins/rogue/narrative/TutorialControllerTest.java`] — reworked `moveIntoCoverChecksOffHideButAMoveInTheOpenDoesNot` to drive real moves through `TurnEngine` via a `commitAndObserve` helper mirroring the screen gate; added `refusedActionIsNeverAcknowledged` (the H1 pin).
+- [x] [Review][Patch] **m1 — EAT matched any `Kind.USE`, so drinking water / taking a cure checked off "eat"** [`core/src/main/java/com/margins/rogue/narrative/TutorialController.java`] — narrowed to food USE via new `Supply.isFood()`; added `drinkingWaterDoesNotCheckOffEat`.
+- [x] [Review][Patch] **m2 — hide matched any adjacent wall regardless of the move direction** [`core/src/main/java/com/margins/rogue/narrative/TutorialController.java`] — renamed to `movedIntoCover` with an honest comment: only reachable on a committed move (H1 gate), spec Decision 2 adjacency; the trunk's exact side is a cosmetic simplification, not a spec requirement.
+- [x] [Review][Defer] **N1 — SCAVENGE prompt teaches "forage grass/logs/rock" but `COLLECT` only gathers water from WELL/POND/RIVER** [`core/src/main/java/com/margins/rogue/narrative/TutorialController.java`] — deferred, pre-existing prompt-vs-mechanic mismatch; only surfaced via the now-fixed H1 (a refused C no longer acks). Revisit prompt wording with Story 2.4's foray/scavenging work. → deferred-work.md
+
 ## Change Log
 
 | Date | Who | Change |
 |------|-----|--------|
 | 2026-08-08 | Create | Story 2.3 created (Status: ready-for-dev) from epics.md Story 2.3 + PRD FR-2/§4.2 + the PRD prose-review subset note + AD-15, carrying the 2.1/2.2 review lessons. Two interpretation calls resolved with Justine: the tutorial is a **passive live observer** (not a safe-pause surface — Decision 1), and **"hide" = move-into-cover** (Decision 2, no new stealth mechanic). Scope locked to the six FR-2 "opening controls"; completion exposed as a transient `isComplete()` seam for Story 2.4 (AD-6 by construction). |
 | 2026-08-08 | Dev | Implemented all 6 tasks. New `TutorialController` (passive coach — observes committed turns, writes only Aldric log lines, never suspends the loop) + authored six prompt/ack pairs. `MarginScreen`: begin-seam after the intro closes, observe-seam after `advance`, `restart()` skip. `RunState.appendMessages` javadoc names the third caller. 14 new tests (matchers, hide-into-cover, out-of-order completion, passivity pin, skip). Full suite green (253 tests, 0 failures). No new persisted field (AD-6 by construction). Status → review. |
+| 2026-08-09 | Review | 3-layer code review (Blind Hunter + Edge Case Hunter + Acceptance Auditor). H1 high (refused actions acknowledged — observe seam now gated on committed turns), M1/M2 medium, m1/m2 minor — all applied; N1 deferred. Suite 259 → 262 tests green. Status → done. |

@@ -126,6 +126,17 @@ public enum Supply {
         }
     }
 
+    /** A food provision (nourishment that is not a drink) — the tutorial's EAT matcher keys on
+     *  food USE so drinking water does not check off "eat" (review m1). */
+    public boolean isFood() {
+        switch (this) {
+            case RAW_MEAT: case HALF_ROTTEN_MEAT: case SPOILED_MEAT: case COOKED_MEAT:
+            case HONEY: case HONEYCOMB:
+                return true;
+            default: return false;
+        }
+    }
+
     /** The next food-spoilage stage this type advances to over time, or null if it resists / n/a.
      *  Cooked meat and every water type resist the spoilage ladder (FR-6). */
     public Supply spoilsTo() {

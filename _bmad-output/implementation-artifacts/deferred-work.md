@@ -211,3 +211,9 @@ diarrhea / Rotgut / Collapse) is explicit and Bloated is a Well-Fed side effect 
 
 - **Bond and disposition effects emit identical strings; disposition never names its NPC.** The controller's `bondLine` and `dispositionLine` both return "He warms to you."/"His eyes narrow." (SPD-tone placeholders, Decision 4's examples). No authored node stacks both effects today, so no collision in-game — but 2.2+ content with real NPC names will need distinct per-NPC disposition lines. [core/src/main/java/com/margins/rogue/narrative/DialogController.java]
 - **N-key smoke scene re-fires node-entry effects on re-open** — closing and pressing N again rebuilds the scene and re-fires the Bond gain, the coal gift (an infinite item source behind a debug key), and the disposition shift. Acceptable for the throwaway verification seam (Decision 8 supersedes it), but the pattern — scene entry-effects re-firing on re-entry, with `KEY_SMOKE_READ` written but never read back — must NOT carry into 2.2's real intro authoring. [core/src/main/java/com/margins/rogue/narrative/SampleDialog.java]
+
+---
+
+## Deferred from: code review of 2-3-aldrics-diegetic-tutorial (2026-08-09)
+
+- **SCAVENGE prompt teaches "forage grass/logs/rock" but `COLLECT` only gathers water from WELL/POND/RIVER.** A player pressing C in the forest (the natural reading of "forage") gets a no-turn refusal with no tutorial feedback. Only surfaced via the H1 observe-seam bug (now fixed — a refused C no longer acks SCAVENGE), so it is not blocking; reconcile the prompt wording with Story 2.4's foray/scavenging work or teach the water-collection reality. [core/src/main/java/com/margins/rogue/narrative/TutorialController.java]
