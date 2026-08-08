@@ -1,3 +1,7 @@
+---
+baseline_commit: c02770e54eb7fafb3735ec29f8da7bfd785a975e
+---
+
 # Story 2.5: Quest flags and the passive Journal
 
 Status: ready-for-dev
