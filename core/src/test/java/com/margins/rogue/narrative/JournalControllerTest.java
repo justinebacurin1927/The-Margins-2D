@@ -196,6 +196,28 @@ class JournalControllerTest {
                 "the scripted void is the top precedence (Decision 8)");
     }
 
+    @Test
+    void anUnstartedQuestWithATerminalFlagIsNotListed() {
+        // Review finding (edge+blind): the precedence branches used to run before the started
+        // guard, so a quest with a terminal flag but never started was listed as VOIDED/COMPLETED —
+        // a ghost entry for a quest the player never knew about. The precedence now only applies
+        // among STARTED quests; a never-started quest never appears (Decision 8), even terminal.
+        JournalController j = new JournalController();
+        j.register(new JournalController.QuestDefinition("giverQuest", "Giver's Errand", "fetch it", "oldfen"));
+        RunState s = state();
+        s.getFlagStore().set(JournalController.completedKey("giverQuest"), 1);
+        assertTrue(j.entries(s).isEmpty(), "a completed-but-never-started quest does not appear");
+        s.getFlagStore().set(JournalController.voidedKey("giverQuest"), 1);
+        assertTrue(j.entries(s).isEmpty(), "a voided-but-never-started quest does not appear");
+        s.getFlagStore().set(JournalController.giverDeadKey("oldfen"), 1);
+        assertTrue(j.entries(s).isEmpty(), "a dead-giver-but-never-started quest does not appear");
+
+        // Once started, the terminal flags apply with precedence again.
+        s.getFlagStore().set(JournalController.startedKey("giverQuest"), 1);
+        assertEquals(QuestStatus.VOIDED, j.entries(s).get(0).status(),
+                "after starting, the void wins (giver dead + scripted void)");
+    }
+
     // --- AD-14: the Journal is a suspended text surface ---
 
     @Test

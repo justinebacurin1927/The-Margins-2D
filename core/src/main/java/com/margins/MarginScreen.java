@@ -340,21 +340,24 @@ public class MarginScreen implements Screen {
                     || Gdx.input.isKeyJustPressed(Input.Keys.ESCAPE)) menuOpen = false;
             return;
         }
-        if (Gdx.input.isKeyJustPressed(Input.Keys.M)
-                || Gdx.input.isKeyJustPressed(Input.Keys.ESCAPE)) {
-            menuOpen = true;
-            return;
-        }
-        // Story 2.5 (AC-2): the passive Journal — a safe-pause lookup surface (AD-14). It sits AFTER
-        // the menu block so the two surfaces are mutually exclusive (menu-open swallows J; journal-open
-        // swallows M and the ESC-for-menu). While open only J/ESC route — no PlayerAction, so no turn
-        // and no survival tick. The screen never derives quest state; it renders journal.entries (AD-1).
+        // Story 2.5 (AC-2): the passive Journal — a safe-pause lookup surface (AD-14). It sits after
+        // the menu-CLOSE block but BEFORE the menu-open check, so the two surfaces are truly mutually
+        // exclusive (menu-open swallows J; journal-open swallows M and the ESC-for-menu — pressing ESC
+        // with the Journal open closes it, it never opens the menu). While open only J/ESC route (plus
+        // the dialogue-surface R-restart precedent) — no PlayerAction, so no turn and no survival tick.
+        // The screen never derives quest state; it renders journal.entries (AD-1).
         if (journal.isActive()) {
             if (down(Input.Keys.J) || down(Input.Keys.ESCAPE)) journal.close();
+            if (down(Input.Keys.R)) restart(); // a text surface can always restart (dialogue precedent)
             return;
         }
         if (down(Input.Keys.J)) {
             journal.open();
+            return;
+        }
+        if (Gdx.input.isKeyJustPressed(Input.Keys.M)
+                || Gdx.input.isKeyJustPressed(Input.Keys.ESCAPE)) {
+            menuOpen = true;
             return;
         }
         handleStatusPointer(p);
@@ -1401,6 +1404,8 @@ public class MarginScreen implements Screen {
         drawText("Previous item", right + 54, top - 14, UI_TEXT);
         drawText("E", right, top - 28, UI_ACCENT);
         drawText("Use item", right + 54, top - 28, UI_TEXT);
+        drawText("J", right, top - 42, UI_ACCENT);
+        drawText("Journal", right + 54, top - 42, UI_TEXT);
 
         fillRect(x + 12, y + 128, width - 24, 1, UI_BORDER);
         drawHeading("SURVIVAL", x + 16, y + 116, UI_MUTED);
@@ -1493,6 +1498,10 @@ public class MarginScreen implements Screen {
             drawText("No threads yet.", panelX + 12, y, UI_MUTED);
         } else {
             for (JournalController.JournalEntry e : entries) {
+                // The whole entry body (title + status + objective) is panel-bounded — an entry
+                // whose title would fall below the footer line is not started (an overflow past the
+                // panel bottom only becomes reachable once a later Epic registers more quests).
+                if (y < panelY + 24) break;
                 drawText(e.title(), panelX + 12, y, UI_ACCENT);
                 font.setColor(UI_MUTED);
                 font.draw(batch, statusLabel(e.status()), panelX + 12, y, panelW - 24, Align.right, false);
@@ -1510,13 +1519,15 @@ public class MarginScreen implements Screen {
         font.draw(batch, "[J] CLOSE", panelX + 10, panelY + 10, panelW - 20, Align.right, false);
     }
 
-    /** The Journal status label (JournalController.QuestStatus) — the passive lookup result. */
+    /** The Journal status label (JournalController.QuestStatus) — the passive lookup result.
+     *  A switch EXPRESSION over the enum: adding a status value fails the compile here instead
+     *  of silently rendering a future status as an existing one. */
     private String statusLabel(JournalController.QuestStatus s) {
-        switch (s) {
-            case ACTIVE:    return "ACTIVE";
-            case COMPLETED: return "COMPLETED";
-            default:        return "VOIDED";
-        }
+        return switch (s) {
+            case ACTIVE    -> "ACTIVE";
+            case COMPLETED -> "COMPLETED";
+            case VOIDED    -> "VOIDED";
+        };
     }
 
     private void renderGameOverPanel() {

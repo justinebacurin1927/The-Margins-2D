@@ -228,3 +228,7 @@ diarrhea / Rotgut / Collapse) is explicit and Bloated is a Well-Fed side effect 
 - **N4 — `markIdentified` on an unbound identity would silently lose the lore.** Unreachable (`TORN_PAGE` is single-identity); a comment documents the invariant. [core/src/main/java/com/margins/rogue/system/TurnEngine.java]
 - **N5 — The `isConsumedOnUse` exclusion for `TORN_PAGE` is dead code.** The read branch intercepts first; kept as documentation. [core/src/main/java/com/margins/rogue/item/Supply.java]
 - **N6 — The capture can append its beat on the same turn the player dies.** The beat is wiped by the post-death restart anyway; minor narrative ordering. [core/src/main/java/com/margins/MarginScreen.java]
+
+## Deferred from: code review of 2-5-quest-flags-and-the-passive-journal (2026-08-09)
+
+- **MED — the AD-14 safe-pause test is vacuous: no screen-level input-routing test for the Journal surface.** `openingAndClosingTheJournalTicksNothing` pins the controller contract (open/close mutates no run state) but not the screen's enforcing swallow branch, so it could not catch the HIGH input-routing bug review found (ESC/M opened the menu while the Journal was open). A screen-level Gdx input-routing test needs a headless Gdx backend or Mockito harness the repo doesn't have — the existing screen-layer test (`MarginScreenStructureLayerTest`) only exercises static pure functions. The routing defect itself is fixed and boot-verified; build the harness with the save/load or a test-infra story. [core/src/test/java/com/margins/rogue/narrative/JournalControllerTest.java]

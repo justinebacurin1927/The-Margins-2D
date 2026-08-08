@@ -66,9 +66,13 @@ public class JournalController {
     public static String giverDeadKey(String giver) { return "npc." + giver + ".dead"; }
 
     /** Add an authored quest to the catalog (the ctor seeds the production quest; tests register
-     *  synthetic quests to prove the NPC-line and void rules — Decision 6). */
+     *  synthetic quests to prove the NPC-line and void rules — Decision 6). Blank ids and
+     *  duplicate registrations are rejected — a duplicate id would render two Journal rows
+     *  deriving from the same flags. */
     public void register(QuestDefinition quest) {
-        if (quest != null && quest.id() != null) catalog.add(quest);
+        if (quest == null || quest.id() == null || quest.id().isBlank()) return;
+        if (catalog.stream().anyMatch(q -> q.id().equals(quest.id()))) return;
+        catalog.add(quest);
     }
 
     /** Open the Journal (the screen's J key). A no-op when already open. */
@@ -88,21 +92,27 @@ public class JournalController {
 
     /**
      * The passive lookup (AC-2): each catalogued quest's derived status, recomputed from the
-     * run's FlagStore every call — no quest-state held here. Precedence (Decision 8): VOIDED
-     * (scripted void, or the giver is dead — AC-1) → COMPLETED → ACTIVE (started) → unlisted
-     * (a registered-but-unstarted quest does not appear). Returns a fresh list; never null.
+     * run's FlagStore every call — no quest-state held here. Only STARTED quests appear; among
+     * them the precedence (Decision 8) is VOIDED (scripted void, or the giver is dead — AC-1)
+     * → COMPLETED → ACTIVE. A registered-but-unstarted quest never appears — even with a
+     * terminal flag set, a quest the player never knew about is no quest at all. Returns a
+     * fresh list; never null.
      */
     public List<JournalEntry> entries(RunState state) {
         List<JournalEntry> out = new ArrayList<>();
         if (state == null) return out;
         FlagStore fs = state.getFlagStore();
         for (QuestDefinition q : catalog) {
+            // Unstarted quests never appear — even with a terminal flag set (a scripted void or a
+            // dead giver on a quest the player never knew about is no quest at all). Precedence only
+            // applies among STARTED quests (Decision 8): VOIDED → COMPLETED → ACTIVE → unlisted.
+            if (fs.get(startedKey(q.id())) == 0) continue;
             if (fs.get(voidedKey(q.id())) != 0
                     || (q.giver() != null && fs.get(giverDeadKey(q.giver())) != 0)) {
                 out.add(new JournalEntry(q.id(), q.title(), q.objective(), QuestStatus.VOIDED));
             } else if (fs.get(completedKey(q.id())) != 0) {
                 out.add(new JournalEntry(q.id(), q.title(), q.objective(), QuestStatus.COMPLETED));
-            } else if (fs.get(startedKey(q.id())) != 0) {
+            } else {
                 out.add(new JournalEntry(q.id(), q.title(), q.objective(), QuestStatus.ACTIVE));
             }
         }
