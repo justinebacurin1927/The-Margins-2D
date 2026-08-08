@@ -242,9 +242,10 @@ public class RunState {
         companions.add(new Companion(spot[0], spot[1], tileMap, "galleon"));
     }
 
-    /** Walkable tile near (x,y): 4-dir adjacent first, then widening rings. */
+    /** Walkable tile near (x,y): starts a couple tiles out (his rear-guard station distance), then
+     *  widening rings. He follows to his station from there, so he needn't begin glued to the player. */
     private int[] companionSpotNear(int x, int y) {
-        for (int r = 1; r < 10; r++) {
+        for (int r = 2; r < 10; r++) {
             for (int dx = -r; dx <= r; dx++) {
                 for (int dy = -r; dy <= r; dy++) {
                     if (Math.abs(dx) + Math.abs(dy) != r) continue;

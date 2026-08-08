@@ -610,6 +610,7 @@ public class MarginScreen implements Screen {
             float cy = animatedPixelY(companionMotion, comp.getTileY());
             float grounding = structureGrounding(map, companionMotion, comp.getTileX(), comp.getTileY());
             drawAnimatedActor(COMPANION_CHARACTER, companionMotion, null, cx, cy, grounding);
+            drawCompanionHealthBar(comp, cx, cy);
         }
         float playerX = animatedPixelX(playerMotion, px);
         float playerY = animatedPixelY(playerMotion, py);
@@ -650,6 +651,14 @@ public class MarginScreen implements Screen {
             }
         }
         batch.setColor(Color.WHITE);
+    }
+
+    /** Aldric's compact health readout above his head, in a friendly BLUE (the HUD's water-blue) —
+     *  clearly an ALLY, distinct from the enemies' red bars. Drawn whenever he is visible; an empty
+     *  bar marks where he fell. */
+    private void drawCompanionHealthBar(Companion comp, float actorX, float actorY) {
+        drawBar(actorX + 2, actorY + TILE - 3, TILE - 4, 4,
+                comp.getHp() / (float) Math.max(1, comp.getMaxHp()), UI_WATER);
     }
 
     /** A compact always-visible combat readout anchored to the top of a visible enemy tile. */

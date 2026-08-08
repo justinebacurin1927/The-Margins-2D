@@ -15,31 +15,19 @@ class CompanionTest {
     }
 
     @Test
-    void greedyStepTakesTheXAxisFirst() {
+    void stepToMovesOnlyOntoWalkableTiles() {
         RogueTileMap m = openMap(10, 10);
+        m.setTile(1, 0, RogueTile.WALL); // block the first x step
         Companion c = new Companion(0, 0, m, "galleon");
-        c.followStep(3, 3);
-        assertEquals(1, c.getTileX(), "x step is tried before y");
+        c.stepTo(1, 0); // onto the wall — refused
+        assertEquals(0, c.getTileX());
         assertEquals(0, c.getTileY());
-    }
-
-    @Test
-    void followsUntilAdjacentThenStopsWithoutLandingOnTheTarget() {
-        RogueTileMap m = openMap(10, 10);
-        Companion c = new Companion(0, 0, m, "galleon");
-        int targetX = 5, targetY = 0;
-        for (int i = 0; i < 20; i++) c.followStep(targetX, targetY);
-        assertTrue(c.isAdjacentTo(targetX, targetY), "it closes the distance to adjacent");
-        assertFalse(c.getTileX() == targetX && c.getTileY() == targetY, "it never stands on the player's tile");
-    }
-
-    @Test
-    void adjacentCompanionDoesNotMove() {
-        RogueTileMap m = openMap(10, 10);
-        Companion c = new Companion(4, 0, m, "galleon");
-        c.followStep(5, 0); // already adjacent
-        assertEquals(4, c.getTileX());
-        assertEquals(0, c.getTileY());
+        c.stepTo(0, 1); // onto open floor — moves
+        assertEquals(0, c.getTileX());
+        assertEquals(1, c.getTileY());
+        c.stepTo(0, 1); // already there — no-op
+        assertEquals(0, c.getTileX());
+        assertEquals(1, c.getTileY());
     }
 
     @Test

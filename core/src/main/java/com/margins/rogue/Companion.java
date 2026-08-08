@@ -4,12 +4,13 @@ package com.margins.rogue;
  * An allied tile-actor that travels with the player (AD-10). Pure model — no
  * libGDX render types (AD-2); the screen picks the sprite. Generic by design:
  * {@code bindId} is a plain label distinguishing Erik vs Galleon for later
- * art/dialogue. Follows with a greedy one-tile step per turn, stopping once
- * adjacent (allies don't shove the player).
+ * art/dialogue.
  *
- * <p>Combat fix #1: the companion is a fighter, not a tail — he has HP and damage, strikes an
- * adjacent enemy instead of following when one is in melee range, and is a valid enemy target.
- * A fallen companion stops acting until the next run (recruitment/revival is a later story).
+ * <p>Aldric is a real agent, not a tail: he has combat stats (HP + damage), is a valid enemy
+ * target who can fall, and his behavior is driven by the AI in {@code CompanionSystem} — he
+ * patrols near the player when the area is calm and charges an alerted enemy to fight it. This
+ * class is the model; it exposes the raw one-tile move ({@link #stepTo}) and adjacency that the
+ * AI and the enemy phase use, and knows nothing of RunState.
  */
 public class Companion {
     /** Distraction uses per floor (FR-14; "2 per floor or 6-turn cooldown" — we chose per-floor). */
@@ -74,33 +75,13 @@ public class Companion {
         this.tileY = y;
     }
 
-    /**
-     * One greedy step toward the target, reusing {@link RogueEnemy#takeTurn}'s
-     * pattern — try the x step first, then the y step — only onto walkable
-     * tiles and never onto the target tile. Stops once adjacent (or already on
-     * the target) so an ally doesn't crowd the player. Deterministic; no RNG.
-     */
-    public void followStep(int targetX, int targetY) {
-        if (isAdjacentTo(targetX, targetY) || (tileX == targetX && tileY == targetY)) return;
-        int dx = Integer.compare(targetX, tileX);
-        boolean moved = false;
-        if (dx != 0) {
-            int nx = tileX + dx;
-            if (nx != targetX || tileY != targetY) { // never step onto the target tile
-                if (map.isWalkable(nx, tileY)) {
-                    tileX = nx;
-                    moved = true;
-                }
-            }
-        }
-        int dy = Integer.compare(targetY, tileY);
-        if (!moved && dy != 0) {
-            int ny = tileY + dy;
-            if (tileX != targetX || ny != targetY) {
-                if (map.isWalkable(tileX, ny)) {
-                    tileY = ny;
-                }
-            }
+    /** Move one tile if it's walkable and not the tile already standing on — the raw movement
+     *  primitive. The AI ({@link com.margins.rogue.system.CompanionSystem}) validates occupancy
+     *  and radius before calling; this checks only the map. */
+    public void stepTo(int x, int y) {
+        if ((x != tileX || y != tileY) && map.isWalkable(x, y)) {
+            tileX = x;
+            tileY = y;
         }
     }
 

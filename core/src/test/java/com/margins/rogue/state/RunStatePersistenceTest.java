@@ -322,8 +322,8 @@ class RunStatePersistenceTest {
         loaded.restoreAfterLoad(); // re-injects the transient tilemap into companions
         Companion c = loaded.getActiveCompanion();
         assertNotNull(c);
-        // followStep would NPE if the map were not re-injected — exercise it.
-        assertDoesNotThrow(() -> c.followStep(loaded.getPlayer().getTileX(), loaded.getPlayer().getTileY()));
+        // stepTo would NPE if the map were not re-injected — exercise it.
+        assertDoesNotThrow(() -> c.stepTo(loaded.getPlayer().getTileX(), loaded.getPlayer().getTileY()));
     }
 
     @Test

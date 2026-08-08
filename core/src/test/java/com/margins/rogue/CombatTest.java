@@ -23,13 +23,14 @@ import static org.junit.jupiter.api.Assertions.*;
  */
 class CombatTest {
 
-    /** A run with the player on cleared open floor and no ambient enemies — full control. */
+    /** A run with the player on cleared open floor and no ambient enemies — full control. The
+     *  clear covers the player's full patrol radius (6) plus room for regroup placement. */
     private RunState combatState() {
         RunState s = new RunState(42L);
         RogueTileMap m = s.getTileMap();
         s.getPlayer().placeAt(25, 25);
-        for (int x = 21; x <= 29; x++)
-            for (int y = 21; y <= 29; y++)
+        for (int x = 19; x <= 33; x++)
+            for (int y = 19; y <= 33; y++)
                 m.setTile(x, y, RogueTile.FLOOR);
         s.getEnemies().clear();
         return s;
@@ -128,20 +129,16 @@ class CombatTest {
     }
 
     @Test
-    void alertedEnemyChaseStopsAtTheCompanionsTile() {
-        RunState s = combatState();
-        s.getActiveCompanion().placeAt(26, 25);
-        RogueEnemy e = alerted(s, 28, 25); // two east of the player, one east of Aldric
-
-        // Turn 1: the enemy closes to one east of Aldric (27,25).
-        new TurnEngine().advance(s, PlayerAction.wait(0));
-        assertEquals(27, e.getTileX(), "turn 1: the enemy closes toward the player");
-        assertEquals(25, e.getTileY());
-
-        // Turn 2: the only remaining step is Aldric's tile — blocked. It stops, never sharing.
-        new TurnEngine().advance(s, PlayerAction.wait(0));
-        assertEquals(27, e.getTileX(), "turn 2: the enemy cannot occupy Aldric's tile");
-        assertEquals(25, e.getTileY());
+    void enemyChaseNeverStepsOntoTheCompanionsTile() {
+        RogueTileMap m = new RogueTileMap(10, 10);
+        m.fill(RogueTile.FLOOR);
+        RogueEnemy e = new RogueEnemy(5, 1, m);
+        for (int i = 0; i < 10; i++) {
+            e.takeTurn(5, 5, 5, 4); // chasing the target at (5,5); the companion holds (5,4)
+            assertFalse(e.getTileX() == 5 && e.getTileY() == 4, "it never occupies the companion's tile");
+        }
+        assertEquals(5, e.getTileX(), "it closes along the chase line...");
+        assertEquals(3, e.getTileY(), "...and stops BESIDE the companion (adjacent, never ON it)");
     }
 
     @Test
@@ -179,15 +176,15 @@ class CombatTest {
     }
 
     @Test
-    void companionStillFollowsWhenNoEnemyIsInRange() {
+    void companionRegroupsTowardThePlayerWhenNoThreatIsNear() {
         RunState s = combatState();
         Companion c = s.getActiveCompanion();
-        c.placeAt(29, 25); // east of the player, well away from the fight
-        alerted(s, 27, 27);
+        c.placeAt(32, 25); // seven east of the player — off his rear-guard station
+        // no enemies: nothing to engage, so he follows back to his station
 
         new TurnEngine().advance(s, PlayerAction.wait(0));
 
-        assertEquals(28, c.getTileX(), "an un-engaged Aldric closes the gap toward the player");
+        assertEquals(31, c.getTileX(), "an un-engaged Aldric steps toward his rear station");
         assertEquals(25, c.getTileY());
     }
 
