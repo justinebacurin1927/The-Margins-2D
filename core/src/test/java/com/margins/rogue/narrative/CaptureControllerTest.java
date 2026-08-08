@@ -95,6 +95,21 @@ class CaptureControllerTest {
     }
 
     @Test
+    void resolveNoOpsWhenTheCompanionIsAlreadyDead() {
+        RunState s = state();
+        Companion aldric = s.getActiveCompanion();
+        aldric.takeDamage(999); // Aldric falls before the tutorial completes — capture is not death (review M2)
+        assertFalse(aldric.isAlive());
+
+        new CaptureController().resolve(s);
+
+        assertEquals(0, s.getFlagStore().get(FlagStore.KEY_ALDRIC_CAPTURED), "a dead Aldric is not captured");
+        assertEquals(0, countNotes(s), "no seed planted on a corpse tile");
+        assertEquals(1, s.getMessageLog().size(), "no capture beat over a corpse");
+        assertSame(aldric, s.getActiveCompanion(), "the corpse is not removed either");
+    }
+
+    @Test
     void afterTheCaptureTheCompanionSystemsNoOpCleanly() {
         RunState s = state();
         new CaptureController().resolve(s);

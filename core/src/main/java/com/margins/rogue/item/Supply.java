@@ -188,4 +188,32 @@ public enum Supply {
     public static int count() {
         return VALUES.length;
     }
+
+    /** Whether this type may appear in the random floor scatter (review M1). Only the quest-seed
+     *  lore note (TORN_PAGE) is excluded: it must appear ONLY via its scripted capture placement,
+     *  else it leaks the east/Copper-Road lore early and duplicates the post-capture seed. */
+    public boolean isScatterable() {
+        return this != TORN_PAGE;
+    }
+
+    /** The scatterable types, precomputed once at class load for {@link #scatterableOrdinals()}. */
+    private static final Supply[] SCATTERABLE = scatterableArray();
+
+    private static Supply[] scatterableArray() {
+        Supply[] all = values();
+        int n = 0;
+        for (Supply s : all) if (s.isScatterable()) n++;
+        Supply[] out = new Supply[n];
+        int i = 0;
+        for (Supply s : all) if (s.isScatterable()) out[i++] = s;
+        return out;
+    }
+
+    /** The ordinals the floor scatter may draw (RunState.placeFloorActors) — never the quest seed.
+     *  One draw per placed item, so the seeded stream's call structure is unchanged (AD-5). */
+    public static int[] scatterableOrdinals() {
+        int[] out = new int[SCATTERABLE.length];
+        for (int i = 0; i < SCATTERABLE.length; i++) out[i] = SCATTERABLE[i].ordinal();
+        return out;
+    }
 }

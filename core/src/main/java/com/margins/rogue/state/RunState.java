@@ -162,6 +162,10 @@ public class RunState {
         // floor starts fresh; a loaded run keeps its saved floorItems (no regen).
         floorItems.clear();
         if (result.roomCenters.size() > 1) {
+            // Review M1: draw only scatterable supplies — never the quest-seed Torn Page, which
+            // must appear only via its scripted capture placement. One draw per placed item, so
+            // the seeded stream's call structure is unchanged (AD-5).
+            int[] scatter = Supply.scatterableOrdinals();
             int supplyCount = 2 + rng.nextInt(3); // 2..4
             int placed = 0, attempts = 0;
             while (placed < supplyCount && attempts < 100) {
@@ -170,7 +174,7 @@ public class RunState {
                 int ix = c[0] + rng.nextInt(3) - 1;
                 int iy = c[1] + rng.nextInt(3) - 1;
                 if (tileMap.isWalkable(ix, iy) && !(ix == avoidX && iy == avoidY)) {
-                    floorItems.add(new FloorItem(rng.nextInt(Supply.count()), 1, ix, iy));
+                    floorItems.add(new FloorItem(scatter[rng.nextInt(scatter.length)], 1, ix, iy));
                     placed++;
                 }
             }

@@ -49,11 +49,13 @@ public class CaptureController {
     }
 
     /** Resolve the capture once. A no-op when already fired, or when the party is already empty
-     *  (nothing to capture — the screen's every-frame gate stays cheap and safe). */
+     *  or Aldric is dead (review M2: capture is "not death" — a dead Aldric cannot be captured,
+     *  and the beat must not narrate a take over a corpse). The screen's every-frame gate stays
+     *  cheap and safe. */
     public void resolve(RunState state) {
         if (resolved) return;
         Companion aldric = state.getActiveCompanion();
-        if (aldric == null) return;
+        if (aldric == null || !aldric.isAlive()) return;
         resolved = true;
 
         int x = aldric.getTileX(), y = aldric.getTileY();

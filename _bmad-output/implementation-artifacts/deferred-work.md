@@ -217,3 +217,14 @@ diarrhea / Rotgut / Collapse) is explicit and Bloated is a Well-Fed side effect 
 ## Deferred from: code review of 2-3-aldrics-diegetic-tutorial (2026-08-09)
 
 - **SCAVENGE prompt teaches "forage grass/logs/rock" but `COLLECT` only gathers water from WELL/POND/RIVER.** A player pressing C in the forest (the natural reading of "forage") gets a no-turn refusal with no tutorial feedback. Only surfaced via the H1 observe-seam bug (now fixed — a refused C no longer acks SCAVENGE), so it is not blocking; reconcile the prompt wording with Story 2.4's foray/scavenging work or teach the water-collection reality. [core/src/main/java/com/margins/rogue/narrative/TutorialController.java]
+
+---
+
+## Deferred from: code review of 2-4-aldrics-capture-and-the-rescue-seed (2026-08-09)
+
+- **N1 — A reloaded run re-arms the tutorial and can re-fire the capture.** Matches the story's deferred O6 save/load note (documented, not built); the capture stays one-shot per session. Record for the save/load story. [core/src/main/java/com/margins/MarginScreen.java]
+- **N2 — `isResolved()` reads false after a post-capture reload (flag set, party empty).** Currently unused; the 2.5 Journal story should derive capture state from the persisted `aldric.captured` flag instead. [core/src/main/java/com/margins/rogue/narrative/CaptureController.java]
+- **N3 — The reveal line is redundant (`"Torn Page: Chaser's order: …"`).** Cosmetic; the spec left the phrasing open. Tune in the 2.5 content pass. [core/src/main/java/com/margins/rogue/system/TurnEngine.java]
+- **N4 — `markIdentified` on an unbound identity would silently lose the lore.** Unreachable (`TORN_PAGE` is single-identity); a comment documents the invariant. [core/src/main/java/com/margins/rogue/system/TurnEngine.java]
+- **N5 — The `isConsumedOnUse` exclusion for `TORN_PAGE` is dead code.** The read branch intercepts first; kept as documentation. [core/src/main/java/com/margins/rogue/item/Supply.java]
+- **N6 — The capture can append its beat on the same turn the player dies.** The beat is wiped by the post-death restart anyway; minor narrative ordering. [core/src/main/java/com/margins/MarginScreen.java]

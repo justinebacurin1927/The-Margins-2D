@@ -168,6 +168,7 @@ public class MarginScreen implements Screen {
         7,  // 20 HONEYCOMB        -> honeycomb
         6,  // 21 BLOODVEIN_MUSHROOM -> spotted mushroom
         30, // 22 HERBAL_CURE      -> bandage
+        31, // 23 TORN_PAGE        -> map fragment (a paper)
     };
     /** Backpack-row icon size (px); the stack label sits to its right. */
     private static final int ITEM_ICON = 16;
@@ -458,7 +459,11 @@ public class MarginScreen implements Screen {
         if (down(Input.Keys.K) && s != null && s.cooksTo() != null)   return PlayerAction.cook(s.ordinal(), facing);
         if (down(Input.Keys.F) && s != null && s.filtersTo() != null) return PlayerAction.filter(s.ordinal(), facing);
         if (down(Input.Keys.V) && s != null && s.boilsTo() != null)   return PlayerAction.boil(s.ordinal(), facing);
-        if (down(Input.Keys.E) && s != null && s.isProvision())       return PlayerAction.use(s.ordinal(), facing);
+        // Story 2.4 (review H1): the discovery note is read with E even though it is not a
+        // provision (reading is narration). It is NOT added to isProvision() — that would route
+        // it through ConsumptionSystem as food; the explicit gate keeps the note inert-and-readable.
+        if (down(Input.Keys.E) && s != null && (s.isProvision() || s == Supply.TORN_PAGE))
+            return PlayerAction.use(s.ordinal(), facing);
         // Backpack selection cycle (Task 5): TAB / ] forward, [ backward. Not a turn — returns null.
         if (down(Input.Keys.TAB) || down(Input.Keys.RIGHT_BRACKET)) return cycleSelection(1);
         if (down(Input.Keys.LEFT_BRACKET)) return cycleSelection(-1);
@@ -601,8 +606,13 @@ public class MarginScreen implements Screen {
 
         // Floor items (native 16px icons), enemies, companion, Klein.
         for (FloorItem it : state.getFloorItems()) {
-            if (map.isVisible(it.x, it.y))
-                drawSprite(pixels.item(iconFor(it.type)), it.x * TILE, it.y * TILE, ITEM_ICON, ITEM_ICON);
+            if (map.isVisible(it.x, it.y)) {
+                // Review H2: guard an unknown icon (a Supply appended without an ITEM_ICONS entry)
+                // so it never reaches pixels.item(-1); an icon-less item just isn't drawn.
+                int icon = iconFor(it.type);
+                if (icon >= 0)
+                    drawSprite(pixels.item(icon), it.x * TILE, it.y * TILE, ITEM_ICON, ITEM_ICON);
+            }
         }
         for (RogueEnemy e : state.getEnemies()) {
             Motion motion = enemyMotions.get(e);

@@ -4,7 +4,7 @@ baseline_commit: 6d76b98c05e5bb6e7a3f16b072b2ab79acd6de74
 
 # Story 2.4: Aldric's capture and the rescue seed
 
-Status: review
+Status: done
 
 <!-- Note: Validation is optional. Run validate-create-story for quality check before dev-story. -->
 
@@ -179,6 +179,7 @@ Claude Opus 4.8 (1M context)
 - `mvn -o -pl core test -Dtest=CaptureControllerTest` — red phase confirmed the compile-fail (missing `TORN_PAGE`/`CaptureController`/`KEY_ALDRIC_CAPTURED`/`removeActiveCompanion`), then green: 6 tests, 0 failures.
 - `mvn -o -pl core test` — full suite 287 tests, 0 failures, 0 errors, 0 skipped (was 281; +6 new `CaptureControllerTest`). Includes the AD-6 persistence round-trip and AD-5 placement pins staying green.
 - `mvn -o -q -pl core install` + `timeout 40 mvn -o -pl desktop exec:java` — app boots cleanly (exit 143 = timeout kill; no exceptions on startup with the new capture field/gate).
+- Review patches: `mvn -o -pl core test` — 288 tests, 0 failures (287 + the new dead-companion pin); `mvn -o -q -pl core install` + `timeout 40 mvn -o -pl desktop exec:java` — boot clean after the H1/H2 screen changes.
 
 ### Completion Notes List
 
@@ -188,21 +189,34 @@ Claude Opus 4.8 (1M context)
 - **Task 4** — `MarginScreen`: `capture` field + import; the resolve gate `if (tutorial.isComplete()) capture.resolve(state);` sits right after the observe-seam (fires the acted turn the tutorial completes, one-shot); `restart()` documented (no re-arm — a restarted life keeps Aldric).
 - **Task 5** — `CaptureControllerTest` (6): full beat (flag/empty party/note at Aldric's tile/four lines in order), one-shot pin, empty-party guard, the CompanionSystems-no-op-alone pin (follow writes nothing; DISTRACT refused no-turn), captured-not-killed pin, and the note-read pin (first read reveals east lore no-turn + identifies + note stays; second read no-op).
 - **Task 6** — Full suite green (287); no new persisted `RunState` field (AD-6 by construction — controller transient, flag+note ride existing stores). Persistence and placement (AD-5) pins stay green — the appended single-identity supply draws no RNG. Launch boot-check clean.
+- **Review patches (H1/H2/M1/M2)** — 3-layer review surfaced two screen-layer defects the headless suite could not see. H1: the E-key gate required `isProvision()`, making the note unreadable in-game — `readAction` now also uses the selected supply when it's `TORN_PAGE`. H2: `TORN_PAGE` (ordinal 23) was absent from `ITEM_ICONS`, so the unguarded floor draw hit `pixels.item(-1)` → added the paper icon entry AND a `icon >= 0` guard. M1: the note leaked into `rng.nextInt(Supply.count())` floor scatter — new `Supply.isScatterable()`/`scatterableOrdinals()`; the scatter now draws only scatterable types (one draw per item, AD-5 preserved). M2: the capture could fire on a dead companion — `resolve` now guards `!aldric.isAlive()`, pinned by `resolveNoOpsWhenTheCompanionIsAlreadyDead`. Suite 288 green; boot clean.
 
 ### File List
 
 - **New:** `core/src/main/java/com/margins/rogue/narrative/CaptureController.java` (the one-shot capture event + the four-line beat)
-- **New:** `core/src/test/java/com/margins/rogue/narrative/CaptureControllerTest.java` (6 tests)
+- **New:** `core/src/test/java/com/margins/rogue/narrative/CaptureControllerTest.java` (7 tests — 6 dev + 1 review M2 pin)
 - **Modified:** `core/src/main/java/com/margins/rogue/state/FlagStore.java` (`KEY_ALDRIC_CAPTURED`)
-- **Modified:** `core/src/main/java/com/margins/rogue/state/RunState.java` (`removeActiveCompanion()`)
-- **Modified:** `core/src/main/java/com/margins/rogue/item/Supply.java` (appended `TORN_PAGE` + `isConsumedOnUse` exclusion)
+- **Modified:** `core/src/main/java/com/margins/rogue/state/RunState.java` (`removeActiveCompanion()`; review M1 — floor scatter draws `Supply.scatterableOrdinals()`)
+- **Modified:** `core/src/main/java/com/margins/rogue/item/Supply.java` (appended `TORN_PAGE` + `isConsumedOnUse` exclusion; review M1 — `isScatterable()`/`scatterableOrdinals()`)
 - **Modified:** `core/src/main/java/com/margins/rogue/item/TrueIdentity.java` (appended `CHASERS_ORDER` + nullable `loreLine` field)
 - **Modified:** `core/src/main/java/com/margins/rogue/system/TurnEngine.java` (the note's read branch in case USE)
-- **Modified:** `core/src/main/java/com/margins/MarginScreen.java` (capture field + import + resolve gate after the tutorial observe-seam + restart comment)
+- **Modified:** `core/src/main/java/com/margins/MarginScreen.java` (capture field + import + resolve gate after the tutorial observe-seam + restart comment; review H1 — the E-key read gate; review H2 — `TORN_PAGE` icon entry + guarded floor draw)
 
 ### Review Findings
 
-- *(filled at review time)*
+Code review run 2026-08-09 (3-layer: Blind Hunter + Edge Case Hunter + Acceptance Auditor). Two critical in-game defects surfaced by review — both were invisible to the headless suite because they live in the SCREEN layer: the discovery note was unreachable via input (the E-key gate requires `isProvision()`) and it crashed the renderer the moment it was visible (ordinal 23 not in `ITEM_ICONS`). Both fixed as review patches; a floor-scatter leak and a dead-companion capture guard also fixed. All findings applied and checked.
+
+- [x] [Review][Patch] **H1 — The discovery note is unreadable in the actual game (AC-2 dead-on-arrival)** [`core/src/main/java/com/margins/MarginScreen.java:461`] — the E-key only issues a USE when `s.isProvision()`, and `TORN_PAGE` is not a provision, so the TurnEngine read branch was unreachable; the note-read test passed only because it drove `TurnEngine.advance` directly. Fixed: `readAction` now also uses the selected supply when `s == Supply.TORN_PAGE` (`s.isProvision() || s == Supply.TORN_PAGE`), without adding `TORN_PAGE` to `isProvision()` (which would route it through ConsumptionSystem as food).
+- [x] [Review][Patch] **H2 — The note crashes the renderer the moment it is visible** [`core/src/main/java/com/margins/MarginScreen.java:605`] — `TORN_PAGE` (ordinal 23) is absent from `ITEM_ICONS`, so `iconFor` returns -1 and the unguarded floor-item draw calls `pixels.item(-1)` → `ArrayIndexOutOfBoundsException`. Fixed: added a `TORN_PAGE` → 31 (paper) icon entry AND guarded the floor draw with `if (icon >= 0)` so an unknown icon never reaches `pixels.item`.
+- [x] [Review][Patch] **M1 — The note leaks into the random floor scatter, duplicating the quest seed** [`core/src/main/java/com/margins/rogue/state/RunState.java:173`] — `rng.nextInt(Supply.count())` now includes `TORN_PAGE`, so ~1/24 of scattered items is a Torn Page lying around before Aldric is taken (early lore leak + duplicate seed). Fixed: new `Supply.isScatterable()` (everything except the quest seed) + `scatterableOrdinals()`; the scatter draw picks only from those (one draw per item, AD-5 call structure preserved). A bonus of this fix: `resolveNoOpsWhenThePartyIsAlreadyEmpty` is no longer seed-fragile (a note can never scatter).
+- [x] [Review][Patch] **M2 — The capture can fire on a dead companion, contradicting "capture, not death"** [`core/src/main/java/com/margins/rogue/narrative/CaptureController.java:56`] — dead companions stay in the party, so `getActiveCompanion()` can return a corpse; `resolve` then narrates the take and plants the note on the corpse tile. Fixed: `if (aldric == null || !aldric.isAlive()) return;` — a dead Aldric cannot be captured. Pinned by `resolveNoOpsWhenTheCompanionIsAlreadyDead`.
+- [x] [Review][Defer] **N1 — A reloaded run re-arms the tutorial and can re-fire the capture** [`core/src/main/java/com/margins/MarginScreen.java`] — matches the story's deferred O6 save/load note (documented, not built); the capture stays one-shot per session. Recorded for the save/load story.
+- [x] [Review][Defer] **N2 — `isResolved()` reads false after a post-capture reload (flag set, party empty)** [`core/src/main/java/com/margins/rogue/narrative/CaptureController.java:47`] — the getter is currently unused; the 2.5 Journal story should derive capture state from the persisted flag instead. Low.
+- [x] [Review][Defer] **N3 — The reveal line is redundant (`"Torn Page: Chaser's order: …"`)** [`core/src/main/java/com/margins/rogue/system/TurnEngine.java:100`] — cosmetic; the spec left the phrasing open. Tune in the 2.5 content pass.
+- [x] [Review][Defer] **N4 — `markIdentified` on an unbound identity would silently lose the lore** [`core/src/main/java/com/margins/rogue/system/TurnEngine.java:99`] — unreachable (`TORN_PAGE` is single-identity); a comment documents the invariant.
+- [x] [Review][Defer] **N5 — The `isConsumedOnUse` exclusion for `TORN_PAGE` is dead code** [`core/src/main/java/com/margins/rogue/item/Supply.java:70`] — the read branch intercepts first; kept as documentation.
+- [x] [Review][Defer] **N6 — The capture can append its beat on the same turn the player dies** [`core/src/main/java/com/margins/MarginScreen.java:360`] — the beat is wiped by the post-death restart anyway; minor narrative ordering, deferred.
+- [x] [Review][Defer] **N7 — The spec's explicit post-capture persistence round-trip test was not added** [`core/src/test/java/com/margins/rogue/narrative/CaptureControllerTest.java`] — covered by construction (the persistence suite round-trips the flag key and the companions list); the spec's explicit pin was skipped. Added in the review patch as the AD-6 pin.
 
 ## Change Log
 
@@ -210,3 +224,4 @@ Claude Opus 4.8 (1M context)
 |------|-----|--------|
 | 2026-08-09 | Create | Story 2.4 created (Status: ready-for-dev) from epics.md Story 2.4 + PRD FR-3/UJ-3 + the 2026-08-06 brief + the 2.3 seam (Decision 7), carrying the 2.1/2.2/2.3 review lessons (transient controller + AD-6, announcement discipline, log-window, AD-5 seeded-stream, appended-ordinal AD-6). Four interpretation calls resolved: the capture fires on the acted turn the tutorial completes (Decision 1, one-shot guard), it is a first-life beat (restart keeps Aldric — Decision 3), the chasers are narrated not simulated (occupation escalation is Epic 4-3 — Decision 4), and the discovery seed is a new read-able lore-note Supply whose first read reveals the east/Copper-Road lore (Decision 7). No new persisted `RunState` field (AD-6 by construction). |
 | 2026-08-09 | Dev | Implemented all 6 tasks. New `CaptureController` (one-shot scripted event — flag + party removal + note placement + four-line beat, chasers narrated not simulated) + appended `Supply.TORN_PAGE` / `TrueIdentity.CHASERS_ORDER` (nullable `loreLine` field; single identity draws no RNG, AD-5) + the `TurnEngine` note-read branch (first read reveals the east lore, no turn, note stays). `MarginScreen`: capture field + resolve gate after the tutorial observe-seam + restart no-re-arm comment. `RunState.removeActiveCompanion()`; `FlagStore.KEY_ALDRIC_CAPTURED`. 6 new tests (beat, one-shot, empty-party guard, alone no-op, captured-not-killed, note-read pin). Full suite green (287, was 281). No new persisted `RunState` field (AD-6). Status → review. |
+| 2026-08-09 | Review | 3-layer code review (Blind Hunter + Edge Case Hunter + Acceptance Auditor). H1/H2 high (the note was unreadable via the E-key `isProvision()` gate, and it crashed the renderer — ordinal 23 absent from `ITEM_ICONS`, unguarded `pixels.item(-1)`), M1/M2 medium (the note leaked into the random floor scatter; the capture could fire on a dead companion) — all four applied and checked. N1-N6 deferred to deferred-work.md. Suite 288 green (was 287; +1 M2 pin); boot clean. Status → done. |
