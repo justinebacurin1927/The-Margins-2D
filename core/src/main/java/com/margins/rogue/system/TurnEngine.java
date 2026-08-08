@@ -88,6 +88,20 @@ public class TurnEngine {
                     acted = ConsumptionSystem.consume(state, action.itemType, result.messages);
                     break;
                 }
+                // Story 2.4 (FR-3): the discovery note — Aldric's torn page. Reading it is
+                // narration: the first read reveals the east/Copper-Road lore (AC-2) and marks the
+                // type known (FR-12); later reads are a one-line no-op. It commits NO turn (like
+                // the inert-USE precedent) and is never consumed — the note stays in the backpack
+                // as the seed Story 2.5's discovery-triggered quests hook.
+                if (s == Supply.TORN_PAGE && state.getInventory().count(action.itemType) > 0) {
+                    TrueIdentity id = state.getIdentifyMap().identityOf(action.itemType);
+                    boolean wasIdentified = state.getIdentifyMap().isIdentified(action.itemType);
+                    state.getIdentifyMap().markIdentified(action.itemType);
+                    result.messages.add(!wasIdentified && id != null && id.loreLine() != null
+                            ? s.displayName() + ": " + id.loreLine()
+                            : "You've read the note.");
+                    break;
+                }
                 if (s != null && state.getInventory().count(action.itemType) > 0) {
                     TrueIdentity id = state.getIdentifyMap().identityOf(action.itemType);
                     if (id != null) {

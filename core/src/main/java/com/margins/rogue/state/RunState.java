@@ -280,6 +280,13 @@ public class RunState {
         return companions.isEmpty() ? null : companions.get(0);
     }
 
+    /** Remove the single party slot (AD-10) — Aldric's capture (Story 2.4, FR-3): he leaves by
+     *  capture, not death, so the party empties (Klein escapes alone) rather than gaining a
+     *  corpse. The flag records the fact; follow/distract no-op via their existing null-checks. */
+    public void removeActiveCompanion() {
+        if (!companions.isEmpty()) companions.remove(0);
+    }
+
     /** The finite carry container (FR-9): plain int arrays, so it saves/loads under this root for free (AD-6). */
     public Inventory getInventory() { return inventory; }
 

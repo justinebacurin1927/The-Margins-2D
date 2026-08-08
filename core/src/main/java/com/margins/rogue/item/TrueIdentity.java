@@ -47,17 +47,36 @@ public enum TrueIdentity {
     HONEY_ID("Honey")                       { public void apply(RoguePlayer p) { p.cureWithHoney(); } },
     HONEYCOMB_ID("Honeycomb")               { public void apply(RoguePlayer p) { p.cureWithHoney(); p.eat(10); } },
     BLOODVEIN_ID("Bloodvein mushroom")      { public void apply(RoguePlayer p) { p.hurtRaw(5); p.clearBloated(); } }, // 90% risk rides ConsumptionSystem's roll
-    HERBAL_CURE_ID("Herbal cure")           { public void apply(RoguePlayer p) { p.applyHerbalCure(); } };
+    HERBAL_CURE_ID("Herbal cure")           { public void apply(RoguePlayer p) { p.applyHerbalCure(); } },
+
+    // Story 2.4 discovery seed (FR-3): the identity of Aldric's torn page. Inert on use — reading
+    // is narration; its lore line (the east / Copper-Road establishment, AC-2) is revealed on the
+    // first read and the type is then known (FR-12).
+    CHASERS_ORDER("Chaser's order",
+            "Chaser's order: '…prisoners to the road-head, east along the Copper Road.'") {
+        public void apply(RoguePlayer p) { /* narration — no effect (Story 2.4) */ }
+    };
 
     private final String displayName;
+    private final String loreLine;
 
     TrueIdentity(String displayName) {
+        this(displayName, null);
+    }
+
+    TrueIdentity(String displayName, String loreLine) {
         this.displayName = displayName;
+        this.loreLine = loreLine;
     }
 
     public abstract void apply(RoguePlayer p);
 
     public String displayName() {
         return displayName;
+    }
+
+    /** The lore revealed on first read, or null for non-lore identities (Story 2.4). */
+    public String loreLine() {
+        return loreLine;
     }
 }

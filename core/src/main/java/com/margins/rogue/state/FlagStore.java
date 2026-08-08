@@ -19,6 +19,11 @@ public class FlagStore {
     /** Map key for Galleon's Bond. */
     public static final String KEY_BOND = "bond.galleon";
 
+    /** Flag: Aldric was captured after the tutorial (Story 2.4, FR-3) — the rescue thread's
+     *  run-scoped signal (recoverable later, not death). Set once by CaptureController; the
+     *  quest/Journal story (2.5) and the Act-2 rescue quest (Epic 5) read it. */
+    public static final String KEY_ALDRIC_CAPTURED = "aldric.captured";
+
     /** Stable tag carried by an honest dialogue choice → Bond +1 (FR-15). */
     public static final String BOND_TAG_HONEST = "bond.honest";
     /** Stable tag carried by a dismissive dialogue choice → Bond −1 (FR-15). */

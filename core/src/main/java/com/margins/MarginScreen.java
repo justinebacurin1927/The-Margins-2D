@@ -26,6 +26,7 @@ import com.margins.rogue.RogueTileMap;
 import com.margins.rogue.item.FloorItem;
 import com.margins.rogue.item.Inventory;
 import com.margins.rogue.item.Supply;
+import com.margins.rogue.narrative.CaptureController;
 import com.margins.rogue.narrative.CorneoIntro;
 import com.margins.rogue.narrative.DialogController;
 import com.margins.rogue.narrative.IntroController;
@@ -119,6 +120,10 @@ public class MarginScreen implements Screen {
      *  coaches the six opening controls into the log. Transient view-session state (NOT on RunState);
      *  it never suspends the turn loop. Begins when the intro closes on a fresh run; skipped on restart. */
     private final TutorialController tutorial = new TutorialController();
+    /** Story 2.4: Aldric's capture — a one-shot scripted event that resolves the moment the
+     *  tutorial completes. Transient view-session state (NOT on RunState — AD-6); the resolving
+     *  wire is the every-frame gate in handleInput (guarded, fires once per life). */
+    private final CaptureController capture = new CaptureController();
 
     private boolean gameOver = false;
     /** Pause/help surface. It is presentation-only and never advances the turn engine. */
@@ -349,6 +354,10 @@ public class MarginScreen implements Screen {
             // an empty collect, a craft without materials — commit no turn and must not be
             // acknowledged as a performed control).
             if (advanceAnimated(action)) tutorial.onAction(action, state);
+            // Story 2.4: the capture resolves the acted turn the tutorial completes (the guard
+            // makes it a safe every-frame call; it fires once and never again). If the party were
+            // somehow already empty, resolve() no-ops — nothing to capture.
+            if (tutorial.isComplete()) capture.resolve(state);
         }
     }
 
@@ -417,6 +426,8 @@ public class MarginScreen implements Screen {
         dialog.end();
         intro.end(); // close any open surface — symmetric with dialog.end() (review: keep the invariant honest)
         tutorial.skip(); // Story 2.3: a new life after death gets no coaching (Decision 6)
+        // Story 2.4 (Decision 3): the capture is NOT re-armed — a restarted life keeps Aldric.
+        // skip() clears isComplete(), so the resolve gate above cannot fire on the new life.
         state.restart();
         FovSystem.compute(state);
         clearAnimations();

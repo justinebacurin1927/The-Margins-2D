@@ -1,6 +1,10 @@
+---
+baseline_commit: 6d76b98c05e5bb6e7a3f16b072b2ab79acd6de74
+---
+
 # Story 2.4: Aldric's capture and the rescue seed
 
-Status: ready-for-dev
+Status: review
 
 <!-- Note: Validation is optional. Run validate-create-story for quality check before dev-story. -->
 
@@ -57,46 +61,46 @@ so that I feel the first loss and inherit the rescue thread (FR-3).
 
 ## Tasks / Subtasks
 
-- [ ] **Task 1 — The persisted capture state (AC: 1, 2)**
-  - [ ] `FlagStore`: add `public static final String KEY_ALDRIC_CAPTURED = "aldric.captured";` — the rescue thread's run-scoped signal, alongside `KEY_BOND` (the `flagStore` map already serializes; AD-6). A capture sets it to 1; nothing resets it within a run (only `restart()`'s fresh store clears it, AD-7).
-  - [ ] `RunState`: add a small removal method, e.g. `public void removeActiveCompanion()` — removes the single party slot (AD-10: at most one companion in MVP). Mirror the existing `spawnStartingCompanion` (the list is the party; `getActiveCompanion()` nulls when empty). Do NOT add a "captured" companion state/marker — removal IS the capture (the flag records the fact).
+- [x] **Task 1 — The persisted capture state (AC: 1, 2)**
+  - [x] `FlagStore`: add `public static final String KEY_ALDRIC_CAPTURED = "aldric.captured";` — the rescue thread's run-scoped signal, alongside `KEY_BOND` (the `flagStore` map already serializes; AD-6). A capture sets it to 1; nothing resets it within a run (only `restart()`'s fresh store clears it, AD-7).
+  - [x] `RunState`: add a small removal method, e.g. `public void removeActiveCompanion()` — removes the single party slot (AD-10: at most one companion in MVP). Mirror the existing `spawnStartingCompanion` (the list is the party; `getActiveCompanion()` nulls when empty). Do NOT add a "captured" companion state/marker — removal IS the capture (the flag records the fact).
 
-- [ ] **Task 2 — `CaptureController` (core, narrative) (AC: 1, 2)**
-  - [ ] New `com.margins.rogue.narrative.CaptureController` — pure model, no libGDX (AD-2). Transient; the only field is the one-shot `resolved` boolean (Decision 2).
-  - [ ] `resolve(RunState)`: if `resolved` or `state.getActiveCompanion() == null`, return. Otherwise, once:
+- [x] **Task 2 — `CaptureController` (core, narrative) (AC: 1, 2)**
+  - [x] New `com.margins.rogue.narrative.CaptureController` — pure model, no libGDX (AD-2). Transient; the only field is the one-shot `resolved` boolean (Decision 2).
+  - [x] `resolve(RunState)`: if `resolved` or `state.getActiveCompanion() == null`, return. Otherwise, once:
     1. Read Aldric's tile (before removal) for the note's placement.
     2. `state.getFlagStore().set(FlagStore.KEY_ALDRIC_CAPTURED, 1)` — the persisted capture (AC-1, recoverable later).
     3. `state.removeActiveCompanion()` — Klein escapes alone (AC-1); follow/distract no-op from here on (their null-checks already exist).
     4. `state.addFloorItem(Supply.TORN_PAGE.ordinal(), 1, aldricX, aldricY)` — the discovery seed (AC-2).
     5. `state.appendMessages(...)` the four Decision-5 lines in order.
-  - [ ] Author the four lines as content constants in the controller (SPD voice, one line each).
+  - [x] Author the four lines as content constants in the controller (SPD voice, one line each).
 
-- [ ] **Task 3 — The discovery note: Supply + TrueIdentity + the read branch (AC: 2)**
-  - [ ] `Supply`: append `TORN_PAGE("Torn Page", TrueIdentity.CHASERS_ORDER)` at the ENUM'S END (ordinal stability / AD-6 appended-ordinal migration). Single possible identity.
-  - [ ] `TrueIdentity`: append `CHASERS_ORDER("Chaser's order")` with an inert `apply` (it is narration, not an effect) and an authored lore line the read appends — e.g. `"'…prisoners to the road-head, east along the Copper Road.'"` (the east/Copper-Road establishment; tune the phrasing in review).
-  - [ ] `TurnEngine` USE path: add a small branch BEFORE the generic mystery-supply reveal — when the used item is `Supply.TORN_PAGE`: if not yet identified, append the note's lore line (`displayName + ": " + identity.loreLine()`, first-read reveal, and `markIdentified` so the whole type is known — FR-12); later reads append a one-line no-op ("You've read the note.") and commit NO turn — mirroring the inert-USE precedent (no `isConsumedOnUse`, no inventory change; the note stays as the 2.5 seed). Do NOT touch the `"Milek can't read it."` inert branch (pre-existing old-game line, not this story's mess).
+- [x] **Task 3 — The discovery note: Supply + TrueIdentity + the read branch (AC: 2)**
+  - [x] `Supply`: append `TORN_PAGE("Torn Page", TrueIdentity.CHASERS_ORDER)` at the ENUM'S END (ordinal stability / AD-6 appended-ordinal migration). Single possible identity.
+  - [x] `TrueIdentity`: append `CHASERS_ORDER("Chaser's order")` with an inert `apply` (it is narration, not an effect) and an authored lore line the read appends — e.g. `"'…prisoners to the road-head, east along the Copper Road.'"` (the east/Copper-Road establishment; tune the phrasing in review).
+  - [x] `TurnEngine` USE path: add a small branch BEFORE the generic mystery-supply reveal — when the used item is `Supply.TORN_PAGE`: if not yet identified, append the note's lore line (`displayName + ": " + identity.loreLine()`, first-read reveal, and `markIdentified` so the whole type is known — FR-12); later reads append a one-line no-op ("You've read the note.") and commit NO turn — mirroring the inert-USE precedent (no `isConsumedOnUse`, no inventory change; the note stays as the 2.5 seed). Do NOT touch the `"Milek can't read it."` inert branch (pre-existing old-game line, not this story's mess).
 
-- [ ] **Task 4 — Wire the capture into the screen (AC: 1, 2)**
-  - [ ] `MarginScreen`: `private final CaptureController capture = new CaptureController();` — transient view-session state, NOT on `RunState` (AD-6, Decision 6).
-  - [ ] Resolve seam (Decision 1): next to the tutorial observe-seam (after `turnEngine.advance` commits a turn and `tutorial.onAction` runs), call `if (tutorial.isComplete()) capture.resolve(state);` — the guard makes it a safe every-frame call; it fires on the turn that completes the tutorial and never again.
-  - [ ] `restart()`: NO touch (Decision 3) — the capture is not re-armed; `tutorial.skip()` already prevents the seam from firing on the new life. Document that in a one-line comment.
-  - [ ] No new render surface — the beat is ordinary log lines (AD-15); the note renders via the existing floor-item draw.
+- [x] **Task 4 — Wire the capture into the screen (AC: 1, 2)**
+  - [x] `MarginScreen`: `private final CaptureController capture = new CaptureController();` — transient view-session state, NOT on `RunState` (AD-6, Decision 6).
+  - [x] Resolve seam (Decision 1): next to the tutorial observe-seam (after `turnEngine.advance` commits a turn and `tutorial.onAction` runs), call `if (tutorial.isComplete()) capture.resolve(state);` — the guard makes it a safe every-frame call; it fires on the turn that completes the tutorial and never again.
+  - [x] `restart()`: NO touch (Decision 3) — the capture is not re-armed; `tutorial.skip()` already prevents the seam from firing on the new life. Document that in a one-line comment.
+  - [x] No new render surface — the beat is ordinary log lines (AD-15); the note renders via the existing floor-item draw.
 
-- [ ] **Task 5 — Tests: the beat, the guard, the seed, AD-6 (AC: all)**
-  - [ ] New `core/src/test/java/com/margins/rogue/narrative/CaptureControllerTest.java`:
+- [x] **Task 5 — Tests: the beat, the guard, the seed, AD-6 (AC: all)**
+  - [x] New `core/src/test/java/com/margins/rogue/narrative/CaptureControllerTest.java`:
     - `resolve` sets `flagStore.get(KEY_ALDRIC_CAPTURED) == 1`, empties the party (`getActiveCompanion() == null`), plants the `TORN_PAGE` floor item at Aldric's tile, and appends the four lines in order.
     - **One-shot pin** (Decision 2): a second `resolve` is a no-op — flag still 1, no extra floor item, no duplicate log lines.
     - **Empty-party guard**: `resolve` on a state with no companion is a no-op (nothing captured, no lines).
     - **Alone pin** (AC-1): after resolve, `CompanionSystem.follow` and the DISTRACT action no-op with the existing refusal line ("No companion to call on.") — the capture never leaves a dangling actor.
     - **No death pin** (AC-1): after resolve, Aldric is GONE from the party (removed), not a corpse — assert `getCompanions().isEmpty()` and no enemy/companion remains at his tile.
     - **Note read pin** (AC-2): picking up the note and reading it (USE via `TurnEngine`) appends the east/Copper-Road lore line, identifies the type, and costs NO turn; a second read is a no-op with no turn.
-  - [ ] **Content pin**: the four capture lines + the note's lore line cover the AC-2 establishment — grep the authored strings for east/Copper-Road coverage (or assert the lore line text).
+  - [x] **Content pin**: the four capture lines + the note's lore line cover the AC-2 establishment — grep the authored strings for east/Copper-Road coverage (or assert the lore line text).
 
-- [ ] **Task 6 — Full suite, no regressions (AC: all)**
-  - [ ] The 2.1/2.2/2.3 suites stay green (`DialogControllerTest`, `DialogueGateTest`, `DialogueEffectTest`, `DialogueSafePauseTest`, `IntroControllerTest`, `TutorialControllerTest`).
-  - [ ] `mvn -o clean install` — full suite green, no regressions in the existing 281 tests.
-  - [ ] Serialization: 2.4 adds NO new persisted `RunState` field (Decision 6 — the controller is transient; the flag + note ride existing stores). Run the persistence round-trip suite (it must stay green; the companion list and floorItems already round-trip).
-  - [ ] Note for the save/load story (deferred O6): a mid-flight save loads with the tutorial reset to not-complete, so the capture would not fire on a loaded run until re-completed — and a post-capture save loads with the flag set and Aldric gone. Document in the story's Serialization section, do not build the mechanism now.
+- [x] **Task 6 — Full suite, no regressions (AC: all)**
+  - [x] The 2.1/2.2/2.3 suites stay green (`DialogControllerTest`, `DialogueGateTest`, `DialogueEffectTest`, `DialogueSafePauseTest`, `IntroControllerTest`, `TutorialControllerTest`).
+  - [x] `mvn -o clean install` — full suite green, no regressions in the existing 281 tests.
+  - [x] Serialization: 2.4 adds NO new persisted `RunState` field (Decision 6 — the controller is transient; the flag + note ride existing stores). Run the persistence round-trip suite (it must stay green; the companion list and floorItems already round-trip).
+  - [x] Note for the save/load story (deferred O6): a mid-flight save loads with the tutorial reset to not-complete, so the capture would not fire on a loaded run until re-completed — and a post-capture save loads with the flag set and Aldric gone. Document in the story's Serialization section, do not build the mechanism now.
 
 ## Dev Notes
 
@@ -172,17 +176,29 @@ Claude Opus 4.8 (1M context)
 
 ### Debug Log References
 
-- *(filled at dev time)*
+- `mvn -o -pl core test -Dtest=CaptureControllerTest` — red phase confirmed the compile-fail (missing `TORN_PAGE`/`CaptureController`/`KEY_ALDRIC_CAPTURED`/`removeActiveCompanion`), then green: 6 tests, 0 failures.
+- `mvn -o -pl core test` — full suite 287 tests, 0 failures, 0 errors, 0 skipped (was 281; +6 new `CaptureControllerTest`). Includes the AD-6 persistence round-trip and AD-5 placement pins staying green.
+- `mvn -o -q -pl core install` + `timeout 40 mvn -o -pl desktop exec:java` — app boots cleanly (exit 143 = timeout kill; no exceptions on startup with the new capture field/gate).
 
 ### Completion Notes List
 
-- *(filled at dev time)*
+- **Task 1** — `FlagStore.KEY_ALDRIC_CAPTURED = "aldric.captured"` added beside `KEY_BOND` (the rescue thread's run-scoped signal, recoverable later — not death). `RunState.removeActiveCompanion()` empties the single party slot (AD-10) — removal IS the capture; no separate "captured" marker.
+- **Task 2** — `CaptureController` (new, `rogue/narrative`, pure model): one-shot `resolved` flag; `resolve(RunState)` no-ops when already fired OR when the party is already empty. On fire: sets the flag, `removeActiveCompanion()`, plants `TORN_PAGE` at Aldric's last tile, appends the four-line beat (`LINE_CHASE/TAKE/ALONE/NOTE`). Chasers narrated, not simulated (Decision 4).
+- **Task 3** — `Supply.TORN_PAGE("Torn Page")` appended at the enum's end (AD-6 ordinal rule) + added to the `isConsumedOnUse` exclusion. `TrueIdentity.CHASERS_ORDER("Chaser's order")` appended with an inert `apply` and a nullable `loreLine` field (new second constructor); lore: `"Chaser's order: '…prisoners to the road-head, east along the Copper Road.'"`. `TurnEngine` USE branch (before the generic reveal): first read reveals the lore + `markIdentified` (FR-12), later reads "You've read the note.", both NO turn and the note stays (the 2.5 seed).
+- **Task 4** — `MarginScreen`: `capture` field + import; the resolve gate `if (tutorial.isComplete()) capture.resolve(state);` sits right after the observe-seam (fires the acted turn the tutorial completes, one-shot); `restart()` documented (no re-arm — a restarted life keeps Aldric).
+- **Task 5** — `CaptureControllerTest` (6): full beat (flag/empty party/note at Aldric's tile/four lines in order), one-shot pin, empty-party guard, the CompanionSystems-no-op-alone pin (follow writes nothing; DISTRACT refused no-turn), captured-not-killed pin, and the note-read pin (first read reveals east lore no-turn + identifies + note stays; second read no-op).
+- **Task 6** — Full suite green (287); no new persisted `RunState` field (AD-6 by construction — controller transient, flag+note ride existing stores). Persistence and placement (AD-5) pins stay green — the appended single-identity supply draws no RNG. Launch boot-check clean.
 
 ### File List
 
-- **New:** `core/src/main/java/com/margins/rogue/narrative/CaptureController.java`
-- **New:** `core/src/test/java/com/margins/rogue/narrative/CaptureControllerTest.java`
-- **Modified:** `FlagStore.java`, `RunState.java`, `Supply.java`, `TrueIdentity.java`, `TurnEngine.java`, `MarginScreen.java` *(details at dev time)*
+- **New:** `core/src/main/java/com/margins/rogue/narrative/CaptureController.java` (the one-shot capture event + the four-line beat)
+- **New:** `core/src/test/java/com/margins/rogue/narrative/CaptureControllerTest.java` (6 tests)
+- **Modified:** `core/src/main/java/com/margins/rogue/state/FlagStore.java` (`KEY_ALDRIC_CAPTURED`)
+- **Modified:** `core/src/main/java/com/margins/rogue/state/RunState.java` (`removeActiveCompanion()`)
+- **Modified:** `core/src/main/java/com/margins/rogue/item/Supply.java` (appended `TORN_PAGE` + `isConsumedOnUse` exclusion)
+- **Modified:** `core/src/main/java/com/margins/rogue/item/TrueIdentity.java` (appended `CHASERS_ORDER` + nullable `loreLine` field)
+- **Modified:** `core/src/main/java/com/margins/rogue/system/TurnEngine.java` (the note's read branch in case USE)
+- **Modified:** `core/src/main/java/com/margins/MarginScreen.java` (capture field + import + resolve gate after the tutorial observe-seam + restart comment)
 
 ### Review Findings
 
@@ -192,4 +208,5 @@ Claude Opus 4.8 (1M context)
 
 | Date | Who | Change |
 |------|-----|--------|
-| 2026-08-09 | Create | Story 2.4 created (Status: ready-for-dev) from epics.md Story 2.4 + PRD FR-3/UJ-3 + the 2026-08-06 brief + the 2.3 seam (Decision 7), carrying the 2.1/2.2/2.3 review lessons (transient controller + AD-6, announcement discipline, log-window, AD-5 seeded-stream, appended-ordinal AD-6). Four interpretation calls resolved: the capture fires on the acted turn the tutorial completes (Decision 1, one-shot guard), it is a first-life beat (restart keeps Aldric — Decision 3), the chasers are narrated not simulated (occupation escalation is Epic 4-3 — Decision 4), and the discovery seed is a new read-able lore-note Supply whose first read reveals the east/Copper-Road lore (Decision 7). No new persisted `RunState` field (AD-6 by construction). | |
+| 2026-08-09 | Create | Story 2.4 created (Status: ready-for-dev) from epics.md Story 2.4 + PRD FR-3/UJ-3 + the 2026-08-06 brief + the 2.3 seam (Decision 7), carrying the 2.1/2.2/2.3 review lessons (transient controller + AD-6, announcement discipline, log-window, AD-5 seeded-stream, appended-ordinal AD-6). Four interpretation calls resolved: the capture fires on the acted turn the tutorial completes (Decision 1, one-shot guard), it is a first-life beat (restart keeps Aldric — Decision 3), the chasers are narrated not simulated (occupation escalation is Epic 4-3 — Decision 4), and the discovery seed is a new read-able lore-note Supply whose first read reveals the east/Copper-Road lore (Decision 7). No new persisted `RunState` field (AD-6 by construction). |
+| 2026-08-09 | Dev | Implemented all 6 tasks. New `CaptureController` (one-shot scripted event — flag + party removal + note placement + four-line beat, chasers narrated not simulated) + appended `Supply.TORN_PAGE` / `TrueIdentity.CHASERS_ORDER` (nullable `loreLine` field; single identity draws no RNG, AD-5) + the `TurnEngine` note-read branch (first read reveals the east lore, no turn, note stays). `MarginScreen`: capture field + resolve gate after the tutorial observe-seam + restart no-re-arm comment. `RunState.removeActiveCompanion()`; `FlagStore.KEY_ALDRIC_CAPTURED`. 6 new tests (beat, one-shot, empty-party guard, alone no-op, captured-not-killed, note-read pin). Full suite green (287, was 281). No new persisted `RunState` field (AD-6). Status → review. |

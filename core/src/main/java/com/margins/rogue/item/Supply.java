@@ -45,7 +45,12 @@ public enum Supply {
     HONEY("Honey", TrueIdentity.HONEY_ID),
     HONEYCOMB("Honeycomb", TrueIdentity.HONEYCOMB_ID),
     BLOODVEIN_MUSHROOM("Bloodvein Mushroom", TrueIdentity.BLOODVEIN_ID),
-    HERBAL_CURE("Herbal Cure", TrueIdentity.HERBAL_CURE_ID);
+    HERBAL_CURE("Herbal Cure", TrueIdentity.HERBAL_CURE_ID),
+
+    // Story 2.4 discovery seed (FR-3): Aldric's torn order, left where he was taken. A single-
+    // identity lore note (inert on use — reading is narration) so the H1 no-RNG-draw rule applies,
+    // and it stays in the backpack as the seed Story 2.5's discovery-triggered quests hook.
+    TORN_PAGE("Torn Page", TrueIdentity.CHASERS_ORDER);
 
     private final String displayName;
     private final TrueIdentity[] possible;
@@ -60,9 +65,10 @@ public enum Supply {
         return possible;
     }
 
-    /** Spent on use, except inert types (the Sealed Letter, and fuel/storage that aren't eaten). */
+    /** Spent on use, except inert types (the Sealed Letter, the Torn Page, and fuel/storage that
+     *  aren't eaten). */
     public boolean isConsumedOnUse() {
-        return this != SEALED_LETTER && this != COAL && this != SALT && this != WOOD;
+        return this != SEALED_LETTER && this != TORN_PAGE && this != COAL && this != SALT && this != WOOD;
     }
 
     /** The toxin track a provision carries (Story 1.7, FR-8). Mushrooms are deterministic — a
