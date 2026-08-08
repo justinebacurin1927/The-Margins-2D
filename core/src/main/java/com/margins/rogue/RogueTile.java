@@ -9,6 +9,8 @@ public class RogueTile {
     public static final int WELL = 3;
     public static final int POND = 4;
     public static final int RIVER = 5;
+    /** Structure furniture: blocks movement but not sight, unlike a wall. */
+    public static final int FURNITURE = 6;
 
     public static boolean isWalkable(int tile) {
         return tile == FLOOR || tile == DOOR || tile == WELL || tile == POND || tile == RIVER;

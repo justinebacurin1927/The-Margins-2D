@@ -83,8 +83,11 @@ class WeatherSystemTest {
             RunState probe = new RunState(seed);
             Weather c0 = probe.getWeather();
             for (int i = 0; i < 170; i++) probe.tickClock();
-            if (probe.getWeather() != c0) return new RunState(seed); // fresh, at turn 0
+            Weather c1 = probe.getWeather();
+            if (c1 == c0) continue;
+            probe.restart();
+            if (probe.getWeather() != c1) return new RunState(seed); // fresh, at turn 0
         }
-        throw new IllegalStateException("no seed in 1..4999 differs across the cycle-0 boundary");
+        throw new IllegalStateException("no seed in 1..4999 differs across the tested weather rolls");
     }
 }
