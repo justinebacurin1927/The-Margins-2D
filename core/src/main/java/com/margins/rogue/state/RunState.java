@@ -9,6 +9,7 @@ import com.margins.rogue.RogueEnemy;
 import com.margins.rogue.RoguePlayer;
 import com.margins.rogue.RogueTileMap;
 import com.margins.rogue.Weather;
+import com.margins.rogue.world.WorldSpine;
 import com.margins.rogue.item.FloorItem;
 import com.margins.rogue.item.Inventory;
 import com.margins.rogue.item.Supply;
@@ -26,8 +27,11 @@ import java.util.Random;
  */
 public class RunState {
 
-    private static final int MAP_W = 50;
-    private static final int MAP_H = 50;
+    // Story 3.1 (Decision 2): the east/west spatial spine needs a real east, so the continuous
+    // region is a ~2:1 horizontal map (west = home/border, east = the invasion). The screen
+    // camera scrolls over a 20×15-tile window, so a wider map needs no rendering change.
+    private static final int MAP_W = 96;
+    private static final int MAP_H = 48;
 
     /** Save-format version (AD-6). Bumped when the persisted shape changes incompatibly. */
     public static final int SAVE_VERSION = 1;
@@ -140,14 +144,18 @@ public class RunState {
     /**
      * Build the region's enemies and scattered supplies, avoiding the
      * given tile (the player's). Extracted from {@link #generateFloor} so
-     * actor placement stays separable from map generation.
+     * actor placement stays separable from map generation. Both scale with
+     * the map's east/west spine (AC-2): danger AND loot rise east, safety lies west.
      */
     private void placeFloorActors(FloorResult result, int avoidX, int avoidY) {
+        WorldSpine spine = result.spine;
         enemies = new ArrayList<>();
         for (int i = 1; i < result.roomCenters.size(); i++) {
             int cx = result.roomCenters.get(i)[0];
             int cy = result.roomCenters.get(i)[1];
-            int count = 1 + rng.nextInt(2);
+            // The enemy COUNT is a deterministic step of the region's eastness (Decision 4) — no
+            // rng in the decision, only per-enemy position draws touch the seeded stream (AD-5).
+            int count = enemyCountFor(spine.eastness(cx));
             for (int e = 0; e < count; e++) {
                 int ex = cx + rng.nextInt(3) - 1;
                 int ey = cy + rng.nextInt(3) - 1;
@@ -157,28 +165,45 @@ public class RunState {
             }
         }
 
-        // Scatter a few supplies for this floor, drawn from the seeded RNG so a
-        // seed reproduces the floor's items (AD-5). Cleared here so each generated
-        // floor starts fresh; a loaded run keeps its saved floorItems (no regen).
+        // Scatter supplies weighted eastward, drawn from the seeded RNG so a seed reproduces the
+        // floor's items (AD-5). Cleared here so each generated floor starts fresh; a loaded run
+        // keeps its saved floorItems (no regen).
         floorItems.clear();
         if (result.roomCenters.size() > 1) {
             // Review M1: draw only scatterable supplies — never the quest-seed Torn Page, which
             // must appear only via its scripted capture placement. One draw per placed item, so
             // the seeded stream's call structure is unchanged (AD-5).
             int[] scatter = Supply.scatterableOrdinals();
-            int supplyCount = 2 + rng.nextInt(3); // 2..4
-            int placed = 0, attempts = 0;
-            while (placed < supplyCount && attempts < 100) {
-                attempts++;
-                int[] c = result.roomCenters.get(1 + rng.nextInt(result.roomCenters.size() - 1));
-                int ix = c[0] + rng.nextInt(3) - 1;
-                int iy = c[1] + rng.nextInt(3) - 1;
-                if (tileMap.isWalkable(ix, iy) && !(ix == avoidX && iy == avoidY)) {
-                    floorItems.add(new FloorItem(scatter[rng.nextInt(scatter.length)], 1, ix, iy));
-                    placed++;
+            for (int i = 1; i < result.roomCenters.size(); i++) {
+                int cx = result.roomCenters.get(i)[0];
+                int cy = result.roomCenters.get(i)[1];
+                int want = supplyCountFor(spine.eastness(cx));
+                for (int k = 0; k < want; k++) {
+                    int ix = cx + rng.nextInt(3) - 1;
+                    int iy = cy + rng.nextInt(3) - 1;
+                    if (tileMap.isWalkable(ix, iy) && !(ix == avoidX && iy == avoidY)) {
+                        floorItems.add(new FloorItem(scatter[rng.nextInt(scatter.length)], 1, ix, iy));
+                    }
                 }
             }
         }
+    }
+
+    /** Enemy count per region: 0 in the safe west (near Corneo), rising to 3 in the eastern
+     *  interior — the invasion's gradient (AC-2). Pure function of eastness (Decision 4). */
+    private static int enemyCountFor(float eastness) {
+        if (eastness < 0.2f) return 0;
+        if (eastness < 0.45f) return 1;
+        if (eastness < 0.7f) return 2;
+        return 3;
+    }
+
+    /** Supply count per region: 0 in the safe west, 1 mid-map, 2 in the east — loot rises east
+     *  with the danger (AC-2). Pure function of eastness (Decision 4). */
+    private static int supplyCountFor(float eastness) {
+        if (eastness < 0.2f) return 0;
+        if (eastness < 0.5f) return 1;
+        return 2;
     }
 
     /**
