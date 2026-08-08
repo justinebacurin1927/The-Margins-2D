@@ -47,11 +47,11 @@ public class FloorGenerator {
     private static final int GRAVEYARD_H = GRAVEYARD_BODY_H + GRAVEYARD_INSET * 2;
     private static final int GRAVEYARD_GATE_X = GRAVEYARD_INSET + 4;
     /** The Corneo town plaza (the start room) — an authored 8×6 clearing on the road. */
-    private static final int TOWN_X = 12, TOWN_Y = 21, TOWN_W = 8, TOWN_H = 6;
-    /** The Old House's authored position — the Corneo outskirts, south-west of the plaza. */
-    private static final int OLD_HOUSE_X = 5, OLD_HOUSE_Y = 10;
-    /** The Graveyard's authored position — north of the plaza, toward the forest. */
-    private static final int GRAVEYARD_X = 14, GRAVEYARD_Y = 30;
+    private static final int TOWN_W = 8, TOWN_H = 6;
+    /** Home-cluster offsets from Corneo's plaza center (Decision 1 — the plaza anchors on the
+     *  spine's corneoX/corneoY; the Old House and Graveyard travel with it at fixed offsets). */
+    private static final int OLD_HOUSE_DX = -4, OLD_HOUSE_DY = -9;   // south-west of the plaza
+    private static final int GRAVEYARD_DX = 3, GRAVEYARD_DY = 10;    // north of the plaza
     /** The Watchtower's authored footprint: a solid 3×3 furniture block on the road's north shoulder. */
     private static final int TOWER_W = 3, TOWER_H = 3;
     /** The NW border crossing's authored footprint: a 3×3 clearing with a DOOR gate. */
@@ -80,9 +80,11 @@ public class FloorGenerator {
 
         // --- The authored landmark skeleton (Decision 1 — seed-independent, never varies per run).
         // The home cluster: Corneo's town plaza (the start room), the Old House, the Graveyard.
-        Room town = new Room(TOWN_X, TOWN_Y, TOWN_W, TOWN_H);
-        Room oldHouse = new Room(OLD_HOUSE_X, OLD_HOUSE_Y, OLD_HOUSE_W, OLD_HOUSE_H);
-        Room graveyard = new Room(GRAVEYARD_X, GRAVEYARD_Y, GRAVEYARD_W, GRAVEYARD_H);
+        Room town = new Room(spine.corneoX() - TOWN_W / 2, spine.corneoY() - TOWN_H / 2, TOWN_W, TOWN_H);
+        Room oldHouse = new Room(town.cx() + OLD_HOUSE_DX - OLD_HOUSE_W / 2,
+                town.cy() + OLD_HOUSE_DY - OLD_HOUSE_H / 2, OLD_HOUSE_W, OLD_HOUSE_H);
+        Room graveyard = new Room(town.cx() + GRAVEYARD_DX - GRAVEYARD_W / 2,
+                town.cy() + GRAVEYARD_DY - GRAVEYARD_H / 2, GRAVEYARD_W, GRAVEYARD_H);
         rooms.add(town);       blocked.add(town);
         rooms.add(oldHouse);   blocked.add(oldHouse);
         rooms.add(graveyard);  blocked.add(graveyard);
@@ -173,7 +175,7 @@ public class FloorGenerator {
         // town well, a roadside pond, and the river at the road's east end. All land on walkable
         // landmark tiles and draw NOTHING from `rand`, so the seeded wilderness/actor stream is
         // untouched (AD-5).
-        map.setTile(TOWN_X + 1, TOWN_Y + 1, RogueTile.WELL);   // the town well, by the plaza
+        map.setTile(town.x + 1, town.y + 1, RogueTile.WELL);   // the town well, by the plaza
         map.setTile(spine.roadEndX() - 5, spine.roadY(), RogueTile.POND);   // a roadside pond
         map.setTile(spine.roadEndX() - 2, spine.roadY(), RogueTile.RIVER);  // the road meets the river
 
@@ -389,6 +391,8 @@ public class FloorGenerator {
     /**
      * Connectivity guarantee (O4 carry): every authored landmark must be reachable from the start.
      * Any landmark a corridor missed gets a repair corridor carved from the nearest reached tile.
+     * A failed repair is a generator bug — surface it (throw) rather than ship a silently
+     * disconnected floor the 24-seed suite happens not to cover.
      */
     private static void ensureReachable(RogueTileMap map, int sx, int sy, int[][] targets) {
         boolean[][] reached = floodFillReachable(map, sx, sy);
@@ -396,6 +400,10 @@ public class FloorGenerator {
             if (reached[t[0]][t[1]]) continue;
             carvePathTo(map, reached, t[0], t[1]);
             reached = floodFillReachable(map, sx, sy);
+            if (!reached[t[0]][t[1]]) {
+                throw new IllegalStateException("connectivity repair failed: landmark (" + t[0]
+                        + "," + t[1] + ") is still unreachable after carving (O4 guarantee violated)");
+            }
         }
     }
 
@@ -405,7 +413,8 @@ public class FloorGenerator {
      * structure's walls: the search refuses to route through a structure wall, forcing the path to
      * exit a sealed structure only through its walkable door/gate/apron — and the carve converts
      * only plain WALL→FLOOR, so a landmark, a door, a structure, or a water source is never
-     * destroyed.
+     * destroyed. Furniture is refused as a route cell too: it is neither walkable nor carve-able,
+     * so a path stepping on it would leave an impassable hole.
      */
     private static void carvePathTo(RogueTileMap map, boolean[][] reached, int tx, int ty) {
         int w = map.getWidth(), h = map.getHeight();
@@ -425,15 +434,22 @@ public class FloorGenerator {
                 int nx = cur[0] + d[0], ny = cur[1] + d[1];
                 if (nx < 0 || nx >= w || ny < 0 || ny >= h) continue;
                 if (seen[nx][ny]) continue;
-                if (map.getTile(nx, ny) == RogueTile.WALL && map.getStructureTile(nx, ny) >= 0) {
+                int tile = map.getTile(nx, ny);
+                if (tile == RogueTile.WALL && map.getStructureTile(nx, ny) >= 0) {
                     continue; // never route a repair through a stamped structure's wall
+                }
+                if (tile == RogueTile.FURNITURE) {
+                    continue; // the carve converts only plain WALL→FLOOR — a furniture cell can't be opened
                 }
                 seen[nx][ny] = true;
                 parent[nx][ny] = cur;
                 q.add(new int[]{nx, ny});
             }
         }
-        if (goal == null) return; // fully enclosed — cannot happen on this open forest
+        if (goal == null) {
+            throw new IllegalStateException("carvePathTo(" + tx + "," + ty + "): the landmark is fully "
+                    + "sealed — no walkable/carveable route exists (O4 guarantee violated)");
+        }
         for (int[] cur = goal; cur != null; cur = parent[cur[0]][cur[1]]) {
             for (int dx = -1; dx <= 1; dx++) {
                 for (int dy = -1; dy <= 1; dy++) {

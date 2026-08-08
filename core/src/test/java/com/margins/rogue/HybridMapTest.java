@@ -247,8 +247,11 @@ class HybridMapTest {
     void aFiftyByFiftyEraSaveLoadsWithItsOwnDimensions() {
         // AD-6: the tilemap serializes inline with ITS dimensions — a save written before the
         // 3.1 resize carries a 50×50 tilemap and loads onto the new code unchanged (its dims come
-        // from the save, not the current MAP_W/MAP_H). Emulate by shrinking a fresh save's
-        // tilemap to the old shape.
+        // from the save, not the current MAP_W/MAP_H). Emulate by cropping a fresh save's tilemap
+        // to a CONSISTENT 50×50 shape (cols and rows both exactly 50, rows 48-49 padded) and
+        // re-homing the actors: a genuine era save could only hold tiles < 50, so drop the
+        // east-heavy actors this generation scatters past x=50 and pin that every survivor loads
+        // onto the cropped map at a walkable tile.
         JsonValue root = new JsonReader().parse(json().toJson(new RunState(42L)));
         JsonValue tm = root.get("tileMap");
         tm.remove("width");
@@ -261,8 +264,26 @@ class HybridMapTest {
             for (int x = 0; x < cols.size; x++) {
                 JsonValue row = cols.get(x);
                 while (row.size > 50) row.remove(row.size - 1);
+                if (arr.equals("explored")) {
+                    while (row.size < 50) row.addChild(new JsonValue(false));
+                } else {
+                    long pad = arr.equals("tiles") ? RogueTile.FLOOR : -1;
+                    while (row.size < 50) row.addChild(new JsonValue(pad));
+                }
             }
         }
+        JsonValue enemies = root.get("enemies");
+        for (int i = enemies.size - 1; i >= 0; i--) {
+            JsonValue e = enemies.get(i);
+            if (e.getInt("tileX", -1) >= 50 || e.getInt("tileY", -1) >= 50) enemies.remove(i);
+        }
+        JsonValue items = root.get("floorItems");
+        for (int i = items.size - 1; i >= 0; i--) {
+            JsonValue it = items.get(i);
+            if (it.getInt("x", -1) >= 50 || it.getInt("y", -1) >= 50) items.remove(i);
+        }
+        int enemyCount = enemies.size;
+        int itemCount = items.size;
 
         RunState loaded = json().fromJson(RunState.class, root.toJson(JsonWriter.OutputType.json));
         loaded.restoreAfterLoad();
@@ -272,6 +293,16 @@ class HybridMapTest {
         assertTrue(loaded.getTileMap().isWalkable(loaded.getPlayer().getTileX(),
                         loaded.getPlayer().getTileY()),
                 "restoreAfterLoad re-injects the loaded (50×50) map into the player — his tile is on it");
+        assertEquals(enemyCount, loaded.getEnemies().size(), "the surviving enemies round-trip");
+        assertEquals(itemCount, loaded.getFloorItems().size(), "the surviving supplies round-trip");
+        for (RogueEnemy e : loaded.getEnemies()) {
+            assertTrue(loaded.getTileMap().isWalkable(e.getTileX(), e.getTileY()),
+                    "enemy (" + e.getTileX() + "," + e.getTileY() + ") sits on the 50×50 map");
+        }
+        for (FloorItem it : loaded.getFloorItems()) {
+            assertTrue(loaded.getTileMap().isWalkable(it.x, it.y),
+                    "supply (" + it.x + "," + it.y + ") sits on the 50×50 map");
+        }
     }
 
     // --- AD-16 seed (Task 6): a coarse turn-cost smoke on the wider map ---

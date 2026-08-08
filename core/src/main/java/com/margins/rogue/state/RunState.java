@@ -190,18 +190,21 @@ public class RunState {
     }
 
     /** Enemy count per region: 0 in the safe west (near Corneo), rising to 3 in the eastern
-     *  interior — the invasion's gradient (AC-2). Pure function of eastness (Decision 4). */
+     *  interior — the invasion's gradient (AC-2). The safe tier includes the 0.2f boundary line
+     *  itself, so a home-cluster landmark that sits exactly on it (the Graveyard center, x=19) is
+     *  safe. Pure function of eastness (Decision 4). */
     private static int enemyCountFor(float eastness) {
-        if (eastness < 0.2f) return 0;
+        if (eastness <= 0.2f) return 0;
         if (eastness < 0.45f) return 1;
         if (eastness < 0.7f) return 2;
         return 3;
     }
 
     /** Supply count per region: 0 in the safe west, 1 mid-map, 2 in the east — loot rises east
-     *  with the danger (AC-2). Pure function of eastness (Decision 4). */
+     *  with the danger (AC-2). Same inclusive 0.2f boundary as {@link #enemyCountFor}. Pure
+     *  function of eastness (Decision 4). */
     private static int supplyCountFor(float eastness) {
-        if (eastness < 0.2f) return 0;
+        if (eastness <= 0.2f) return 0;
         if (eastness < 0.5f) return 1;
         return 2;
     }

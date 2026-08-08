@@ -4,7 +4,7 @@ baseline_commit: 1c87b7e7c304d97dd2b3166cafbbf9c1e200d19a
 
 # Story 3.1: Hybrid map generation
 
-Status: review
+Status: done
 
 ## Story
 
@@ -75,6 +75,18 @@ so that every life is a new forest on the same spatial spine (FR-9).
   - [x] **AD-16 seed:** a coarse turn-cost smoke test — N acted turns (`TurnEngine.advance`) across a few seeds resolve within a generous wall-clock bound on the wider map (the full worst-case AD-16 test with the dense eastern garrison + max party lands with Epic 4/5, per the spine's AD-16 note).
   - [x] Full suite: `mvn -o -pl core test` — the existing 299 stay green, no regressions (the 2.x narrative suites, persistence, survival, water, combat all must pass unchanged).
   - [x] Launch: `mvn -o -q -pl core install` + `timeout 40 mvn -o -pl desktop exec:java` — boot clean (the bigger map renders, the new landmark tiles draw, the camera still follows the player).
+
+### Review Findings (code review, 2026-08-09)
+
+Review layers: Acceptance Auditor (4 findings) + Edge Case Hunter (8 findings); Blind Hunter layer failed (3 attempts — 1 API error, 2 timeouts) and was not re-run.
+
+- [x] [Review][Decision] Home cluster authored with absolute tile constants, not fraction-resolved via WorldSpine — `FloorGenerator` hard-codes `TOWN_X/TOWN_Y/OLD_HOUSE_X/OLD_HOUSE_Y/GRAVEYARD_X/GRAVEYARD_Y` (lines 50-54) and never calls `spine.corneoX()/corneoY()`, so Decision 1's "survive a size change" holds for only 1 of the 4 landmark components (road/border/Watchtower consult the spine; the home cluster doesn't). At 96×48 the constants coincide with the spine by construction, so no current-behavior bug — but `WorldSpineTest` gives false confidence, and `generate(50,50)` would collapse the home cluster (town center → eastness 0.33, not ~1/6). Fix requires an anchoring choice (center vs west-edge) and a call on whether to invest now vs accept + document. — RESOLVED: town plaza anchored on `spine.corneoX()/corneoY()`, Old House/Graveyard travel at fixed offsets (identical tiles at 96×48).
+- [x] [Review][Decision] Graveyard center lands exactly on the eastness 0.2f cutoff — `GRAVEYARD.cx() = 19` and `eastness(19) = 19/95f = 0.2f` exactly (the only integer x on the 96-wide map to hit 0.2f); `enemyCountFor`/`supplyCountFor` use strict `<`, so the safe-west home structure spawns 1 enemy + 1 supply **every seed**. Fixing to `<= 0.2f` makes the home fully safe but reshuffles every seed's layout and makes the tier convention asymmetric; exempting the graveyard is a special case; or accept + document. — RESOLVED: safe tier is `<= 0.2f` (both helpers), so the Graveyard joins the enemy-free/supply-free west.
+- [x] [Review][Patch] Connectivity repair can fail silently — `ensureReachable` re-floods after `carvePathTo` but never asserts the target became reached; `carvePathTo` returns silently on `goal == null` (line 436); and the BFS treats FURNITURE/water as passable (only `WALL && structureTile >= 0` is skipped, line 428) though the carve converts only plain `WALL`→`FLOOR` — a path stepping on a FURNITURE cell leaves a hole that nobody checks. Not triggered by any current seed (24 green), but a repair failure on a future seed or map size ships a silently disconnected floor. [core/src/main/java/com/margins/rogue/FloorGenerator.java:393-446] — RESOLVED: `ensureReachable` throws if the target is still unreached after carving; `carvePathTo` throws on a fully sealed goal; FURNITURE is refused as a route cell (not walkable, not carve-able).
+- [x] [Review][Patch] 50×50-era save proof is an inconsistent emulation — `aFiftyByFiftyEraSaveLoadsWithItsOwnDimensions` shrinks the outer columns to 50 but leaves each inner row at 48 entries while metadata claims 50×50, so a load touching rows 48-49 would AIOOBE; the test asserts only the player's tile and never checks enemies/supplies at x≥50 (where the east-heavy generation puts most). A real 50×50-era save's production path is safe (dims come from the save), but the AD-6 proof is materially weaker than Task 5 describes. [core/src/test/java/com/margins/rogue/HybridMapTest.java:247-274] — RESOLVED: crops cols AND pads rows 48-49 to a consistent 50×50, re-homes the actors (drops the east-heavy x≥50 artifacts a genuine era save couldn't hold), and pins every surviving enemy/supply loads onto the cropped map at a walkable tile.
+- [x] [Review][Defer] Supply placement dropped the retry loop; `want` is a ceiling, not a count — a ±1 offset landing on a wall/structure edge silently drops the item (fewer supplies than the eastness gradient intends). Rare (room centers are walkable; offsets are interior); any fix (retry or deterministic fallback) touches the AD-5 seeded stream this story deliberately established. [core/src/main/java/com/margins/rogue/state/RunState.java:179-188] — deferred, deliberate Decision 4 tradeoff
+- [x] [Review][Defer] `eastness`/`dangerAt` unclamped for x outside `[0, width-1]` — no current call site passes out-of-bounds x (room centers are in-bounds); WorldSpine is public API for 3.2/4.3/5.7. [core/src/main/java/com/margins/rogue/world/WorldSpine.java:65-71] — deferred, no reachable call site
+- [x] [Review][Defer] O4 connectivity guarantee scoped to structure entrances, not every interior tile — the pre-existing sealed cellar nook (16,12) inside the Old House is exempt; disclosed in the dev record, and `structureOpensOntoNetwork` pins the entrance contract. [core/src/test/java/com/margins/rogue/HybridMapTest.java:169-220] — deferred, disclosed scope decision
 
 ## Dev Notes
 
@@ -175,3 +187,4 @@ Story 3.1 implemented end-to-end: the hybrid generator (authored landmark skelet
 ## Change Log
 
 - 2026-08-09 — Story 3.1 developed (dev-story): all 6 tasks implemented, 313 tests green (was 299), boot verified. Status ready-for-dev → review.
+- 2026-08-09 — Code review (Acceptance Auditor 4 + Edge Case Hunter 8; Blind Hunter layer failed after 3 attempts — 1 API error, 2 timeouts). 4 patches applied: home cluster fraction-resolved via WorldSpine (Decision 1), safe tier `<= 0.2f` (Graveyard joins the safe west), connectivity repair throws on failure (post-carve assert + FURNITURE refused in the BFS), honest 50×50-era save fixture (consistent rows + actor re-homing). 3 deferred (supply retry-loop, eastness clamp, O4 entrance scope). 313 tests green, boot verified. Status review → done.

@@ -232,3 +232,11 @@ diarrhea / Rotgut / Collapse) is explicit and Bloated is a Well-Fed side effect 
 ## Deferred from: code review of 2-5-quest-flags-and-the-passive-journal (2026-08-09)
 
 - **MED — the AD-14 safe-pause test is vacuous: no screen-level input-routing test for the Journal surface.** `openingAndClosingTheJournalTicksNothing` pins the controller contract (open/close mutates no run state) but not the screen's enforcing swallow branch, so it could not catch the HIGH input-routing bug review found (ESC/M opened the menu while the Journal was open). A screen-level Gdx input-routing test needs a headless Gdx backend or Mockito harness the repo doesn't have — the existing screen-layer test (`MarginScreenStructureLayerTest`) only exercises static pure functions. The routing defect itself is fixed and boot-verified; build the harness with the save/load or a test-infra story. [core/src/test/java/com/margins/rogue/narrative/JournalControllerTest.java]
+
+---
+
+## Deferred from: code review of 3-1-hybrid-map-generation (2026-08-09)
+
+- **Supply placement dropped the retry loop; `want` is a ceiling, not a count.** A ±1 offset landing on a wall/structure edge silently drops the item (fewer supplies than the eastness gradient intends). Rare (room centers are walkable; offsets are interior); any fix (retry or deterministic fallback) touches the AD-5 seeded stream this story deliberately established — re-visited if Epic 6's economy makes supply counts load-bearing. [core/src/main/java/com/margins/rogue/state/RunState.java:179-188]
+- **`eastness`/`dangerAt` unclamped for x outside `[0, width-1]`.** No current call site passes out-of-bounds x (room centers are in-bounds); WorldSpine is public API for 3.2/4.3/5.7. Add a clamp (or a constructor floor) when the first out-of-bounds caller appears. [core/src/main/java/com/margins/rogue/world/WorldSpine.java:65-71]
+- **O4 connectivity guarantee scoped to structure entrances, not every interior tile.** The pre-existing sealed cellar nook (16,12) inside the Old House is exempt; `structureOpensOntoNetwork` pins the entrance contract and the dev record discloses the scope. Re-visit if the Old House cellar becomes explorable content (a future structure-interior story). [core/src/test/java/com/margins/rogue/HybridMapTest.java:169-220]
