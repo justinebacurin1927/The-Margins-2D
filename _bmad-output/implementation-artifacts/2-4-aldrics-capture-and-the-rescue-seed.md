@@ -216,7 +216,7 @@ Code review run 2026-08-09 (3-layer: Blind Hunter + Edge Case Hunter + Acceptanc
 - [x] [Review][Defer] **N4 — `markIdentified` on an unbound identity would silently lose the lore** [`core/src/main/java/com/margins/rogue/system/TurnEngine.java:99`] — unreachable (`TORN_PAGE` is single-identity); a comment documents the invariant.
 - [x] [Review][Defer] **N5 — The `isConsumedOnUse` exclusion for `TORN_PAGE` is dead code** [`core/src/main/java/com/margins/rogue/item/Supply.java:70`] — the read branch intercepts first; kept as documentation.
 - [x] [Review][Defer] **N6 — The capture can append its beat on the same turn the player dies** [`core/src/main/java/com/margins/MarginScreen.java:360`] — the beat is wiped by the post-death restart anyway; minor narrative ordering, deferred.
-- [x] [Review][Defer] **N7 — The spec's explicit post-capture persistence round-trip test was not added** [`core/src/test/java/com/margins/rogue/narrative/CaptureControllerTest.java`] — covered by construction (the persistence suite round-trips the flag key and the companions list); the spec's explicit pin was skipped. Added in the review patch as the AD-6 pin.
+- [x] [Review][Defer] **N7 — The spec's explicit post-capture persistence round-trip test was not added** [`core/src/test/java/com/margins/rogue/narrative/CaptureControllerTest.java`] — covered by construction (the persistence suite round-trips the flag key and the companions list); the spec's explicit pin was skipped, deferred rather than duplicating the persistence suite's coverage.
 
 ## Change Log
 
