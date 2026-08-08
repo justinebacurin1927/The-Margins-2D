@@ -61,4 +61,28 @@ class CompanionTest {
         c.resetDistractions();
         assertEquals(Companion.MAX_DISTRACTIONS_PER_FLOOR, c.getDistractionsLeft(), "resetDistractions refills the budget");
     }
+
+    // --- combat model (fix #1): Aldric is a fighter with HP and damage, not a tail ---
+
+    @Test
+    void companionHasCombatStats() {
+        RogueTileMap m = openMap(10, 10);
+        Companion c = new Companion(0, 0, m, "galleon");
+        assertEquals(14, c.getMaxHp(), "sturdier than a soldier (8), lighter than the player (20)");
+        assertEquals(14, c.getHp(), "starts at full HP");
+        assertEquals(3, c.getDamage(), "strikes like a soldier");
+        assertTrue(c.isAlive());
+    }
+
+    @Test
+    void companionTakesDamageAndCanFall() {
+        RogueTileMap m = openMap(10, 10);
+        Companion c = new Companion(0, 0, m, "galleon");
+        assertEquals(5, c.takeDamage(5), "takeDamage reports the dealt amount");
+        assertEquals(9, c.getHp());
+        assertTrue(c.isAlive());
+        c.takeDamage(20); // overkill clamps at 0
+        assertEquals(0, c.getHp());
+        assertFalse(c.isAlive());
+    }
 }

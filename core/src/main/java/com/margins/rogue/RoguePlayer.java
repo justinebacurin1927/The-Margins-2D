@@ -9,6 +9,33 @@ public class RoguePlayer {
     public static final int NORTH = 1;
     public static final int WEST = 2;
     public static final int EAST = 3;
+    // 8-direction melee (combat fix #3): the diagonals complete the aimed-attack arc. Facing stays
+    // cardinal (movement is 4-dir); an ATTACK may aim any of the 8 via its dir.
+    public static final int SOUTHWEST = 4;
+    public static final int NORTHWEST = 5;
+    public static final int SOUTHEAST = 6;
+    public static final int NORTHEAST = 7;
+
+    /** The x offset of a direction (0-7): EAST=1, WEST=±diagonal=-1, else 0. */
+    public static int directionX(int dir) {
+        return (dir == WEST || dir == SOUTHWEST || dir == NORTHWEST) ? -1
+             : (dir == EAST || dir == SOUTHEAST || dir == NORTHEAST) ? 1 : 0;
+    }
+
+    /** The y offset of a direction (0-7): NORTH=1, SOUTH=±diagonal=-1, else 0. */
+    public static int directionY(int dir) {
+        return (dir == NORTH || dir == NORTHWEST || dir == NORTHEAST) ? 1
+             : (dir == SOUTH || dir == SOUTHWEST || dir == SOUTHEAST) ? -1 : 0;
+    }
+
+    /** The direction whose offset is (dx,dy) — the inverse of {@link #directionX}/{@link #directionY}.
+     *  -1 for the (0,0) no-direction case (the caller falls back to facing). */
+    public static int directionOf(int dx, int dy) {
+        for (int d = 0; d < 8; d++) {
+            if (directionX(d) == dx && directionY(d) == dy) return d;
+        }
+        return -1;
+    }
 
     private int tileX;
     private int tileY;

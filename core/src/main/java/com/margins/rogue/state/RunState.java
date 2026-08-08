@@ -260,6 +260,17 @@ public class RunState {
     public RoguePlayer getPlayer() { return player; }
     public List<RogueEnemy> getEnemies() { return enemies; }
 
+    /** Whether a LIVING enemy stands on (x,y) — the player-move occupancy gate (combat fix #2):
+     *  a tile held by an enemy is not a valid destination, so nobody shares a tile. Enemies only
+     *  (the companion is an ally the player may walk over); the player's own tile is a caller's
+     *  origin, never a destination here. */
+    public boolean isOccupiedByEnemy(int x, int y) {
+        for (RogueEnemy e : enemies) {
+            if (e.isAlive() && e.getTileX() == x && e.getTileY() == y) return true;
+        }
+        return false;
+    }
+
     /** The party (AD-10): at most one companion in MVP. */
     public List<Companion> getCompanions() { return companions; }
 

@@ -1,15 +1,18 @@
 package com.margins.rogue.system;
 
 import com.margins.rogue.Companion;
+import com.margins.rogue.RogueEnemy;
 import com.margins.rogue.state.RunState;
 
 import java.util.List;
 
 /**
- * Turn pipeline step (AD-4): the active companion takes one follow step toward
- * the player's current (post-move) position. Runs in the Companion+Enemy-AI
- * phase — after detection, before the enemy phase — so the ally moves as part
- * of that phase rather than being inlined into input/rendering (AD-10).
+ * Turn pipeline step (AD-4): the active companion takes its turn in the
+ * Companion+Enemy-AI phase — after detection, before the enemy phase — so the
+ * ally acts as part of that phase rather than being inlined into input/rendering
+ * (AD-10). Combat fix #1: an engaged companion FIGHTS — if an enemy is in melee
+ * range it strikes it instead of trailing the player; only an un-engaged
+ * companion takes its follow step.
  */
 public final class CompanionSystem {
     /** PRD Balance: how far a shout travels. Louder than an attack swing (4); matches enemy vision (6). */
@@ -17,10 +20,27 @@ public final class CompanionSystem {
 
     private CompanionSystem() {}
 
-    public static void follow(RunState state) {
+    /** The companion's turn: strike the adjacent enemy if one is in melee range, else follow.
+     *  Writes only the strike line (observation discipline) — a dead companion does nothing. */
+    public static void follow(RunState state, List<String> messages) {
         Companion c = state.getActiveCompanion();
-        if (c == null) return;
-        c.followStep(state.getPlayer().getTileX(), state.getPlayer().getTileY());
+        if (c == null || !c.isAlive()) return;
+        RogueEnemy target = enemyAdjacentTo(state, c);
+        if (target != null) {
+            target.takeDamage(c.getDamage());
+            messages.add("Aldric strikes for " + c.getDamage() + "!");
+        } else {
+            c.followStep(state.getPlayer().getTileX(), state.getPlayer().getTileY());
+        }
+    }
+
+    /** The living enemy standing on a tile adjacent to the companion, or null. Melee is cardinal
+     *  (same range as the enemies' own attacks — Aldric holds his ground, he doesn't chase). */
+    private static RogueEnemy enemyAdjacentTo(RunState state, Companion c) {
+        for (RogueEnemy e : state.getEnemies()) {
+            if (e.isAlive() && e.isAdjacentTo(c.getTileX(), c.getTileY())) return e;
+        }
+        return null;
     }
 
     /**

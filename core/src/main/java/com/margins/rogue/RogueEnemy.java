@@ -45,7 +45,10 @@ public class RogueEnemy {
         if (hp <= 0) alive = false;
     }
 
-    public void takeTurn(int playerX, int playerY) {
+    /** {@code blockedX/blockedY} is an actor tile this enemy may never occupy (the living
+     *  companion, or -1,-1 for none) — combat fix #2: an enemy stops short of the companion
+     *  exactly as it stops short of the player, so nobody shares a tile. */
+    public void takeTurn(int playerX, int playerY, int blockedX, int blockedY) {
         if (!alive) return;
         int dx = Integer.compare(playerX, tileX);
         int dy = Integer.compare(playerY, tileY);
@@ -53,6 +56,7 @@ public class RogueEnemy {
         if (dx != 0) {
             int nx = tileX + dx;
             if (nx == playerX && tileY == playerY) return;
+            if (nx == blockedX && tileY == blockedY) return;
             if (map.isWalkable(nx, tileY)) {
                 tileX = nx;
                 moved = true;
@@ -61,6 +65,7 @@ public class RogueEnemy {
         if (!moved && dy != 0) {
             int ny = tileY + dy;
             if (tileX == playerX && ny == playerY) return;
+            if (tileX == blockedX && ny == blockedY) return;
             if (map.isWalkable(tileX, ny)) {
                 tileY = ny;
                 moved = true;
@@ -86,13 +91,15 @@ public class RogueEnemy {
     public int getLastSeenY() { return lastSeenY; }
     public void setLastSeen(int x, int y) { this.lastSeenX = x; this.lastSeenY = y; }
 
-    /** Idle-wander for an unaware enemy: a random walkable step (or stay), never onto the player (AD-5). */
-    public void wander(Random rng, int avoidX, int avoidY) {
+    /** Idle-wander for an unaware enemy: a random walkable step (or stay), never onto the player or
+     *  the blocked actor tile (the living companion; -1,-1 for none) — AD-5 + combat fix #2. */
+    public void wander(Random rng, int avoidX, int avoidY, int blockedX, int blockedY) {
         if (!alive) return;
         int dir = rng.nextInt(WDX.length); // 4 directions + stay
         int nx = tileX + WDX[dir];
         int ny = tileY + WDY[dir];
-        if ((nx != avoidX || ny != avoidY) && map.isWalkable(nx, ny)) {
+        if ((nx != avoidX || ny != avoidY) && (nx != blockedX || ny != blockedY)
+                && map.isWalkable(nx, ny)) {
             tileX = nx;
             tileY = ny;
         }

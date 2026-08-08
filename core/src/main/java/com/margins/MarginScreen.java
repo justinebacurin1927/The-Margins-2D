@@ -428,11 +428,14 @@ public class MarginScreen implements Screen {
     }
 
     private PlayerAction readAction(int facing) {
+        // Q first: the aimed melee (combat fix #3). Q alone swings at facing; Q while a direction
+        // is HELD aims that tile (all 8 directions — diagonals included). Checked before the move
+        // keys so a Q+W same-frame press reads as an aimed attack, not a move.
+        if (down(Input.Keys.Q))     return PlayerAction.attack(attackDirection(facing));
         if (down(Input.Keys.W) || down(Input.Keys.UP))    return PlayerAction.move(0, 1, 1);
         if (down(Input.Keys.S) || down(Input.Keys.DOWN))  return PlayerAction.move(0, -1, 0);
         if (down(Input.Keys.A) || down(Input.Keys.LEFT))  return PlayerAction.move(-1, 0, 2);
         if (down(Input.Keys.D) || down(Input.Keys.RIGHT)) return PlayerAction.move(1, 0, 3);
-        if (down(Input.Keys.Q))     return PlayerAction.attack(facing);
         if (down(Input.Keys.G))     return PlayerAction.pickup(facing);
         if (down(Input.Keys.SPACE)) return PlayerAction.wait(facing);
         // Story 1.5/1.6 survival crafting. Cook/Filter/Boil/Eat act on the SELECTED backpack stack
@@ -504,6 +507,18 @@ public class MarginScreen implements Screen {
     }
 
     private boolean down(int key) { return Gdx.input.isKeyJustPressed(key); }
+    private boolean held(int key) { return Gdx.input.isKeyPressed(key); }
+
+    /** The aimed direction for a Q press: the currently HELD direction key, resolved to the full
+     *  8-direction set (a held W+D aims NORTHEAST), or the facing when no direction is held. */
+    private int attackDirection(int facing) {
+        int dx = (held(Input.Keys.A) || held(Input.Keys.LEFT)) ? -1
+               : (held(Input.Keys.D) || held(Input.Keys.RIGHT)) ? 1 : 0;
+        int dy = (held(Input.Keys.W) || held(Input.Keys.UP)) ? 1
+               : (held(Input.Keys.S) || held(Input.Keys.DOWN)) ? -1 : 0;
+        if (dx == 0 && dy == 0) return facing; // Q alone: the classic front swing
+        return RoguePlayer.directionOf(dx, dy);
+    }
 
     /** Clicking a condition pins its explanation; clicking it again or elsewhere closes it. */
     private void handleStatusPointer(RoguePlayer player) {
@@ -658,9 +673,10 @@ public class MarginScreen implements Screen {
         float size = 28f;
         float x = sourceX + directionX(attack.direction) * TILE + (TILE - size) / 2f;
         float y = sourceY + directionY(attack.direction) * TILE + (TILE - size) / 2f;
-        float rotation = attack.direction == RoguePlayer.NORTH ? 90f
-                : attack.direction == RoguePlayer.SOUTH ? -90f
-                : attack.direction == RoguePlayer.WEST ? 180f : 0f;
+        // CCW angle from east (the slash base sprite is east-pointing): cardinals resolve to the
+        // exact old 0/90/180/-90 values; diagonals get their ±45/±135 (combat fix #3).
+        float rotation = (float) Math.toDegrees(
+                Math.atan2(directionY(attack.direction), directionX(attack.direction)));
         batch.setColor(Color.WHITE);
         batch.draw(pixels.meleeSlash(frame), x, y, size / 2f, size / 2f,
                 size, size, 1f, 1f, rotation);
@@ -739,7 +755,7 @@ public class MarginScreen implements Screen {
         boolean attackPose = attack != null && attack.progress() < 0.75f;
         float width = attackPose ? TILE * 1.5f : TILE;
         boolean flip = attack != null
-                ? attack.direction == RoguePlayer.WEST
+                ? directionX(attack.direction) < 0 // WEST and the western diagonals face the swing
                 : motion != null && motion.toX < motion.fromX;
         if (structureGrounding > 0f) drawActorContactShadow(x, y, structureGrounding);
         drawSprite(actorRegion(character, motion, attack), x,
@@ -782,13 +798,10 @@ public class MarginScreen implements Screen {
         batch.setColor(Color.WHITE);
     }
 
-    private static int directionX(int direction) {
-        return direction == RoguePlayer.WEST ? -1 : direction == RoguePlayer.EAST ? 1 : 0;
-    }
-
-    private static int directionY(int direction) {
-        return direction == RoguePlayer.NORTH ? 1 : direction == RoguePlayer.SOUTH ? -1 : 0;
-    }
+    // Canonical 8-dir offsets live on RoguePlayer (CombatSystem resolves attacks through the same
+    // source); the screen only renders them. Delegation keeps one mapping (combat fix #3).
+    private static int directionX(int direction) { return RoguePlayer.directionX(direction); }
+    private static int directionY(int direction) { return RoguePlayer.directionY(direction); }
 
     private static int directionToward(int fromX, int fromY, int toX, int toY) {
         if (toX < fromX) return RoguePlayer.WEST;

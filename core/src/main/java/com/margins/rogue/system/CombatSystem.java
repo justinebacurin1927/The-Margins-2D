@@ -1,5 +1,6 @@
 package com.margins.rogue.system;
 
+import com.margins.rogue.Companion;
 import com.margins.rogue.Detection;
 import com.margins.rogue.RogueEnemy;
 import com.margins.rogue.RoguePlayer;
@@ -15,11 +16,12 @@ import java.util.List;
 public final class CombatSystem {
     private CombatSystem() {}
 
-    /** Resolve the player's melee attack in the facing direction. */
+    /** Resolve the player's melee attack in the aimed direction (8-dir, combat fix #3): the tile
+     *  at {@code dir}'s offset — cardinal OR diagonal (the diagonals complete the aim arc). */
     public static void playerAttack(RunState state, int dir, List<String> messages) {
         RoguePlayer player = state.getPlayer();
-        int tx = player.getTileX() + (dir == 2 ? -1 : dir == 3 ? 1 : 0);
-        int ty = player.getTileY() + (dir == 1 ? 1 : dir == 0 ? -1 : 0);
+        int tx = player.getTileX() + RoguePlayer.directionX(dir);
+        int ty = player.getTileY() + RoguePlayer.directionY(dir);
         RogueEnemy target = enemyAt(state, tx, ty);
         if (target != null) {
             target.takeDamage(player.getStr());
@@ -36,19 +38,29 @@ public final class CombatSystem {
      * Every living enemy takes its turn. Only ALERTED enemies pursue and attack
      * (arrival-grace, attack if adjacent, else chase); UNAWARE/SUSPICIOUS enemies
      * idle-wander and never initiate combat (AD-9). Escalation is wired in 2.4.
+     *
+     * <p>Combat fix #1: an alerted enemy whose path is barred by the living companion attacks HIM
+     * instead of walking through him — Aldric is a real target and a real liability, not scenery.
+     * The player is still the prime target (an enemy adjacent to the player always strikes the
+     * player). Movement (chase/investigate/wander) treats the companion's tile as blocked along
+     * with the player's (combat fix #2): enemies cannot occupy a party member's tile.
      */
     public static void enemyPhase(RunState state, List<String> messages) {
         RoguePlayer player = state.getPlayer();
         int px = player.getTileX();
         int py = player.getTileY();
+        Companion companion = state.getActiveCompanion();
+        boolean companionPresent = companion != null && companion.isAlive();
+        int bx = companionPresent ? companion.getTileX() : -1; // -1 = no companion to block on
+        int by = companionPresent ? companion.getTileY() : -1;
         for (RogueEnemy e : state.getEnemies()) {
             if (!e.isAlive()) continue;
             if (e.getDetection() == Detection.SUSPICIOUS) {
-                e.takeTurn(e.getLastSeenX(), e.getLastSeenY()); // investigate last-seen tile, no attack
+                e.takeTurn(e.getLastSeenX(), e.getLastSeenY(), bx, by); // investigate, no attack
                 continue;
             }
             if (e.getDetection() != Detection.ALERTED) {
-                e.wander(state.rng(), px, py);
+                e.wander(state.rng(), px, py, bx, by);
                 continue;
             }
             if (e.hasJustArrived()) {
@@ -67,8 +79,13 @@ public final class CombatSystem {
                         messages.add("Hit for " + dealt + "!");
                     }
                 }
+            } else if (companionPresent && e.isAdjacentTo(bx, by)) {
+                // The enemy can't reach the player without passing Aldric — it strikes him instead.
+                int dealt = companion.takeDamage(e.getDamage());
+                messages.add("Aldric is hit for " + dealt + "!");
+                if (!companion.isAlive()) messages.add("Aldric falls!");
             } else {
-                e.takeTurn(px, py);
+                e.takeTurn(px, py, bx, by);
             }
         }
     }

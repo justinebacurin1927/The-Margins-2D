@@ -29,15 +29,21 @@ public class TurnEngine {
         // Turn-boundary cleanup: the desperate flag only lasts the turn it fired.
         state.setLastStand(false);
 
-        // Facing updates regardless of whether the action commits a turn.
-        player.setFacing(action.dir);
+        // Facing updates regardless of whether the action commits a turn — but only to a CARDINAL
+        // direction. A diagonal attack (8-dir melee) is a momentary swing, not a new facing.
+        if (action.dir <= RoguePlayer.EAST) player.setFacing(action.dir);
 
         boolean acted = false;
         switch (action.kind) {
             case MOVE:
                 int tx = player.getTileX() + action.dx;
                 int ty = player.getTileY() + action.dy;
-                if (state.getTileMap().isWalkable(tx, ty)) {
+                // Occupancy gate (combat fix #2): a tile held by an enemy is blocked like a wall —
+                // the player may never walk onto an enemy. The companion is an ally and stays
+                // walkable-over. A refused move spends no turn (AD-5), like a wall bump.
+                if (state.isOccupiedByEnemy(tx, ty)) {
+                    result.messages.add("An enemy blocks the way.");
+                } else if (state.getTileMap().isWalkable(tx, ty)) {
                     // Bloated slow: a 50% stumble that still spends the turn (spec §1).
                     if (player.isSlowed() && state.rng().nextInt(100) < 50) {
                         result.messages.add("Bloated — you stumble.");
@@ -208,7 +214,7 @@ public class TurnEngine {
             state.tickClock(); // rolls the next cycle's weather at a boundary (FR-5)
             if (state.getWeather() != before) result.messages.add(state.getWeather().onsetLine());
             DetectionSystem.update(state, result.messages); // advance awareness before enemies move (AD-4)
-            CompanionSystem.follow(state); // the ally moves in the Companion+Enemy-AI phase (AD-4, AD-10)
+            CompanionSystem.follow(state, result.messages); // the ally fights/follows in the Companion+Enemy-AI phase (AD-4, AD-10)
             CombatSystem.enemyPhase(state, result.messages);
             TorchSystem.tick(state); // burn the torch (if lit) before its light/noise step (AD-4, Story 1.6)
             LightSystem.emitNoise(state); // a lit camp/torch is audible (AD-18): enqueue before resolve

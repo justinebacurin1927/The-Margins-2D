@@ -3,7 +3,8 @@ package com.margins.rogue.system;
 /**
  * The player's intent for one turn, produced by the screen from input and
  * consumed by {@link TurnEngine}. Keeps all turn rules out of the screen (AD-2).
- * {@code dir} uses RoguePlayer facing constants (SOUTH=0, NORTH=1, WEST=2, EAST=3).
+ * {@code dir} uses RoguePlayer facing constants (SOUTH=0, NORTH=1, WEST=2, EAST=3); an ATTACK may
+ * use the full 8-direction set (0-7, diagonals included — the aimed melee, combat fix #3).
  */
 public class PlayerAction {
     public enum Kind {

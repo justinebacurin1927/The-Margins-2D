@@ -6,10 +6,21 @@ package com.margins.rogue;
  * {@code bindId} is a plain label distinguishing Erik vs Galleon for later
  * art/dialogue. Follows with a greedy one-tile step per turn, stopping once
  * adjacent (allies don't shove the player).
+ *
+ * <p>Combat fix #1: the companion is a fighter, not a tail — he has HP and damage, strikes an
+ * adjacent enemy instead of following when one is in melee range, and is a valid enemy target.
+ * A fallen companion stops acting until the next run (recruitment/revival is a later story).
  */
 public class Companion {
     /** Distraction uses per floor (FR-14; "2 per floor or 6-turn cooldown" — we chose per-floor). */
     public static final int MAX_DISTRACTIONS_PER_FLOOR = 2;
+
+    /** Combat baseline (fix #1): a bit sturdier than an enemy (8 HP), lighter than the player (20),
+     *  striking for the same as a soldier (3). Field-initialized so a save predating these fields
+     *  loads a valid starting state (AD-6) — the same pattern as the player's hunger fields. */
+    private int maxHp = 14;
+    private int hp = 14;
+    private int damage = 3;
 
     private int tileX, tileY;
     private String bindId;              // plain label for later art/dialogue ("erik"/"galleon")
@@ -28,6 +39,20 @@ public class Companion {
     public int getTileX() { return tileX; }
     public int getTileY() { return tileY; }
     public String getBindId() { return bindId; }
+
+    public int getHp() { return hp; }
+    public int getMaxHp() { return maxHp; }
+    public int getDamage() { return damage; }
+
+    /** Take combat damage (flat — Aldric has no armor/dodge). Returns the damage dealt. */
+    public int takeDamage(int amount) {
+        hp = Math.max(0, hp - Math.max(0, amount));
+        return Math.max(0, amount);
+    }
+
+    /** Whether the companion is up and acting (dead companions stop moving, attacking, and being
+     *  targeted — the screen keeps his sprite where he fell until the next run). */
+    public boolean isAlive() { return hp > 0; }
 
     /** Whether Distraction is available this floor (FR-14). */
     public boolean canDistract() { return distractionsLeft > 0; }
