@@ -30,6 +30,7 @@ import com.margins.rogue.narrative.CaptureController;
 import com.margins.rogue.narrative.CorneoIntro;
 import com.margins.rogue.narrative.DialogController;
 import com.margins.rogue.narrative.IntroController;
+import com.margins.rogue.narrative.JournalController;
 import com.margins.rogue.narrative.TutorialController;
 import com.margins.rogue.state.RunState;
 import com.margins.rogue.system.FovSystem;
@@ -124,6 +125,10 @@ public class MarginScreen implements Screen {
      *  tutorial completes. Transient view-session state (NOT on RunState — AD-6); the resolving
      *  wire is the every-frame gate in handleInput (guarded, fires once per life). */
     private final CaptureController capture = new CaptureController();
+    /** Story 2.5: the passive Journal — the quest registry + lookup surface. Transient view-session
+     *  state (NOT on RunState — AD-6); while {@code isActive()} the turn loop is suspended (AD-14 —
+     *  the quest log is a suspended text surface). Renders {@code journal.entries(state)} (AC-2). */
+    private final JournalController journal = new JournalController();
 
     private boolean gameOver = false;
     /** Pause/help surface. It is presentation-only and never advances the turn engine. */
@@ -340,6 +345,18 @@ public class MarginScreen implements Screen {
             menuOpen = true;
             return;
         }
+        // Story 2.5 (AC-2): the passive Journal — a safe-pause lookup surface (AD-14). It sits AFTER
+        // the menu block so the two surfaces are mutually exclusive (menu-open swallows J; journal-open
+        // swallows M and the ESC-for-menu). While open only J/ESC route — no PlayerAction, so no turn
+        // and no survival tick. The screen never derives quest state; it renders journal.entries (AD-1).
+        if (journal.isActive()) {
+            if (down(Input.Keys.J) || down(Input.Keys.ESCAPE)) journal.close();
+            return;
+        }
+        if (down(Input.Keys.J)) {
+            journal.open();
+            return;
+        }
         handleStatusPointer(p);
         // A turn is atomic in the model but gets a fraction of a second to read on screen. Buffering
         // another command here would skip across the current walk/strike before it was presented.
@@ -427,6 +444,7 @@ public class MarginScreen implements Screen {
         dialog.end();
         intro.end(); // close any open surface — symmetric with dialog.end() (review: keep the invariant honest)
         tutorial.skip(); // Story 2.3: a new life after death gets no coaching (Decision 6)
+        journal.close(); // Story 2.5: a new life opens no Journal surface (transient — quest state rides the reset flagStore)
         // Story 2.4 (Decision 3): the capture is NOT re-armed — a restarted life keeps Aldric.
         // skip() clears isComplete(), so the resolve gate above cannot fire on the new life.
         state.restart();
@@ -993,6 +1011,8 @@ public class MarginScreen implements Screen {
             renderTextPage(intro.getCurrent(), "[SPACE] continue   [ESC] skip");
         } else if (dialog.isActive()) {
             renderTextPage(dialog.getCurrent(), "[SPACE] continue");
+        } else if (journal.isActive()) {
+            renderJournalPage();
         } else {
             renderMessagePanel();
         }
@@ -1452,6 +1472,50 @@ public class MarginScreen implements Screen {
             font.setColor(UI_MUTED);
             font.draw(batch, footer.toUpperCase(), panelX + 10, panelY + 10,
                     panelW - 20, Align.right, false);
+        }
+    }
+
+    /** Story 2.5 (AC-2): the passive Journal page — the quest list DERIVED from FlagStore
+     *  (journal.entries(state)), rendered in the text-forward surface with a "[J] close" footer.
+     *  Pure lookup: no choices, no advancement, no new chrome (NFR-3). An empty list shows the
+     *  "no threads yet" line — the Journal knows nothing before the first quest starts (AC-2). */
+    private void renderJournalPage() {
+        fillRect(0, 0, WW, WH, new Color(0.01f, 0.015f, 0.012f, 0.58f));
+        int panelX = 18, panelY = 58, panelW = WW - 36, panelH = 210;
+        drawPanel(panelX, panelY, panelW, panelH, UI_PANEL_STRONG);
+
+        drawHeading("JOURNAL", panelX + 10, panelY + panelH - 10, UI_ACCENT);
+        fillRect(panelX + 10, panelY + panelH - 17, panelW - 20, 1, UI_BORDER);
+
+        List<JournalController.JournalEntry> entries = journal.entries(state);
+        int y = panelY + panelH - 30;
+        if (entries.isEmpty()) {
+            drawText("No threads yet.", panelX + 12, y, UI_MUTED);
+        } else {
+            for (JournalController.JournalEntry e : entries) {
+                drawText(e.title(), panelX + 12, y, UI_ACCENT);
+                font.setColor(UI_MUTED);
+                font.draw(batch, statusLabel(e.status()), panelX + 12, y, panelW - 24, Align.right, false);
+                y -= UI_LINE;
+                for (String line : wrapText(e.objective(), panelW - 24)) {
+                    if (y < panelY + 24) break;
+                    drawText(line, panelX + 16, y, UI_TEXT);
+                    y -= UI_LINE;
+                }
+                y -= UI_LINE; // gap between entries
+            }
+        }
+
+        font.setColor(UI_MUTED);
+        font.draw(batch, "[J] CLOSE", panelX + 10, panelY + 10, panelW - 20, Align.right, false);
+    }
+
+    /** The Journal status label (JournalController.QuestStatus) — the passive lookup result. */
+    private String statusLabel(JournalController.QuestStatus s) {
+        switch (s) {
+            case ACTIVE:    return "ACTIVE";
+            case COMPLETED: return "COMPLETED";
+            default:        return "VOIDED";
         }
     }
 

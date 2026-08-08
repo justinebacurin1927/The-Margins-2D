@@ -7,6 +7,8 @@ import com.margins.rogue.item.FloorItem;
 import com.margins.rogue.item.Inventory;
 import com.margins.rogue.item.Supply;
 import com.margins.rogue.item.TrueIdentity;
+import com.margins.rogue.narrative.JournalController;
+import com.margins.rogue.state.FlagStore;
 import com.margins.rogue.state.RunState;
 
 import java.util.List;
@@ -97,9 +99,22 @@ public class TurnEngine {
                     TrueIdentity id = state.getIdentifyMap().identityOf(action.itemType);
                     boolean wasIdentified = state.getIdentifyMap().isIdentified(action.itemType);
                     state.getIdentifyMap().markIdentified(action.itemType);
-                    result.messages.add(!wasIdentified && id != null && id.loreLine() != null
+                    boolean reveal = !wasIdentified && id != null && id.loreLine() != null;
+                    result.messages.add(reveal
                             ? s.displayName() + ": " + id.loreLine()
                             : "You've read the note.");
+                    // Story 2.5 (FR-19): the DISCOVERY trigger — the FIRST read, with the capture
+                    // already resolved, auto-starts the rescue thread ("The Road East") by setting
+                    // FlagStore quest state (AC-1). The capture flag is the explicit precondition
+                    // (the quest cannot exist before Aldric is taken); the note is the player-facing
+                    // trigger. Still no turn, still never consumed — the note stays the seed. The
+                    // started-flag guard keeps a hypothetical second start from re-announcing.
+                    if (reveal
+                            && state.getFlagStore().get(FlagStore.KEY_ALDRIC_CAPTURED) != 0
+                            && state.getFlagStore().get(JournalController.startedKey(JournalController.QUEST_ROAD_EAST)) == 0) {
+                        state.getFlagStore().set(JournalController.startedKey(JournalController.QUEST_ROAD_EAST), 1);
+                        result.messages.add(JournalController.LINE_STARTED);
+                    }
                     break;
                 }
                 if (s != null && state.getInventory().count(action.itemType) > 0) {

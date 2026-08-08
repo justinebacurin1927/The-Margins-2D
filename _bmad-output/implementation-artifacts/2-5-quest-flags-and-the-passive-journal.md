@@ -4,7 +4,7 @@ baseline_commit: c02770e54eb7fafb3735ec29f8da7bfd785a975e
 
 # Story 2.5: Quest flags and the passive Journal
 
-Status: ready-for-dev
+Status: review
 
 <!-- Note: Validation is optional. Run validate-create-story for quality check before dev-story. -->
 
@@ -58,27 +58,27 @@ so that the story can gate content without a rigid quest UI (FR-19).
 
 ## Tasks / Subtasks
 
-- [ ] **Task 1 — `JournalController` + `QuestDefinition` + the passive derivation (AC: 1, 2)**
-  - [ ] New `com.margins.rogue.narrative.JournalController` — pure model, no libGDX (AD-2), transient (held by the screen, Decision 1).
-  - [ ] Quest-id + key authority (Decision 2): `public static final String QUEST_ROAD_EAST = "roadeast";` and static `startedKey(String id)` = `"quest." + id + ".started"`, `completedKey(id)` = `"quest." + id + ".completed"`, `voidedKey(id)` = `"quest." + id + ".voided"`, `giverDeadKey(String giver)` = `"npc." + giver + ".dead"`. Single authority — no hand-built quest keys anywhere else.
-  - [ ] `QuestDefinition` (nested record or small model): `id`, `title`, `objective`, `giver` (nullable — null = discovery-triggered, no void-on-kill check).
-  - [ ] `JournalEntry` (nested record or small model): `id`, `title`, `objective`, `QuestStatus status` (`enum QuestStatus { ACTIVE, COMPLETED, VOIDED }`).
-  - [ ] Registry + surface lifecycle: `register(QuestDefinition)` (tests add synthetic quests; the ctor seeds the one production quest — Decision 6), `open()`, `close()`, `isActive()`.
-  - [ ] `List<JournalEntry> entries(RunState state)` — the passive derivation (Decision 8): recompute from `state.getFlagStore()` every call, hold no quest-state copy (Decision 1). Unstarted quests are not listed.
-  - [ ] The production catalog entry: `new QuestDefinition(QUEST_ROAD_EAST, "The Road East", "Aldric was taken — prisoners to the road-head, east along the Copper Road. Follow the road east.", null)`.
+- [x] **Task 1 — `JournalController` + `QuestDefinition` + the passive derivation (AC: 1, 2)**
+  - [x] New `com.margins.rogue.narrative.JournalController` — pure model, no libGDX (AD-2), transient (held by the screen, Decision 1).
+  - [x] Quest-id + key authority (Decision 2): `public static final String QUEST_ROAD_EAST = "roadeast";` and static `startedKey(String id)` = `"quest." + id + ".started"`, `completedKey(id)` = `"quest." + id + ".completed"`, `voidedKey(id)` = `"quest." + id + ".voided"`, `giverDeadKey(String giver)` = `"npc." + giver + ".dead"`. Single authority — no hand-built quest keys anywhere else.
+  - [x] `QuestDefinition` (nested record or small model): `id`, `title`, `objective`, `giver` (nullable — null = discovery-triggered, no void-on-kill check).
+  - [x] `JournalEntry` (nested record or small model): `id`, `title`, `objective`, `QuestStatus status` (`enum QuestStatus { ACTIVE, COMPLETED, VOIDED }`).
+  - [x] Registry + surface lifecycle: `register(QuestDefinition)` (tests add synthetic quests; the ctor seeds the one production quest — Decision 6), `open()`, `close()`, `isActive()`.
+  - [x] `List<JournalEntry> entries(RunState state)` — the passive derivation (Decision 8): recompute from `state.getFlagStore()` every call, hold no quest-state copy (Decision 1). Unstarted quests are not listed.
+  - [x] The production catalog entry: `new QuestDefinition(QUEST_ROAD_EAST, "The Road East", "Aldric was taken — prisoners to the road-head, east along the Copper Road. Follow the road east.", null)`.
 
-- [ ] **Task 2 — The discovery trigger: the Torn Page read starts the quest (AC: 1)**
-  - [ ] `TurnEngine` case USE, the 2.4 note-read branch: on the REVEAL read (`!wasIdentified && id != null && id.loreLine() != null`), after the lore line, add — when `state.getFlagStore().get(FlagStore.KEY_ALDRIC_CAPTURED) != 0` and the started flag is not already set — `state.getFlagStore().set(JournalController.startedKey(JournalController.QUEST_ROAD_EAST), 1)` and append one SPD observation line (e.g. `"You mark the road ahead — a new thread in the Journal."`; tune phrasing in review).
-  - [ ] The read STAYS no-turn and the note STAYS in the pack (the 2.4 contract is untouched); the second-read "You've read the note." no-op is unchanged (no re-start, no re-announce — the flag is already set and the branch is the reveal-only path).
+- [x] **Task 2 — The discovery trigger: the Torn Page read starts the quest (AC: 1)**
+  - [x] `TurnEngine` case USE, the 2.4 note-read branch: on the REVEAL read (`!wasIdentified && id != null && id.loreLine() != null`), after the lore line, add — when `state.getFlagStore().get(FlagStore.KEY_ALDRIC_CAPTURED) != 0` and the started flag is not already set — `state.getFlagStore().set(JournalController.startedKey(JournalController.QUEST_ROAD_EAST), 1)` and append one SPD observation line (e.g. `"You mark the road ahead — a new thread in the Journal."`; tune phrasing in review).
+  - [x] The read STAYS no-turn and the note STAYS in the pack (the 2.4 contract is untouched); the second-read "You've read the note." no-op is unchanged (no re-start, no re-announce — the flag is already set and the branch is the reveal-only path).
 
-- [ ] **Task 3 — The passive Journal surface (AC: 2)**
-  - [ ] `MarginScreen`: `private final JournalController journal = new JournalController();` — transient view-session state, NOT on `RunState` (Decision 1, AD-6).
-  - [ ] Safe-pause routing in `handleInput` (after the menu-open block — so the menu and the Journal are mutually exclusive: menu-open swallows J, journal-active swallows M and ESC-for-menu): while `journal.isActive()`, J or ESC → `journal.close()`, all other keys swallowed (return) — no `PlayerAction`, no turn, no tick (AD-14). The J-open check follows it: `if (down(Input.Keys.J)) { journal.open(); return; }`. J is free (key audit below).
-  - [ ] Render (Decision 7): in `renderHud`'s text-surface chain, `else if (journal.isActive()) renderJournalPage();` between the dialogue branch and the event-window fallback. `renderJournalPage()` draws the entry list (title + status + objective from `journal.entries(state)`) in the bottom-log region with a `"[J] close"` footer — no choices, no advancement, no new chrome (NFR-3).
-  - [ ] `restart()`: add `journal.close();` beside the existing `dialog.end(); intro.end(); tutorial.skip();` — a new life starts with no open surface.
+- [x] **Task 3 — The passive Journal surface (AC: 2)**
+  - [x] `MarginScreen`: `private final JournalController journal = new JournalController();` — transient view-session state, NOT on `RunState` (Decision 1, AD-6).
+  - [x] Safe-pause routing in `handleInput` (after the menu-open block — so the menu and the Journal are mutually exclusive: menu-open swallows J, journal-active swallows M and ESC-for-menu): while `journal.isActive()`, J or ESC → `journal.close()`, all other keys swallowed (return) — no `PlayerAction`, no turn, no tick (AD-14). The J-open check follows it: `if (down(Input.Keys.J)) { journal.open(); return; }`. J is free (key audit below).
+  - [x] Render (Decision 7): in `renderHud`'s text-surface chain, `else if (journal.isActive()) renderJournalPage();` between the dialogue branch and the event-window fallback. `renderJournalPage()` draws the entry list (title + status + objective from `journal.entries(state)`) in the bottom-log region with a `"[J] close"` footer — no choices, no advancement, no new chrome (NFR-3).
+  - [x] `restart()`: add `journal.close();` beside the existing `dialog.end(); intro.end(); tutorial.skip();` — a new life starts with no open surface.
 
-- [ ] **Task 4 — Tests: the mechanism and the AC pins (AC: all)**
-  - [ ] New `core/src/test/java/com/margins/rogue/narrative/JournalControllerTest.java`:
+- [x] **Task 4 — Tests: the mechanism and the AC pins (AC: all)**
+  - [x] New `core/src/test/java/com/margins/rogue/narrative/JournalControllerTest.java`:
     - **Discovery trigger (AC-1):** capture via `CaptureController` (or set the flag directly), plant + pick up the `TORN_PAGE` note, USE it through `TurnEngine` → `startedKey("roadeast")` is 1, the log has the observation line, and `journal.entries(state)` lists "The Road East" ACTIVE with the objective; the read committed NO turn (clock unchanged) and the note stays in the pack.
     - **The capture-flag precondition (2.4-flag consumption):** the note read with `aldric.captured` absent (0) does NOT start the quest (flag stays 0, `entries()` empty).
     - **Reveal-only:** a second read is the "You've read the note." no-op — no duplicate observation line, flag still 1.
@@ -87,13 +87,13 @@ so that the story can gate content without a rigid quest UI (FR-19).
     - **Void-on-giver-death (AC-1):** start a synthetic quest with a `giver`; set `npc.<giver>.dead` → `entries(state)` shows VOIDED. Also pin the `voidedKey` scripted void.
     - **Unstarted-unlisted (AC-2, Decision 8):** a registered quest with no flags does not appear in `entries()`.
     - **Safe pause (AD-14):** `open()`/`close()` change no run state — `getClockTurns()` and the four tracks unchanged (mirror the AD-5 honesty pins; the screen's swallow is the enforcing branch, the controller's contract is that opening/closing never mutates the run).
-  - [ ] **AD-6 pin:** the Journal adds NO new persisted `RunState` field (transient; quest state rides `flagStore`) — assert a save/load round-trip keeps the started flag (the persistence suite stays green untouched).
+  - [x] **AD-6 pin:** the Journal adds NO new persisted `RunState` field (transient; quest state rides `flagStore`) — assert a save/load round-trip keeps the started flag (the persistence suite stays green untouched).
 
-- [ ] **Task 5 — Full suite, no regressions (AC: all)**
-  - [ ] The 2.1/2.2/2.3/2.4 suites stay green (`DialogControllerTest`, `DialogueGateTest`, `DialogueEffectTest`, `DialogueSafePauseTest`, `IntroControllerTest`, `TutorialControllerTest`, `CaptureControllerTest`).
-  - [ ] `mvn -o clean install` — full suite green, no regressions in the existing 288 tests.
-  - [ ] Serialization: 2.5 adds NO new persisted `RunState` field (Decision 1 — the Journal is transient; quest state = FlagStore keys). Run the persistence round-trip + AD-5 placement suites (both must stay green — the note branch adds no RNG draw).
-  - [ ] Launch: `mvn -o -q -pl core install` + `timeout 40 mvn -o -pl desktop exec:java` — boot clean (the new J key + render branch cause no exceptions).
+- [x] **Task 5 — Full suite, no regressions (AC: all)**
+  - [x] The 2.1/2.2/2.3/2.4 suites stay green (`DialogControllerTest`, `DialogueGateTest`, `DialogueEffectTest`, `DialogueSafePauseTest`, `IntroControllerTest`, `TutorialControllerTest`, `CaptureControllerTest`).
+  - [x] `mvn -o clean install` — full suite green, no regressions in the existing 288 tests.
+  - [x] Serialization: 2.5 adds NO new persisted `RunState` field (Decision 1 — the Journal is transient; quest state = FlagStore keys). Run the persistence round-trip + AD-5 placement suites (both must stay green — the note branch adds no RNG draw).
+  - [x] Launch: `mvn -o -q -pl core install` + `timeout 40 mvn -o -pl desktop exec:java` — boot clean (the new J key + render branch cause no exceptions).
 
 ## Dev Notes
 
@@ -161,3 +161,39 @@ so that the story can gate content without a rigid quest UI (FR-19).
 - [Source: story-2.4 (this epic's preceding story, Status: done)] — the seeds this story consumes: `KEY_ALDRIC_CAPTURED` + the Torn Page note (the "exact hook Story 2.5's discovery-triggered quest machinery builds on"), the no-turn note-read branch, and review N2's hand-off ("the 2.5 Journal story should derive capture state from the persisted flag"). 2.4 Decision 4 (narrate, don't simulate) is the model for 2.5's deferred killer (Decision 5).
 - [Source: story-2.1 (dialogue foundation, Status: done)] — the `DialogNode.withFlag` → `SetFlag` → `FlagStore` path the NPC-line trigger reuses; the safe-pause routing, log-window policy (Decision 1), and the SET_FLAG-ratify-silent carve-out (a SetFlag-triggered quest is observed via the node text).
 - [Source: deferred-work.md O6] — the Journal surface is transient (no save/load UI yet); why the surface + serialization notes are documented, not built.
+
+## Dev Agent Record
+
+### Agent Model Used
+
+Claude Opus 4.8 (1M context)
+
+### Debug Log References
+
+- `mvn -o -q -pl core compile` — Tasks 1-3 compile clean on the first pass.
+- `mvn -o -q -pl core test -Dtest=JournalControllerTest` — green: 10 tests, 0 failures.
+- `mvn -o -pl core test` — full suite 298 tests, 0 failures, 0 errors, 0 skipped (was 288; +10 new `JournalControllerTest`). Includes the 2.1/2.2/2.3/2.4 narrative suites, the AD-6 persistence round-trip (`RunStatePersistenceTest`, `SaveMigrationTest`), and the AD-5 placement pins staying green — the note-read branch adds no RNG draw.
+- `mvn -o clean install` — full reactor BUILD SUCCESS (298 tests green).
+- `mvn -o -q -pl core install` + `timeout 40 mvn -o -pl desktop exec:java` — app boots cleanly (timeout kill = exit 143; no exceptions with the new J key, journal routing, and `renderJournalPage`).
+
+### Completion Notes List
+
+- **Task 1** — `JournalController` (new, `rogue/narrative`, pure model, no libGDX): static quest id `QUEST_ROAD_EAST = "roadeast"`, the single-authority key helpers (`startedKey`/`completedKey`/`voidedKey` = `quest.<id>.<state>`, `giverDeadKey` = `npc.<giver>.dead`), nested `QuestDefinition(id, title, objective, giver)` and `JournalEntry(id, title, objective, QuestStatus)` records, the `open()/close()/isActive()` surface lifecycle, and `entries(RunState)` — the passive derivation that recomputes from `state.getFlagStore()` every call and holds NO quest-state copy (Decision 1/8). The ctor seeds exactly one production quest: "The Road East". Status precedence in the derivation: VOIDED (scripted void OR giver dead) → COMPLETED → ACTIVE → unlisted.
+- **Task 2** — `TurnEngine` case USE, the 2.4 note-read branch: on the REVEAL read, when `aldric.captured != 0` and the started flag is not set, set `startedKey("roadeast")` and append `LINE_STARTED` ("You mark the road ahead — a new thread in the Journal."). The read stays no-turn and the note stays in the pack; the second-read no-op is unchanged (no re-start, no re-announce).
+- **Task 3** — `MarginScreen`: transient `journal` field; safe-pause routing in `handleInput` placed AFTER the menu-open block (menu and Journal mutually exclusive — menu-open swallows J, journal-active swallows M and ESC-for-menu); J toggles open, J/ESC closes while active, all other keys swallowed (AD-14); `renderJournalPage()` renders `journal.entries(state)` (title + status + wrapped objective + "[J] close" footer; "No threads yet." when empty) between the dialogue branch and the event-window fallback; `restart()` closes the Journal.
+- **Task 4** — `JournalControllerTest` (10): the discovery trigger (capture → note → first read starts the quest, LINE_STARTED announced once, no turn, note stays, entries lists The Road East ACTIVE), the capture-flag precondition (no capture → lore reveals but no quest), the reveal-only second read (no re-announce), the passive derivation with precedence (started/completed/voided on a synthetic quest — the Journal holds no state), the NPC-line trigger through the REAL `DialogController` (`withFlag` → SetFlag → flag set → ACTIVE), void-on-giver-death (`npc.<giver>.dead` → VOIDED) + the scripted-void-wins pin, unstarted-unlisted, safe pause (open/close ticks nothing — clock + hunger/thirst/temperature/hp unchanged), and the AD-6 round-trip (a reloaded run starts with no Journal open; the started flag survives and re-derives ACTIVE).
+- **Task 5** — Full suite green: 298 tests (was 288), 0 failures. No new persisted `RunState` field (AD-6 by construction — quest state rides the existing FlagStore; the controller/surface are transient). Persistence and AD-5 placement suites stay green — the note branch adds no RNG draw. Launch boot-check clean.
+
+### File List
+
+- **New:** `core/src/main/java/com/margins/rogue/narrative/JournalController.java` (quest registry + passive derivation + surface lifecycle)
+- **New:** `core/src/test/java/com/margins/rogue/narrative/JournalControllerTest.java` (10 tests)
+- **Modified:** `core/src/main/java/com/margins/rogue/system/TurnEngine.java` (the note-read quest-start branch in case USE)
+- **Modified:** `core/src/main/java/com/margins/MarginScreen.java` (journal field + import + safe-pause routing + J key + `renderJournalPage` + `restart()` close)
+
+## Change Log
+
+| Date | Who | Change |
+|------|-----|--------|
+| 2026-08-09 | Create | Story 2.5 created (Status: ready-for-dev) from epics.md Story 2.5 + PRD FR-19 + the 2.4 hand-off (the capture flag + Torn Page note as the discovery seeds, and review N2's "derive capture state from the persisted flag"). Eight interpretation calls resolved: the Journal is transient view-session state held by the screen (Decision 1, AD-6), quest keys are a namespaced flag family with the controller's helpers as single authority (Decision 2), the discovery trigger rides the 2.4 note read gated on `aldric.captured` (Decision 4), the NPC-line trigger reuses the ratified `withFlag`→SetFlag path (Decision 5), the killer is deferred — Epic 2 has no named NPC combat (Decision 5/2.4 mirror), the production catalog is exactly one quest (Decision 6), the Journal renders in the bottom-log region (Decision 7, NFR-3), and the status precedence is VOIDED → COMPLETED → ACTIVE → unlisted (Decision 8). |
+| 2026-08-09 | Dev | Implemented all 5 tasks. New `JournalController` (passive lookup, no quest-state copy) + the discovery trigger in `TurnEngine` (first Torn-Page read after the capture starts "The Road East", announced, no turn, note stays) + the `MarginScreen` Journal surface (transient field, safe-pause routing after the menu-open block so menu and Journal are mutually exclusive, J open / J+ESC close, `renderJournalPage`, restart close). 10 new tests pin AC-1 (discovery, NPC-line through the real DialogController, void-on-giver-death + scripted void), AC-2 (passive derivation with precedence, unstarted-unlisted), AD-14 (open/close ticks nothing) and AD-6 (round-trip keeps the started flag; reloaded run starts with no Journal open). Full suite green: 298 tests (was 288). No new persisted `RunState` field (AD-6 by construction). Status → review. |
