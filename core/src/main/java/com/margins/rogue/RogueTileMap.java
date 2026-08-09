@@ -6,6 +6,15 @@ public class RogueTileMap {
     public static final int STRUCTURE_NONE = -1;
     public static final int STRUCTURE_OLD_HOUSE = 0;
     public static final int STRUCTURE_GRAVEYARD = 1;
+    public static final int STRUCTURE_DEEP_CAVE = 2;
+    public static final int STRUCTURE_HUNTERS_BLIND = 3;
+    public static final int STRUCTURE_FALLEN_LOG_HOLLOW = 4;
+    public static final int STRUCTURE_FOREST_SHRINE = 5;
+    public static final int STRUCTURE_BEEHIVE_GROVE = 6;
+    public static final int STRUCTURE_KITCHEN_CAMP = 7;
+    public static final int STRUCTURE_COLLAPSED_WATCHTOWER = 8;
+    public static final int STRUCTURE_POACHERS_CAMP = 9;
+    public static final int STRUCTURE_SUNKEN_WELL = 10;
 
     private int width;
     private int height;

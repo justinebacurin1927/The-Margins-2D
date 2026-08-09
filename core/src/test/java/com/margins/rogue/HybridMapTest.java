@@ -67,12 +67,24 @@ class HybridMapTest {
             // The NW border crossing is a DOOR gate.
             assertEquals(RogueTile.DOOR, m.getTile(spine.borderX(), spine.borderY()),
                     "seed " + seed + ": the border crossing is a door at the NW");
-            // The Watchtower is the furniture block east of Corneo on the road's shoulder.
-            assertEquals(RogueTile.FURNITURE, m.getTile(spine.watchtowerX(), spine.watchtowerY() + 2),
-                    "seed " + seed + ": the watchtower block is stamped east of Corneo");
-            // The home-cluster structures are present (their atlas cells exist).
+            // The old placeholder block is now the full Collapsed Watchtower, entered from the road.
+            assertEquals(RogueTileMap.STRUCTURE_COLLAPSED_WATCHTOWER,
+                    m.getStructureType(spine.watchtowerX(), spine.watchtowerY() + 2),
+                    "seed " + seed + ": the full watchtower is stamped east of Corneo");
+            assertTrue(m.isWalkable(spine.watchtowerX(), spine.watchtowerY() + 2),
+                    "the watchtower's south approach opens from the Copper Road");
+            // All eleven authored world structures are present.
             assertTrue(hasStructure(m, RogueTileMap.STRUCTURE_OLD_HOUSE), "the Old House is stamped");
             assertTrue(hasStructure(m, RogueTileMap.STRUCTURE_GRAVEYARD), "the Graveyard is stamped");
+            assertTrue(hasStructure(m, RogueTileMap.STRUCTURE_DEEP_CAVE), "the Deep Cave is stamped");
+            assertTrue(hasStructure(m, RogueTileMap.STRUCTURE_HUNTERS_BLIND), "Hunter's Blind is stamped");
+            assertTrue(hasStructure(m, RogueTileMap.STRUCTURE_FALLEN_LOG_HOLLOW));
+            assertTrue(hasStructure(m, RogueTileMap.STRUCTURE_FOREST_SHRINE));
+            assertTrue(hasStructure(m, RogueTileMap.STRUCTURE_BEEHIVE_GROVE));
+            assertTrue(hasStructure(m, RogueTileMap.STRUCTURE_KITCHEN_CAMP));
+            assertTrue(hasStructure(m, RogueTileMap.STRUCTURE_COLLAPSED_WATCHTOWER));
+            assertTrue(hasStructure(m, RogueTileMap.STRUCTURE_POACHERS_CAMP));
+            assertTrue(hasStructure(m, RogueTileMap.STRUCTURE_SUNKEN_WELL));
         }
     }
 
@@ -194,6 +206,15 @@ class HybridMapTest {
                     "seed " + seed + ": the Old House interior is entered from the network");
             assertTrue(structureOpensOntoNetwork(m, reached, RogueTileMap.STRUCTURE_GRAVEYARD),
                     "seed " + seed + ": the Graveyard interior is entered from the network");
+            assertTrue(structureOpensOntoNetwork(m, reached, RogueTileMap.STRUCTURE_DEEP_CAVE),
+                    "seed " + seed + ": the Deep Cave approach joins the network");
+            assertTrue(structureOpensOntoNetwork(m, reached, RogueTileMap.STRUCTURE_HUNTERS_BLIND),
+                    "seed " + seed + ": Hunter's Blind joins the network");
+            for (int type = RogueTileMap.STRUCTURE_FALLEN_LOG_HOLLOW;
+                 type <= RogueTileMap.STRUCTURE_SUNKEN_WELL; type++) {
+                assertTrue(structureOpensOntoNetwork(m, reached, type),
+                        "seed " + seed + ": structure type " + type + " joins the network");
+            }
         }
     }
 

@@ -150,4 +150,147 @@ class ContinuousMapTest {
         assertFalse(map.isWalkable(minX + 3, minY + 3), "a grave cluster blocks movement");
         assertFalse(map.isWalkable(minX + 7, minY + 5), "the opposite marker blocks movement");
     }
+
+    @Test
+    void deepCaveIsAFullElevenByNineRockLandmark() {
+        RogueTileMap map = new RunState(1234L).getTileMap();
+        int cells = 0;
+        int minX = map.getWidth(), minY = map.getHeight(), maxX = -1, maxY = -1;
+        for (int x = 0; x < map.getWidth(); x++) {
+            for (int y = 0; y < map.getHeight(); y++) {
+                if (map.getStructureType(x, y) != RogueTileMap.STRUCTURE_DEEP_CAVE) continue;
+                cells++;
+                minX = Math.min(minX, x);
+                minY = Math.min(minY, y);
+                maxX = Math.max(maxX, x);
+                maxY = Math.max(maxY, y);
+            }
+        }
+        assertEquals(99, cells, "the cave mouth is a fog-aware landmark, not a one-tile icon");
+        assertEquals(11, maxX - minX + 1);
+        assertEquals(9, maxY - minY + 1);
+        assertTrue(map.isWalkable(minX + 5, minY), "the south dirt approach is open");
+        assertTrue(map.isWalkable(minX + 5, minY + 4), "the path reaches the cave threshold");
+        assertFalse(map.isWalkable(minX + 5, maxY), "the black opening is solid for now");
+        assertTrue(map.isOpaque(minX + 5, maxY), "the cave back blocks sight");
+        assertFalse(map.isWalkable(minX + 2, minY + 3), "the western boulder bowl blocks feet");
+        assertFalse(map.isWalkable(minX + 8, minY + 3), "the eastern boulder bowl blocks feet");
+    }
+
+    @Test
+    void huntersBlindIsAnExplorableNineByNineRaisedDeck() {
+        RogueTileMap map = new RunState(1234L).getTileMap();
+        int cells = 0;
+        int minX = map.getWidth(), minY = map.getHeight(), maxX = -1, maxY = -1;
+        for (int x = 0; x < map.getWidth(); x++) {
+            for (int y = 0; y < map.getHeight(); y++) {
+                if (map.getStructureType(x, y) != RogueTileMap.STRUCTURE_HUNTERS_BLIND) continue;
+                cells++;
+                minX = Math.min(minX, x);
+                minY = Math.min(minY, y);
+                maxX = Math.max(maxX, x);
+                maxY = Math.max(maxY, y);
+                assertFalse(map.isOpaque(x, y), "the timber blind never blocks line of sight");
+            }
+        }
+        assertEquals(81, cells, "the blind is a full fog-aware structure, not a prop icon");
+        assertEquals(9, maxX - minX + 1);
+        assertEquals(9, maxY - minY + 1);
+        assertTrue(map.isWalkable(minX + 4, minY), "the south approach is clear");
+        assertTrue(map.isWalkable(minX + 4, minY + 2), "the ladder route is open");
+        assertTrue(map.isWalkable(minX + 4, minY + 5), "the central deck is explorable");
+        assertFalse(map.isWalkable(minX + 2, minY + 2), "under-deck braces block feet");
+        assertFalse(map.isWalkable(minX + 7, minY + 5), "the east platform post blocks feet");
+    }
+
+    @Test
+    void tierOneAndTierTwoStructuresUseTheirAuthoredFootprintsAndOpenSouthEntrances() {
+        RogueTileMap map = new RunState(1234L).getTileMap();
+        int[] types = {
+                RogueTileMap.STRUCTURE_FALLEN_LOG_HOLLOW,
+                RogueTileMap.STRUCTURE_FOREST_SHRINE,
+                RogueTileMap.STRUCTURE_BEEHIVE_GROVE,
+                RogueTileMap.STRUCTURE_KITCHEN_CAMP,
+                RogueTileMap.STRUCTURE_COLLAPSED_WATCHTOWER,
+                RogueTileMap.STRUCTURE_POACHERS_CAMP,
+                RogueTileMap.STRUCTURE_SUNKEN_WELL
+        };
+        int[] widths = {9, 9, 11, 9, 11, 13, 11};
+        int[] heights = {5, 9, 11, 9, 13, 11, 11};
+        int[] pathXs = {4, 4, 5, 4, 5, 6, 5};
+        for (int i = 0; i < types.length; i++) {
+            int type = types[i];
+            int cells = 0;
+            int minX = map.getWidth(), minY = map.getHeight(), maxX = -1, maxY = -1;
+            int obstacles = 0;
+            for (int x = 0; x < map.getWidth(); x++) {
+                for (int y = 0; y < map.getHeight(); y++) {
+                    if (map.getStructureType(x, y) != type) continue;
+                    cells++;
+                    minX = Math.min(minX, x);
+                    minY = Math.min(minY, y);
+                    maxX = Math.max(maxX, x);
+                    maxY = Math.max(maxY, y);
+                    if (!map.isWalkable(x, y)) obstacles++;
+                }
+            }
+            assertEquals(widths[i] * heights[i], cells,
+                    "structure type " + type + " must fill its complete authored atlas");
+            assertEquals(widths[i], maxX - minX + 1);
+            assertEquals(heights[i], maxY - minY + 1);
+            assertTrue(map.isWalkable(minX + pathXs[i], minY),
+                    "structure type " + type + " has a clear south approach");
+            assertTrue(map.isWalkable(minX + pathXs[i], minY + 1),
+                    "structure type " + type + " opens onto its interior");
+            assertTrue(obstacles > 4, "structure type " + type + " has real prop collision");
+        }
+    }
+
+    @Test
+    void redesignedStructuresKeepTheirPromisedInteriorSpace() {
+        RogueTileMap map = new RunState(1234L).getTileMap();
+
+        int[] hive = bounds(map, RogueTileMap.STRUCTURE_BEEHIVE_GROVE);
+        for (int x = hive[0] + 3; x <= hive[0] + 7; x++) {
+            for (int y = hive[1] + 3; y <= hive[1] + 7; y++) {
+                assertTrue(map.isWalkable(x, y), "the hive grove's central 5x5 must remain open");
+            }
+        }
+
+        int[] log = bounds(map, RogueTileMap.STRUCTURE_FALLEN_LOG_HOLLOW);
+        assertEquals(9, log[2] - log[0] + 1);
+        assertEquals(5, log[3] - log[1] + 1);
+        assertTrue(map.isWalkable(log[0] + 4, log[1] + 2), "the small log hollow is enterable");
+
+        int[] tower = bounds(map, RogueTileMap.STRUCTURE_COLLAPSED_WATCHTOWER);
+        assertTrue(map.isWalkable(tower[0] + 5, tower[1] + 3), "tower ground floor is open");
+        assertTrue(map.isWalkable(tower[0] + 4, tower[1] + 7), "tower middle floor is open");
+        assertTrue(map.isWalkable(tower[0] + 5, tower[1] + 11), "tower third floor is open");
+
+        int[] camp = bounds(map, RogueTileMap.STRUCTURE_POACHERS_CAMP);
+        for (int x = camp[0] + 4; x <= camp[0] + 6; x++) {
+            for (int y = camp[1] + 2; y <= camp[1] + 5; y++) {
+                assertTrue(map.isWalkable(x, y), "the expanded poacher yard stays spacious");
+            }
+        }
+
+        int[] well = bounds(map, RogueTileMap.STRUCTURE_SUNKEN_WELL);
+        assertTrue(map.isWalkable(well[0] + 2, well[1] + 5), "west wellhouse room is enterable");
+        assertTrue(map.isWalkable(well[0] + 8, well[1] + 5), "east wellhouse room is enterable");
+        assertFalse(map.isWalkable(well[0] + 5, well[1] + 7), "the open well shaft blocks feet");
+    }
+
+    private static int[] bounds(RogueTileMap map, int type) {
+        int minX = map.getWidth(), minY = map.getHeight(), maxX = -1, maxY = -1;
+        for (int x = 0; x < map.getWidth(); x++) {
+            for (int y = 0; y < map.getHeight(); y++) {
+                if (map.getStructureType(x, y) != type) continue;
+                minX = Math.min(minX, x);
+                minY = Math.min(minY, y);
+                maxX = Math.max(maxX, x);
+                maxY = Math.max(maxY, y);
+            }
+        }
+        return new int[]{minX, minY, maxX, maxY};
+    }
 }

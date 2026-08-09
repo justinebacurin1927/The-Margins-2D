@@ -15,7 +15,7 @@ import com.badlogic.gdx.graphics.g2d.SpriteBatch;
 import com.badlogic.gdx.graphics.g2d.TextureRegion;
 import com.badlogic.gdx.math.Vector2;
 import com.badlogic.gdx.utils.Align;
-import com.badlogic.gdx.utils.viewport.FitViewport;
+import com.badlogic.gdx.utils.viewport.ExtendViewport;
 import com.margins.dialog.DialogNode;
 import com.margins.rogue.Companion;
 import com.margins.rogue.Detection;
@@ -23,6 +23,7 @@ import com.margins.rogue.RogueEnemy;
 import com.margins.rogue.RoguePlayer;
 import com.margins.rogue.RogueTile;
 import com.margins.rogue.RogueTileMap;
+import com.margins.rogue.Weather;
 import com.margins.rogue.item.FloorItem;
 import com.margins.rogue.item.Inventory;
 import com.margins.rogue.item.Supply;
@@ -32,11 +33,14 @@ import com.margins.rogue.narrative.DialogController;
 import com.margins.rogue.narrative.IntroController;
 import com.margins.rogue.narrative.JournalController;
 import com.margins.rogue.narrative.TutorialController;
+import com.margins.rogue.save.SaveService;
 import com.margins.rogue.state.RunState;
 import com.margins.rogue.system.FovSystem;
 import com.margins.rogue.system.PlayerAction;
+import com.margins.rogue.system.TorchSystem;
 import com.margins.rogue.system.TurnEngine;
 import com.margins.rogue.system.TurnResult;
+import com.margins.rogue.world.WorldSpine;
 
 import java.util.ArrayList;
 import java.util.IdentityHashMap;
@@ -63,10 +67,15 @@ public class MarginScreen implements Screen {
     private static final int STATUS_CHIP_W = 32;
     private static final int STATUS_CHIP_H = 30;
     private static final int STATUS_CHIP_GAP = 2;
-    private static final int PACK_PANEL_X = 264;
     private static final int PACK_PANEL_W = 210;
+    private static final int INVENTORY_PANEL_W = 410;
+    private static final int INVENTORY_PANEL_H = 260;
+    private static final int INVENTORY_COLS = 4;
+    private static final int INVENTORY_CELL = 46;
+    private static final int INVENTORY_GAP = 5;
     private static final int LOG_PANEL_Y = 6;
-    private static final int LOG_PANEL_H = 64;
+    private static final int LOG_PANEL_H = 50;
+    private static final int LOG_PANEL_W = 236;
     private static final float MOVE_DURATION = 0.26f;
     private static final float ATTACK_DURATION = 0.45f;
     private static final int OLD_HOUSE_ATLAS_COLS = 15;
@@ -77,6 +86,7 @@ public class MarginScreen implements Screen {
 
     private static final Color UI_PANEL = new Color(0.025f, 0.040f, 0.034f, 0.90f);
     private static final Color UI_PANEL_STRONG = new Color(0.018f, 0.028f, 0.025f, 0.97f);
+    private static final Color UI_LOG_SHADOW = new Color(0.005f, 0.008f, 0.006f, 0.92f);
     private static final Color UI_SLOT = new Color(0.08f, 0.11f, 0.09f, 0.94f);
     private static final Color UI_BORDER = new Color(0.25f, 0.34f, 0.27f, 1f);
     private static final Color UI_ACCENT = new Color(0.78f, 0.68f, 0.38f, 1f);
@@ -86,16 +96,43 @@ public class MarginScreen implements Screen {
     private static final Color UI_FOOD = new Color(0.73f, 0.67f, 0.36f, 1f);
     private static final Color UI_WATER = new Color(0.40f, 0.68f, 0.76f, 1f);
     private static final Color UI_WARNING = new Color(0.92f, 0.55f, 0.28f, 1f);
+    // Warm backpack palette: red-brown leather, copper trim, parchment text and gold selection.
+    // Kept inventory-specific so the survival HUD retains its dark forest identity.
+    private static final Color INV_OVERLAY = new Color(0.035f, 0.020f, 0.010f, 0.78f);
+    private static final Color INV_OUTLINE = new Color(0.075f, 0.035f, 0.015f, 1f);
+    private static final Color INV_PANEL = new Color(0.145f, 0.080f, 0.040f, 0.98f);
+    private static final Color INV_HEADER = new Color(0.205f, 0.115f, 0.055f, 1f);
+    private static final Color INV_TRIM = new Color(0.43f, 0.275f, 0.145f, 1f);
+    private static final Color INV_HIGHLIGHT = new Color(0.63f, 0.405f, 0.205f, 1f);
+    private static final Color INV_SLOT = new Color(0.195f, 0.105f, 0.050f, 1f);
+    private static final Color INV_SLOT_SELECTED = new Color(0.34f, 0.205f, 0.070f, 1f);
+    private static final Color INV_GOLD = new Color(1f, 0.74f, 0.22f, 1f);
+    private static final Color INV_TEXT = new Color(0.96f, 0.88f, 0.73f, 1f);
+    private static final Color INV_MUTED = new Color(0.70f, 0.54f, 0.35f, 1f);
+    private static final Color INV_WARNING = new Color(1f, 0.43f, 0.11f, 1f);
     private static final Color ENEMY_BAR_BORDER = new Color(0.06f, 0.035f, 0.03f, 1f);
     private static final Color ENEMY_BAR_EMPTY = new Color(0.22f, 0.07f, 0.06f, 1f);
     private static final Color ENEMY_BAR_HEALTH = new Color(0.88f, 0.20f, 0.16f, 1f);
+    private static final Color TORCH_AMBER = new Color(1f, 0.62f, 0.20f, 1f);
+    private static final Color NIGHT_SHADE = new Color(0.018f, 0.030f, 0.070f, 1f);
+    /** The meat states share one accurate meat silhouette; condition is shown with an earthy tint. */
+    private static final Color HALF_ROTTEN_TINT = new Color(0.72f, 0.62f, 0.39f, 1f);
+    private static final Color SPOILED_TINT = new Color(0.48f, 0.49f, 0.25f, 1f);
+
+    private static final int TORCH_ITEM_ICON = 28;
+    private static final int CAMPFIRE_ENV_TILE = 54;
+    private static final int EFFECT_FLAME_A = 0;
+    private static final int EFFECT_FLAME_B = 1;
+    private static final int EFFECT_GLOW = 2;
+    private static final int FOG_FRAMES = 4;
 
     private final SpriteBatch batch = new SpriteBatch();
     private final BitmapFont font;
     private final BitmapFont headingFont;
     private final Texture uiPixel;
     private final OrthographicCamera camera = new OrthographicCamera();
-    private final FitViewport viewport = new FitViewport(WW, WH, camera);
+    /** Keep the 360px-tall pixel scale, but reveal more world on widescreen displays. */
+    private final ExtendViewport viewport = new ExtendViewport(WW, WH, camera);
     private final Vector2 pointerHud = new Vector2();
     /** Pixel Pack v2 atlases (AD-1: screen layer only). Player/companion/enemies use the
      *  characters atlas, items the 40-icon atlas, the world the 64-tile environment atlas. */
@@ -108,36 +145,49 @@ public class MarginScreen implements Screen {
     private final IdentityHashMap<RogueEnemy, Motion> enemyMotions = new IdentityHashMap<>();
     private AttackAnimation playerAttack;
     private final IdentityHashMap<RogueEnemy, AttackAnimation> enemyAttacks = new IdentityHashMap<>();
+    /** Free-running presentation clock: visual flicker never consumes a turn or mutates RunState. */
+    private float lightingClock;
 
-    private final RunState state = new RunState();
+    private RunState state;
     private final TurnEngine turnEngine = new TurnEngine();
     /** Story 2.1: the open dialogue scene, if any. Transient view-session state (NOT on
      *  RunState — AD-6); while {@code isActive()} the turn loop is suspended (AD-14). */
-    private final DialogController dialog = new DialogController();
+    private DialogController dialog = new DialogController();
     /** Story 2.2: the Act 0 paged-text intro, opened once on a fresh run (below). Transient
      *  view-session state (NOT on RunState — AD-6); takes no RunState, so it cannot tick (AD-14). */
-    private final IntroController intro = new IntroController();
+    private IntroController intro = new IntroController();
     /** Story 2.3: Aldric's diegetic tutorial — a passive coach that observes committed turns and
      *  coaches the six opening controls into the log. Transient view-session state (NOT on RunState);
      *  it never suspends the turn loop. Begins when the intro closes on a fresh run; skipped on restart. */
-    private final TutorialController tutorial = new TutorialController();
+    private TutorialController tutorial = new TutorialController();
     /** Story 2.4: Aldric's capture — a one-shot scripted event that resolves the moment the
      *  tutorial completes. Transient view-session state (NOT on RunState — AD-6); the resolving
      *  wire is the every-frame gate in handleInput (guarded, fires once per life). */
-    private final CaptureController capture = new CaptureController();
+    private CaptureController capture = new CaptureController();
     /** Story 2.5: the passive Journal — the quest registry + lookup surface. Transient view-session
      *  state (NOT on RunState — AD-6); while {@code isActive()} the turn loop is suspended (AD-14 —
      *  the quest log is a suspended text surface). Renders {@code journal.entries(state)} (AC-2). */
-    private final JournalController journal = new JournalController();
+    private JournalController journal = new JournalController();
+
+    private enum MenuPage { ROOT, OPTIONS, HOW_TO_PLAY }
 
     private boolean gameOver = false;
+    /** Startup/title surface; the world remains its animated in-game backdrop. */
+    private boolean startupMenuOpen = true;
+    /** True when Continue points at either a loaded save or the current in-memory journey. */
+    private boolean hasContinue;
     /** Pause/help surface. It is presentation-only and never advances the turn engine. */
     private boolean menuOpen = false;
+    private MenuPage menuPage = MenuPage.ROOT;
+    private int menuSelection;
+    private int startupSelection;
+    /** Full backpack surface. Modal presentation state: while open, the turn loop is paused. */
+    private boolean inventoryOpen = false;
     /** Clicked condition card; hover temporarily takes precedence. Presentation-only, never a turn. */
     private String pinnedStatusKey;
     /** Selected backpack slot (0..7), -1 = none yet. Screen state only — reset on restart (Task 5). */
     private int selectedSlot = -1;
-    private static final int LOG_LINES = 5; // visual lines in the compact bottom event panel
+    private static final int LOG_LINES = 4; // Vision.png-style four-line lower-left message box
     /** Single source for the death line — the log seed and the overlay must never drift (review finding). */
     private static final String GAME_OVER_LINE = "You fell in the margins.   [R] begin again";
 
@@ -146,9 +196,9 @@ public class MarginScreen implements Screen {
     private static final int COMPANION_CHARACTER = 1;
     private static final int ENEMY_CHARACTER = 6;
     /** Item-icon atlas cell per Supply ordinal (row-major, five rows of eight); -1 = no icon. The
-     *  pack has no exact sprite for several provisions, so the closest readable icon is used (e.g.
-     *  the meat-spoilage stages share the aged-cheese icon; filtered/boiled water share the purified
-     *  waterskin). Kept next to the enum's ordinal list so a new Supply stays in step. */
+     *  pack has no separate rotten-meat cells, so all meat stages use the raw-meat silhouette and
+     *  {@link #itemTintFor(int)} communicates decay. Filtered/boiled water share the purified
+     *  waterskin. Kept next to the enum's ordinal list so a new Supply stays in step. */
     private static final int[] ITEM_ICONS = {
         0,  // 0  WRAPPED_BUNDLE   -> bread
         8,  // 1  SEALED_WATERSKIN -> raw waterskin
@@ -157,8 +207,8 @@ public class MarginScreen implements Screen {
         31, // 4  SEALED_LETTER    -> map fragment (a paper)
         12, // 5  COAL             -> coal
         3,  // 6  RAW_MEAT         -> raw rabbit
-        2,  // 7  HALF_ROTTEN_MEAT -> moldy cheese (aged)
-        2,  // 8  SPOILED_MEAT     -> moldy cheese
+        3,  // 7  HALF_ROTTEN_MEAT -> raw meat, decay tint applied while drawing
+        3,  // 8  SPOILED_MEAT     -> raw meat, stronger decay tint applied while drawing
         4,  // 9  COOKED_MEAT      -> cooked meat
         8,  // 10 WELL_WATER       -> raw waterskin
         8,  // 11 POND_WATER       -> raw waterskin
@@ -243,10 +293,24 @@ public class MarginScreen implements Screen {
         }
     }
 
-    // Guide Asset 1 terrain cells. Ground variation is deliberately weighted toward subtle grass;
-    // giving grass, dirt path, and leaf litter equal odds creates a high-contrast checkerboard even
-    // when the selector itself is random. Dirt is reserved for a future explicit path tile type.
-    private static final int[] FLOOR_CELLS = {0, 0, 0, 0, 0, 0, 1, 1, 1, 3};
+    // Dedicated 4x4 ground-material atlas. Context chooses the material family; a smoothed
+    // coordinate field chooses its variation so the wilderness forms patches instead of noise.
+    private static final int GROUND_GRASS_A = 0;
+    private static final int GROUND_GRASS_B = 1;
+    private static final int GROUND_FLOWERING_GRASS = 2;
+    private static final int GROUND_DAMP_GRASS = 3;
+    private static final int GROUND_LEAF_LITTER_A = 4;
+    private static final int GROUND_LEAF_LITTER_B = 5;
+    private static final int GROUND_ROOTS = 6;
+    private static final int GROUND_GRAVEL = 7;
+    private static final int GROUND_PACKED_DIRT_A = 8;
+    private static final int GROUND_PACKED_DIRT_B = 9;
+    private static final int GROUND_MUD = 10;
+    private static final int GROUND_PUDDLED_MUD = 11;
+    private static final int GROUND_COBBLESTONE = 12;
+    private static final int GROUND_MOSSY_COBBLESTONE = 13;
+    private static final int GROUND_BROKEN_COBBLESTONE = 14;
+    private static final int GROUND_WET_COBBLESTONE = 15;
     private static final int DOOR_CELL = 7;                // closed wooden door on ground
     private static final int WELL_CELL = 8;                // stone well on ground
     private static final int[] POND_CELLS = {9, 10};       // pond animation variants
@@ -278,15 +342,20 @@ public class MarginScreen implements Screen {
         uiPixel.setFilter(TextureFilter.Nearest, TextureFilter.Nearest);
         pixel.dispose();
 
+        RunState loaded = SaveService.load();
+        state = loaded != null ? loaded : new RunState();
+        hasContinue = loaded != null;
         FovSystem.compute(state);
-        // A fresh RunState = a new run: play the Act 0 intro once (Decision 5). restart() does NOT
-        // replay it — a new life after death already knows the story.
-        intro.start(CorneoIntro.build());
+        // A loaded journey resumes directly; only a genuinely new journey owns the Act 0 intro.
+        if (loaded != null) tutorial.skip();
+        else intro.start(CorneoIntro.build());
     }
 
     @Override
     public void render(float delta) {
-        updateAnimations(Math.min(delta, 0.05f));
+        float frameDelta = Math.min(delta, 0.05f);
+        lightingClock += frameDelta;
+        updateAnimations(frameDelta);
         handleInput();
 
         RoguePlayer p = state.getPlayer();
@@ -298,10 +367,15 @@ public class MarginScreen implements Screen {
         Gdx.gl.glClear(GL20.GL_COLOR_BUFFER_BIT);
 
         renderWorld();
+        renderLighting();
         renderHud();
     }
 
     private void handleInput() {
+        if (startupMenuOpen) {
+            handleStartupMenuInput();
+            return;
+        }
         RoguePlayer p = state.getPlayer();
 
         if (!p.isAlive()) {
@@ -310,6 +384,8 @@ public class MarginScreen implements Screen {
             if (!gameOver) {
                 gameOver = true;
                 state.appendMessages(List.of(GAME_OVER_LINE));
+                SaveService.deleteSave();
+                hasContinue = false;
             }
             if (Gdx.input.isKeyJustPressed(Input.Keys.R)) restart();
             return;
@@ -335,9 +411,12 @@ public class MarginScreen implements Screen {
             handleDialogueInput();
             return;
         }
+        if (inventoryOpen) {
+            handleInventoryInput(p);
+            return;
+        }
         if (menuOpen) {
-            if (Gdx.input.isKeyJustPressed(Input.Keys.M)
-                    || Gdx.input.isKeyJustPressed(Input.Keys.ESCAPE)) menuOpen = false;
+            handlePauseMenuInput();
             return;
         }
         // Story 2.5 (AC-2): the passive Journal — a safe-pause lookup surface (AD-14). It sits after
@@ -355,12 +434,20 @@ public class MarginScreen implements Screen {
             journal.open();
             return;
         }
-        if (Gdx.input.isKeyJustPressed(Input.Keys.M)
+        if (down(Input.Keys.TAB)) {
+            openInventory();
+            return;
+        }
+        if (handleBurgerPointer()
+                || Gdx.input.isKeyJustPressed(Input.Keys.M)
                 || Gdx.input.isKeyJustPressed(Input.Keys.ESCAPE)) {
             menuOpen = true;
+            menuPage = MenuPage.ROOT;
+            menuSelection = 0;
             return;
         }
         handleStatusPointer(p);
+        if (handleBackpackPointer()) return;
         // A turn is atomic in the model but gets a fraction of a second to read on screen. Buffering
         // another command here would skip across the current walk/strike before it was presented.
         if (isWorldAnimating()) return;
@@ -369,16 +456,190 @@ public class MarginScreen implements Screen {
         if (selectedSlot >= 0 && state.getInventory().backpackType(selectedSlot) < 0) selectedSlot = -1;
 
         PlayerAction action = readAction(p.getFacing());
-        if (action != null) {
-            // Story 2.3 review fix (H1): the coach observes only COMMITTED turns. advanceAnimated
-            // returns whether the engine actually advanced the clock (refused actions — a wall bump,
-            // an empty collect, a craft without materials — commit no turn and must not be
-            // acknowledged as a performed control).
-            if (advanceAnimated(action)) tutorial.onAction(action, state);
-            // Story 2.4: the capture resolves the acted turn the tutorial completes (the guard
-            // makes it a safe every-frame call; it fires once and never again). If the party were
-            // somehow already empty, resolve() no-ops — nothing to capture.
-            if (tutorial.isComplete()) capture.resolve(state);
+        if (action != null) submitPlayerAction(action);
+    }
+
+    private void handleStartupMenuInput() {
+        if (menuPage != MenuPage.ROOT) {
+            handleMenuSubpageInput(true);
+            return;
+        }
+        String[] labels = startupMenuLabels();
+        if (down(Input.Keys.W) || down(Input.Keys.UP)) {
+            startupSelection = moveMenuSelection(startupSelection, -1, labels.length);
+        } else if (down(Input.Keys.S) || down(Input.Keys.DOWN)) {
+            startupSelection = moveMenuSelection(startupSelection, 1, labels.length);
+        }
+        int hovered = menuButtonAtPointer(startupButtonX(), startupFirstButtonY(),
+                230, 27, 7, labels.length);
+        if (hovered >= 0) startupSelection = hovered;
+        boolean clicked = hovered >= 0 && Gdx.input.isButtonJustPressed(Input.Buttons.LEFT);
+        if (clicked || down(Input.Keys.ENTER) || down(Input.Keys.SPACE)) {
+            activateStartupSelection(startupSelection);
+        }
+    }
+
+    private void activateStartupSelection(int selection) {
+        if (!hasContinue) {
+            switch (selection) {
+                case 0: startupMenuOpen = false; break;
+                case 1: menuPage = MenuPage.HOW_TO_PLAY; menuSelection = 0; break;
+                case 2: menuPage = MenuPage.OPTIONS; menuSelection = 0; break;
+                default: Gdx.app.exit(); break;
+            }
+            return;
+        }
+        switch (selection) {
+            case 0: startupMenuOpen = false; break;
+            case 1: startNewJourney(); break;
+            case 2: menuPage = MenuPage.HOW_TO_PLAY; menuSelection = 0; break;
+            case 3: menuPage = MenuPage.OPTIONS; menuSelection = 0; break;
+            default: Gdx.app.exit(); break;
+        }
+    }
+
+    private void handlePauseMenuInput() {
+        if (menuPage != MenuPage.ROOT) {
+            handleMenuSubpageInput(false);
+            return;
+        }
+        if (down(Input.Keys.M) || down(Input.Keys.ESCAPE)) {
+            menuOpen = false;
+            return;
+        }
+        if (down(Input.Keys.W) || down(Input.Keys.UP)) {
+            menuSelection = moveMenuSelection(menuSelection, -1, 4);
+        } else if (down(Input.Keys.S) || down(Input.Keys.DOWN)) {
+            menuSelection = moveMenuSelection(menuSelection, 1, 4);
+        }
+        int hovered = menuButtonAtPointer(pauseButtonX(), pauseFirstButtonY(), 210, 32, 8, 4);
+        if (hovered >= 0) menuSelection = hovered;
+        boolean clicked = hovered >= 0 && Gdx.input.isButtonJustPressed(Input.Buttons.LEFT);
+        if (clicked || down(Input.Keys.ENTER) || down(Input.Keys.SPACE)) {
+            switch (menuSelection) {
+                case 0:
+                    menuOpen = false;
+                    break;
+                case 1:
+                    menuPage = MenuPage.OPTIONS;
+                    menuSelection = 0;
+                    break;
+                case 2:
+                    menuPage = MenuPage.HOW_TO_PLAY;
+                    menuSelection = 0;
+                    break;
+                default:
+                    SaveService.save(state);
+                    hasContinue = true;
+                    menuOpen = false;
+                    startupMenuOpen = true;
+                    startupSelection = 0;
+                    break;
+            }
+        }
+    }
+
+    private void handleMenuSubpageInput(boolean fromStartup) {
+        int count = menuPage == MenuPage.OPTIONS ? 2 : 1;
+        if (down(Input.Keys.ESCAPE) || down(Input.Keys.M)) {
+            menuPage = MenuPage.ROOT;
+            menuSelection = 0;
+            return;
+        }
+        if (down(Input.Keys.W) || down(Input.Keys.UP)) {
+            menuSelection = moveMenuSelection(menuSelection, -1, count);
+        } else if (down(Input.Keys.S) || down(Input.Keys.DOWN)) {
+            menuSelection = moveMenuSelection(menuSelection, 1, count);
+        }
+        int firstY = menuPage == MenuPage.OPTIONS ? 159 : 42;
+        int hovered = menuButtonAtPointer((hudWidth() - 210) / 2, firstY, 210, 30, 9, count);
+        if (hovered >= 0) menuSelection = hovered;
+        boolean clicked = hovered >= 0 && Gdx.input.isButtonJustPressed(Input.Buttons.LEFT);
+        if (!clicked && !down(Input.Keys.ENTER) && !down(Input.Keys.SPACE)) return;
+
+        if (menuPage == MenuPage.OPTIONS && menuSelection == 0) {
+            toggleFullscreen();
+        } else {
+            menuPage = MenuPage.ROOT;
+            menuSelection = 0;
+            if (fromStartup) startupSelection = 0;
+        }
+    }
+
+    private void toggleFullscreen() {
+        if (Gdx.graphics.isFullscreen()) Gdx.graphics.setWindowedMode(960, 640);
+        else Gdx.graphics.setFullscreenMode(Gdx.graphics.getDisplayMode());
+    }
+
+    private void startNewJourney() {
+        SaveService.deleteSave();
+        state = new RunState();
+        dialog = new DialogController();
+        intro = new IntroController();
+        tutorial = new TutorialController();
+        capture = new CaptureController();
+        journal = new JournalController();
+        intro.start(CorneoIntro.build());
+        FovSystem.compute(state);
+        clearAnimations();
+        gameOver = false;
+        hasContinue = false;
+        startupMenuOpen = false;
+        menuOpen = false;
+        inventoryOpen = false;
+        menuPage = MenuPage.ROOT;
+        pinnedStatusKey = null;
+        selectedSlot = -1;
+    }
+
+    private boolean handleBurgerPointer() {
+        if (!Gdx.input.isButtonJustPressed(Input.Buttons.LEFT) || !updateHudPointer()) return false;
+        int x = hudWidth() - HUD_MARGIN - 30;
+        int y = TOP_PANEL_Y + TOP_PANEL_H - 22;
+        return pointerHud.x >= x && pointerHud.x < x + 30
+                && pointerHud.y >= y && pointerHud.y < y + 20;
+    }
+
+    private int menuButtonAtPointer(int x, int firstY, int width, int height, int gap, int count) {
+        if (!updateHudPointer()) return -1;
+        for (int i = 0; i < count; i++) {
+            int y = firstY - i * (height + gap);
+            if (pointerHud.x >= x && pointerHud.x < x + width
+                    && pointerHud.y >= y && pointerHud.y < y + height) return i;
+        }
+        return -1;
+    }
+
+    static int moveMenuSelection(int current, int delta, int count) {
+        return count <= 0 ? 0 : Math.floorMod(current + delta, count);
+    }
+
+    private String[] startupMenuLabels() {
+        return hasContinue
+                ? new String[] {"CONTINUE JOURNEY", "NEW JOURNEY", "HOW TO PLAY", "OPTIONS", "EXIT"}
+                : new String[] {"ENTER THE MARGINS", "HOW TO PLAY", "OPTIONS", "EXIT"};
+    }
+
+    private int startupButtonX() { return (hudWidth() - 230) / 2; }
+    private int startupFirstButtonY() { return 168; }
+    private int pauseButtonX() { return (hudWidth() - 210) / 2; }
+    private int pauseFirstButtonY() { return 224; }
+
+    /** Submit from either world controls or the backpack without duplicating story observation. */
+    private void submitPlayerAction(PlayerAction action) {
+        // Story 2.3 review fix (H1): the coach observes only COMMITTED turns. advanceAnimated
+        // returns whether the engine actually advanced the clock (refused actions — a wall bump,
+        // an empty collect, a craft without materials — commit no turn and must not be
+        // acknowledged as a performed control).
+        boolean committed = advanceAnimated(action);
+        if (committed) tutorial.onAction(action, state);
+        // Story 2.4: the capture resolves the acted turn the tutorial completes (the guard
+        // makes it a safe every-frame call; it fires once and never again). If the party were
+        // somehow already empty, resolve() no-ops — nothing to capture.
+        if (tutorial.isComplete()) capture.resolve(state);
+        if (committed && state.getPlayer().isAlive()) {
+            SaveService.save(state);
+            hasContinue = true;
         }
     }
 
@@ -455,6 +716,7 @@ public class MarginScreen implements Screen {
         clearAnimations();
         gameOver = false;
         menuOpen = false;
+        inventoryOpen = false;
         pinnedStatusKey = null;
         selectedSlot = -1;
         state.appendMessages(List.of("Another life. [WASD] move."));
@@ -483,10 +745,10 @@ public class MarginScreen implements Screen {
         // Story 2.4 (review H1): the discovery note is read with E even though it is not a
         // provision (reading is narration). It is NOT added to isProvision() — that would route
         // it through ConsumptionSystem as food; the explicit gate keeps the note inert-and-readable.
-        if (down(Input.Keys.E) && s != null && (s.isProvision() || s == Supply.TORN_PAGE))
+        if (down(Input.Keys.E) && canUseFromInventory(s))
             return PlayerAction.use(s.ordinal(), facing);
-        // Backpack selection cycle (Task 5): TAB / ] forward, [ backward. Not a turn — returns null.
-        if (down(Input.Keys.TAB) || down(Input.Keys.RIGHT_BRACKET)) return cycleSelection(1);
+        // Brackets keep quick-selection available without opening the full TAB backpack.
+        if (down(Input.Keys.RIGHT_BRACKET)) return cycleSelection(1);
         if (down(Input.Keys.LEFT_BRACKET)) return cycleSelection(-1);
         return null;
     }
@@ -543,6 +805,128 @@ public class MarginScreen implements Screen {
         return null;
     }
 
+    private void openInventory() {
+        Inventory inv = state.getInventory();
+        if (selectedSlot < 0 || selectedSlot >= Inventory.BACKPACK_STACKS) {
+            selectedSlot = inv.nextOccupiedStack(-1);
+        }
+        if (selectedSlot < 0) selectedSlot = 0; // an empty pack still has a navigable first slot
+        inventoryOpen = true;
+        pinnedStatusKey = null;
+    }
+
+    private void closeInventory() {
+        inventoryOpen = false;
+        if (selectedSlot >= 0 && state.getInventory().backpackType(selectedSlot) < 0) {
+            selectedSlot = -1;
+        }
+    }
+
+    /** Safe-pause backpack controls. An item action closes the panel before resolving its turn. */
+    private void handleInventoryInput(RoguePlayer player) {
+        if (down(Input.Keys.TAB) || down(Input.Keys.ESCAPE)) {
+            closeInventory();
+            return;
+        }
+
+        if (Gdx.input.isButtonJustPressed(Input.Buttons.LEFT)) {
+            int clicked = inventorySlotAtPointer();
+            if (clicked >= 0) selectedSlot = clicked;
+        }
+
+        int next = selectedSlot < 0 ? 0 : selectedSlot;
+        if (down(Input.Keys.A) || down(Input.Keys.LEFT)) {
+            next = moveInventoryCursor(next, -1, 0);
+        } else if (down(Input.Keys.D) || down(Input.Keys.RIGHT)) {
+            next = moveInventoryCursor(next, 1, 0);
+        } else if (down(Input.Keys.W) || down(Input.Keys.UP)) {
+            next = moveInventoryCursor(next, 0, -1);
+        } else if (down(Input.Keys.S) || down(Input.Keys.DOWN)) {
+            next = moveInventoryCursor(next, 0, 1);
+        }
+        selectedSlot = next;
+
+        PlayerAction action = null;
+        int type = selectedType();
+        Supply supply = Supply.byOrdinal(type);
+        if (down(Input.Keys.T)) {
+            action = PlayerAction.craftTorch(player.getFacing());
+        } else if (type >= 0 && down(Input.Keys.X)) {
+            action = PlayerAction.drop(type, player.getFacing());
+        } else if (canUseFromInventory(supply) && down(Input.Keys.E)) {
+            action = PlayerAction.use(type, player.getFacing());
+        } else if (supply != null && supply.cooksTo() != null && down(Input.Keys.K)) {
+            action = PlayerAction.cook(type, player.getFacing());
+        } else if (supply != null && supply.filtersTo() != null && down(Input.Keys.F)) {
+            action = PlayerAction.filter(type, player.getFacing());
+        } else if (supply != null && supply.boilsTo() != null && down(Input.Keys.V)) {
+            action = PlayerAction.boil(type, player.getFacing());
+        }
+
+        if (action != null) {
+            inventoryOpen = false;
+            int actedSlot = selectedSlot;
+            submitPlayerAction(action);
+            if (actedSlot >= 0 && state.getInventory().backpackType(actedSlot) < 0) {
+                selectedSlot = state.getInventory().nextOccupiedStack(actedSlot);
+            }
+        }
+    }
+
+    /** Mystery consumables, provisions and the Torn Page all have a meaningful E action. */
+    static boolean canUseFromInventory(Supply supply) {
+        return supply != null && (supply.isProvision() || supply.isConsumedOnUse()
+                || supply == Supply.TORN_PAGE);
+    }
+
+    /** Four-by-two cursor movement with SPD-like edge wrapping. Row zero is the visual top row. */
+    static int moveInventoryCursor(int slot, int colDelta, int rowDelta) {
+        int clamped = Math.max(0, Math.min(Inventory.BACKPACK_STACKS - 1, slot));
+        int col = Math.floorMod(clamped % INVENTORY_COLS + colDelta, INVENTORY_COLS);
+        int rows = Inventory.BACKPACK_STACKS / INVENTORY_COLS;
+        int row = Math.floorMod(clamped / INVENTORY_COLS + rowDelta, rows);
+        return row * INVENTORY_COLS + col;
+    }
+
+    /** Click a quickbar slot to open the full backpack with that stack focused. */
+    private boolean handleBackpackPointer() {
+        if (!Gdx.input.isButtonJustPressed(Input.Buttons.LEFT)) return false;
+        int slot = quickbarSlotAtPointer();
+        if (slot < 0) return false;
+        selectedSlot = slot;
+        openInventory();
+        return true;
+    }
+
+    private int quickbarSlotAtPointer() {
+        if (!updateHudPointer()) return -1;
+        int panelX = hudWidth() - HUD_MARGIN - PACK_PANEL_W;
+        int slotX = panelX + 8;
+        int slotY = LOG_PANEL_Y + 5;
+        int stride = 24;
+        if (pointerHud.x < slotX || pointerHud.y < slotY || pointerHud.y >= slotY + 22) return -1;
+        int slot = (int) ((pointerHud.x - slotX) / stride);
+        if (slot < 0 || slot >= Inventory.BACKPACK_STACKS) return -1;
+        return pointerHud.x - (slotX + slot * stride) < 22 ? slot : -1;
+    }
+
+    private int inventorySlotAtPointer() {
+        if (!updateHudPointer()) return -1;
+        int panelX = (hudWidth() - INVENTORY_PANEL_W) / 2;
+        int panelY = (hudHeight() - INVENTORY_PANEL_H) / 2;
+        int gridX = panelX + 14;
+        int gridY = panelY + 99;
+        for (int slot = 0; slot < Inventory.BACKPACK_STACKS; slot++) {
+            int row = slot / INVENTORY_COLS;
+            int col = slot % INVENTORY_COLS;
+            int sx = gridX + col * (INVENTORY_CELL + INVENTORY_GAP);
+            int sy = gridY + (1 - row) * (INVENTORY_CELL + INVENTORY_GAP);
+            if (pointerHud.x >= sx && pointerHud.x < sx + INVENTORY_CELL
+                    && pointerHud.y >= sy && pointerHud.y < sy + INVENTORY_CELL) return slot;
+        }
+        return -1;
+    }
+
     private boolean down(int key) { return Gdx.input.isKeyJustPressed(key); }
     private boolean held(int key) { return Gdx.input.isKeyPressed(key); }
 
@@ -572,8 +956,8 @@ public class MarginScreen implements Screen {
         RogueTileMap map = state.getTileMap();
         RoguePlayer p = state.getPlayer();
         int px = p.getTileX(), py = p.getTileY();
-        int cols = WW / TILE / 2 + 2;
-        int rows = WH / TILE / 2 + 2;
+        int cols = (int) Math.ceil(viewport.getWorldWidth() / TILE / 2f) + 2;
+        int rows = (int) Math.ceil(viewport.getWorldHeight() / TILE / 2f) + 2;
 
         // One batch pass for the whole world: v2 environment tiles first, then actors/items on top.
         batch.setProjectionMatrix(camera.combined);
@@ -595,9 +979,41 @@ public class MarginScreen implements Screen {
                 batch.draw(tileRegion(map, x, y), x * TILE, y * TILE, TILE, TILE);
                 int structureCell = map.getStructureTile(x, y);
                 if (structureCell >= 0) {
-                    TextureRegion structure = map.getStructureType(x, y)
-                            == RogueTileMap.STRUCTURE_GRAVEYARD
-                            ? pixels.graveyard(structureCell) : pixels.oldHouse(structureCell);
+                    TextureRegion structure;
+                    switch (map.getStructureType(x, y)) {
+                        case RogueTileMap.STRUCTURE_GRAVEYARD:
+                            structure = pixels.graveyard(structureCell);
+                            break;
+                        case RogueTileMap.STRUCTURE_DEEP_CAVE:
+                            structure = pixels.deepCave(structureCell);
+                            break;
+                        case RogueTileMap.STRUCTURE_HUNTERS_BLIND:
+                            structure = pixels.huntersBlind(structureCell);
+                            break;
+                        case RogueTileMap.STRUCTURE_FALLEN_LOG_HOLLOW:
+                            structure = pixels.fallenLogHollow(structureCell);
+                            break;
+                        case RogueTileMap.STRUCTURE_FOREST_SHRINE:
+                            structure = pixels.forestShrine(structureCell);
+                            break;
+                        case RogueTileMap.STRUCTURE_BEEHIVE_GROVE:
+                            structure = pixels.beehiveGrove(structureCell);
+                            break;
+                        case RogueTileMap.STRUCTURE_KITCHEN_CAMP:
+                            structure = pixels.kitchenCamp(structureCell);
+                            break;
+                        case RogueTileMap.STRUCTURE_COLLAPSED_WATCHTOWER:
+                            structure = pixels.collapsedWatchtower(structureCell);
+                            break;
+                        case RogueTileMap.STRUCTURE_POACHERS_CAMP:
+                            structure = pixels.poachersCamp(structureCell);
+                            break;
+                        case RogueTileMap.STRUCTURE_SUNKEN_WELL:
+                            structure = pixels.sunkenWell(structureCell);
+                            break;
+                        default:
+                            structure = pixels.oldHouse(structureCell);
+                    }
                     batch.draw(structure, x * TILE, y * TILE, TILE, TILE);
                 }
             }
@@ -625,14 +1041,30 @@ public class MarginScreen implements Screen {
         }
         batch.setColor(Color.WHITE);
 
+        // A built campfire is a world object, not only invisible state. Draw its base beneath
+        // actors; the bright animated flame is redrawn by renderLighting after the night shade.
+        if (state.hasCampfire()) {
+            int fireX = state.getCampfireX(), fireY = state.getCampfireY();
+            boolean visible = map.isVisible(fireX, fireY);
+            boolean explored = map.isExplored(fireX, fireY);
+            if (visible || explored) {
+                batch.setColor(visible ? Color.WHITE : DIM_TILE);
+                drawSprite(pixels.tile(CAMPFIRE_ENV_TILE), fireX * TILE, fireY * TILE, 16, 16);
+                batch.setColor(Color.WHITE);
+            }
+        }
+
         // Floor items (native 16px icons), enemies, companion, Klein.
         for (FloorItem it : state.getFloorItems()) {
             if (map.isVisible(it.x, it.y)) {
                 // Review H2: guard an unknown icon (a Supply appended without an ITEM_ICONS entry)
                 // so it never reaches pixels.item(-1); an icon-less item just isn't drawn.
                 int icon = iconFor(it.type);
-                if (icon >= 0)
+                if (icon >= 0) {
+                    batch.setColor(itemTintFor(it.type));
                     drawSprite(pixels.item(icon), it.x * TILE, it.y * TILE, ITEM_ICON, ITEM_ICON);
+                    batch.setColor(Color.WHITE);
+                }
             }
         }
         for (RogueEnemy e : state.getEnemies()) {
@@ -676,6 +1108,408 @@ public class MarginScreen implements Screen {
         }
 
         batch.end();
+    }
+
+    /**
+     * World-space atmosphere between the scene and HUD. Darkness is a calm blue-black wash;
+     * active flames are restored afterward with additive amber light. The model still owns FOV,
+     * fuel and detection—this pass is presentation only and never changes what a tile means.
+     */
+    private void renderLighting() {
+        RogueTileMap map = state.getTileMap();
+        float darkness = weatherDarkness(state.isDay(), state.getWeather());
+
+        batch.setProjectionMatrix(camera.combined);
+        batch.begin();
+        if (darkness > 0f) {
+            fillRect(camera.position.x - viewport.getWorldWidth() / 2f,
+                    camera.position.y - viewport.getWorldHeight() / 2f,
+                    viewport.getWorldWidth(), viewport.getWorldHeight(),
+                    new Color(NIGHT_SHADE.r, NIGHT_SHADE.g, NIGHT_SHADE.b, darkness));
+        }
+
+        // Additive radial light lifts the already-shaded world without drawing an opaque disc.
+        batch.setBlendFunction(GL20.GL_SRC_ALPHA, GL20.GL_ONE);
+        if (state.hasCampfire() && map.isVisible(state.getCampfireX(), state.getCampfireY())) {
+            drawLightGlow(state.getCampfireX() * TILE + TILE / 2f,
+                    state.getCampfireY() * TILE + TILE / 2f, torchGlowAlpha(darkness) * 0.88f);
+        }
+        if (state.getTorchTurns() > 0) {
+            float playerX = animatedPixelX(playerMotion, state.getPlayer().getTileX());
+            float playerY = animatedPixelY(playerMotion, state.getPlayer().getTileY());
+            drawLightGlow(playerX + TILE / 2f, playerY + TILE / 2f, torchGlowAlpha(darkness));
+        } else if (state.hasLight() && !state.hasCampfire()
+                && map.isVisible(state.getLightX(), state.getLightY())) {
+            drawLightGlow(state.getLightX() * TILE + TILE / 2f,
+                    state.getLightY() * TILE + TILE / 2f, torchGlowAlpha(darkness) * 0.82f);
+        }
+        batch.setBlendFunction(GL20.GL_SRC_ALPHA, GL20.GL_ONE_MINUS_SRC_ALPHA);
+
+        // Flame sprites stay crisp and fully readable above the shade and radial glow.
+        int flame = flameFrame();
+        if (state.hasCampfire() && map.isVisible(state.getCampfireX(), state.getCampfireY())) {
+            batch.draw(pixels.effect(flame), state.getCampfireX() * TILE + 5f,
+                    state.getCampfireY() * TILE + 7f, 14f, 14f);
+        }
+        if (state.getTorchTurns() > 0) {
+            drawCarriedTorch(animatedPixelX(playerMotion, state.getPlayer().getTileX()),
+                    animatedPixelY(playerMotion, state.getPlayer().getTileY()),
+                    state.getPlayer().getFacing(), flame);
+        }
+        renderWeatherOverlay(state.getWeather());
+        batch.setColor(Color.WHITE);
+        batch.end();
+    }
+
+    /** Clear day has no wash; Fog and Night stack but remain playable rather than pitch black. */
+    static float ambientDarkness(boolean day, boolean fog) {
+        float darkness = day ? 0f : 0.36f;
+        if (fog) darkness += day ? 0.16f : 0.14f;
+        return Math.min(0.50f, darkness);
+    }
+
+    /** Wet skies add a restrained cool wash; Fog keeps its stronger visibility treatment. */
+    static float weatherDarkness(boolean day, Weather weather) {
+        float darkness = ambientDarkness(day, weather == Weather.FOG);
+        if (weather == Weather.RAIN) darkness += day ? 0.045f : 0.025f;
+        if (weather == Weather.STORM) darkness += day ? 0.10f : 0.06f;
+        if (weather == Weather.COLD_SNAP) darkness += day ? 0.025f : 0.015f;
+        return Math.min(0.50f, darkness);
+    }
+
+    /** Presentation intensity only—weather consequences remain owned by the turn systems. */
+    static float rainIntensity(Weather weather) {
+        if (weather == Weather.RAIN) return 0.44f;
+        if (weather == Weather.STORM) return 0.70f;
+        return 0f;
+    }
+
+    static int loopingWeatherFrame(float seconds, float frameSeconds, int frames) {
+        if (frameSeconds <= 0f || frames <= 0) return 0;
+        return Math.floorMod((int) Math.floor(seconds / frameSeconds), frames);
+    }
+
+    /** Two short, low-alpha pulses in a long cycle; bright enough to read, never a whiteout. */
+    static float stormFlashAlpha(float seconds) {
+        float phase = positiveModulo(seconds, 7.4f);
+        if (phase < 0.07f) return 0.15f * (1f - phase / 0.07f);
+        if (phase >= 0.16f && phase < 0.24f) {
+            return 0.08f * (1f - (phase - 0.16f) / 0.08f);
+        }
+        return 0f;
+    }
+
+    private static float positiveModulo(float value, float divisor) {
+        return value - (float) Math.floor(value / divisor) * divisor;
+    }
+
+    /** Animated world-space precipitation and mist; it never touches RunState or advances a turn. */
+    private void renderWeatherOverlay(Weather weather) {
+        switch (weather) {
+            case RAIN:
+                drawRain();
+                break;
+            case STORM:
+                drawStormFlash();
+                drawStormRain();
+                break;
+            case FOG:
+                drawFogSpecks();
+                break;
+            case COLD_SNAP:
+                drawColdSnapFrost();
+                break;
+            default:
+                break;
+        }
+    }
+
+    private void drawRain() {
+        float left = camera.position.x - viewport.getWorldWidth() / 2f;
+        float bottom = camera.position.y - viewport.getWorldHeight() / 2f;
+        float right = left + viewport.getWorldWidth();
+        float top = bottom + viewport.getWorldHeight();
+        // Individual streaks replace the old repeated 48px rain cells. Stable hash jitter and
+        // density gaps keep this continuous field from exposing a square atlas footprint.
+        float spacingX = 16f;
+        float spacingY = 22f;
+        float driftX = lightingClock * 19f;
+        float driftY = -lightingClock * 76f;
+        int firstCol = (int) Math.floor((left - driftX) / spacingX) - 1;
+        int lastCol = (int) Math.ceil((right - driftX) / spacingX) + 1;
+        int firstRow = (int) Math.floor((bottom - driftY) / spacingY) - 1;
+        int lastRow = (int) Math.ceil((top - driftY) / spacingY) + 1;
+        float baseAlpha = rainIntensity(Weather.RAIN);
+
+        for (int row = firstRow; row <= lastRow; row++) {
+            for (int col = firstCol; col <= lastCol; col++) {
+                int hash = positionHash(col * 17, row * 31, 0x7f4a7c15);
+                if (Math.floorMod(hash >>> 18, 100) < 42) continue;
+                float jitterX = Math.floorMod(hash, 11) - 5f;
+                float jitterY = Math.floorMod(hash >>> 7, 15) - 7f;
+                float alpha = baseAlpha * (0.55f + Math.floorMod(hash >>> 14, 31) / 100f);
+                int segments = 2 + Math.floorMod(hash >>> 23, 2);
+                int segmentHeight = 2 + Math.floorMod(hash >>> 27, 2);
+                batch.setColor(0.76f, 0.86f, 0.94f, alpha);
+                drawRainStreak(col * spacingX + driftX + jitterX,
+                        row * spacingY + driftY + jitterY, segments, segmentHeight);
+            }
+        }
+        batch.setColor(Color.WHITE);
+    }
+
+    /**
+     * Heavy rain without a lattice. Each numbered drop receives an unrelated hashed position,
+     * speed, lifetime, length and wind response; cycling those independent particles through the
+     * viewport cannot produce the diagonal rows that a col/row weather grid exposes.
+     */
+    private void drawStormRain() {
+        float left = camera.position.x - viewport.getWorldWidth() / 2f;
+        float bottom = camera.position.y - viewport.getWorldHeight() / 2f;
+        float width = viewport.getWorldWidth();
+        float height = viewport.getWorldHeight();
+        float travel = height + 96f;
+        float fieldWidth = width + 120f;
+        int drops = Math.max(150, Math.min(320, (int) Math.ceil(width * height / 900f)));
+
+        for (int index = 0; index < drops; index++) {
+            int hash = positionHash(index * 73, index * index + 17, 0x7f4a7c15);
+            int motionHash = positionHash(index * 31 + 11, index * 97, 0x2c1b3c6d);
+            float phase = stormDropPhase(lightingClock, hash, travel);
+            float baseX = Math.floorMod(hash, 10000) / 10000f * fieldWidth;
+            float wind = 18f + Math.floorMod(motionHash >>> 9, 31);
+            float flutter = (float) Math.sin(lightingClock
+                    * (0.75f + Math.floorMod(motionHash >>> 20, 40) / 100f)
+                    + Math.floorMod(hash >>> 8, 628) / 100f)
+                    * (2f + Math.floorMod(hash >>> 21, 6));
+            float x = left - 60f + positiveModulo(baseX + phase * wind + flutter, fieldWidth);
+            float y = bottom - 36f + (1f - phase) * travel;
+            float gust = 0.72f + 0.28f * (float) Math.sin(
+                    lightingClock * 1.3f + Math.floorMod(motionHash, 628) / 100f);
+            float alpha = rainIntensity(Weather.STORM)
+                    * (0.62f + Math.floorMod(hash >>> 14, 27) / 100f) * gust;
+            int segments = 3 + Math.floorMod(hash >>> 23, 3);
+            int segmentHeight = 2 + Math.floorMod(motionHash >>> 25, 3);
+
+            batch.setColor(0.72f, 0.84f, 0.96f, alpha);
+            drawRainStreak(x, y, segments, segmentHeight);
+        }
+        batch.setColor(Color.WHITE);
+    }
+
+    /** Independent seeded cycle for one storm drop; presentation-only and always normalized. */
+    static float stormDropPhase(float seconds, int seed, float travel) {
+        if (travel <= 0f) return 0f;
+        float speed = 118f + Math.floorMod(seed >>> 10, 83);
+        float offset = Math.floorMod(seed, 10000) / 10000f * travel;
+        return positiveModulo(seconds * speed + offset, travel) / travel;
+    }
+
+    /** One crisp slash assembled from tiny pixel bars—no texture cell exists to repeat. */
+    private void drawRainStreak(float x, float y, int segments, int segmentHeight) {
+        for (int i = 0; i < segments; i++) {
+            batch.draw(uiPixel, x + i, y + i * segmentHeight, 1f, segmentHeight + 1f);
+        }
+    }
+
+    /**
+     * Cell-local mist emitters inspired by the motion language of dungeon gas fields. Every
+     * visible tile owns a few deterministic, short-lived wisps: each one appears at a different
+     * point inside the tile, curls sideways, slowly rotates and expands, then dissolves. Rebuilding
+     * the particles from the presentation clock keeps the effect smooth without mutating game
+     * state, and the scattered lifetimes prevent the fog from forming rows or one giant cloud.
+     */
+    private void drawFogSpecks() {
+        RogueTileMap map = state.getTileMap();
+        float left = camera.position.x - viewport.getWorldWidth() / 2f;
+        float bottom = camera.position.y - viewport.getWorldHeight() / 2f;
+        float right = left + viewport.getWorldWidth();
+        float top = bottom + viewport.getWorldHeight();
+        int firstX = Math.max(0, (int) Math.floor(left / TILE) - 1);
+        int lastX = Math.min(map.getWidth() - 1, (int) Math.ceil(right / TILE) + 1);
+        int firstY = Math.max(0, (int) Math.floor(bottom / TILE) - 1);
+        int lastY = Math.min(map.getHeight() - 1, (int) Math.ceil(top / TILE) + 1);
+
+        for (int x = firstX; x <= lastX; x++) {
+            for (int y = firstY; y <= lastY; y++) {
+                if (!map.isVisible(x, y)) continue;
+                for (int stream = 0; stream < 2; stream++) {
+                    int hash = positionHash(x * 17 + stream * 53, y * 31 - stream * 19,
+                            0x165667b1);
+                    // Several staggered emitters per cell, with enough empty cycles for airy fog.
+                    if (Math.floorMod(hash >>> 17, 100) < 35) continue;
+
+                    float phase = fogSpeckPhase(lightingClock, hash);
+                    float lifeAlpha = fogSpeckAlpha(phase);
+                    float baseSize = 18f + Math.floorMod(hash >>> 21, 7);
+                    float size = baseSize * fogSpeckScale(phase);
+                    float anchorX = x * TILE + 2f + Math.floorMod(hash, 21);
+                    float anchorY = y * TILE + 1f + Math.floorMod(hash >>> 7, 18);
+                    float curl = (float) Math.sin(phase * Math.PI * 2f
+                            + Math.floorMod(hash >>> 12, 628) / 100f);
+                    float xDrift = curl * (2f + Math.floorMod(hash >>> 24, 5))
+                            + phase * (Math.floorMod(hash >>> 28, 5) - 2f);
+                    float yDrift = (float) Math.sin(phase * Math.PI
+                            + Math.floorMod(hash >>> 6, 314) / 100f)
+                            * (1f + Math.floorMod(hash >>> 15, 3));
+                    float rotation = Math.floorMod(hash >>> 4, 17) - 8f
+                            + phase * (Math.floorMod(hash >>> 26, 2) == 0 ? -10f : 10f);
+                    int frame = Math.floorMod((int) (phase * FOG_FRAMES)
+                            + Math.floorMod(hash, FOG_FRAMES), FOG_FRAMES);
+                    // The fog atlas already has soft per-pixel alpha, so this multiplier must be
+                    // materially stronger than the old opaque cloud-sheet tint to remain visible.
+                    float alpha = (0.15f + Math.floorMod(hash >>> 13, 6) * 0.015f) * lifeAlpha;
+
+                    batch.setColor(0.59f, 0.67f, 0.61f, alpha);
+                    batch.draw(pixels.fog(frame), anchorX + xDrift - size / 2f,
+                            anchorY + yDrift - size / 2f, size / 2f, size / 2f,
+                            size, size, 1f, 1f, rotation);
+                }
+            }
+        }
+        batch.setColor(Color.WHITE);
+    }
+
+    /** A stable 1.35–2.84 second lifetime and random age offset for one procedural wisp. */
+    static float fogSpeckPhase(float seconds, int seed) {
+        float lifespan = 1.35f + Math.floorMod(seed >>> 8, 150) / 100f;
+        float offset = Math.floorMod(seed, 1000) / 1000f * lifespan;
+        return positiveModulo(seconds + offset, lifespan) / lifespan;
+    }
+
+    /** Soft fade-in/fade-out curve; the particle is invisible exactly at either end of its life. */
+    static float fogSpeckAlpha(float phase) {
+        float clamped = Math.max(0f, Math.min(1f, phase));
+        return (float) Math.sqrt(Math.max(0f, Math.sin(clamped * Math.PI)));
+    }
+
+    /** Wisps expand as they disperse instead of translating like a flat weather sheet. */
+    static float fogSpeckScale(float phase) {
+        float clamped = Math.max(0f, Math.min(1f, phase));
+        return 0.62f + clamped * 0.76f;
+    }
+
+    private void drawColdSnapFrost() {
+        RogueTileMap map = state.getTileMap();
+        float left = camera.position.x - viewport.getWorldWidth() / 2f;
+        float bottom = camera.position.y - viewport.getWorldHeight() / 2f;
+        float right = left + viewport.getWorldWidth();
+        float top = bottom + viewport.getWorldHeight();
+        int firstX = Math.max(0, (int) Math.floor(left / TILE) - 1);
+        int lastX = Math.min(map.getWidth() - 1, (int) Math.ceil(right / TILE) + 1);
+        int firstY = Math.max(0, (int) Math.floor(bottom / TILE) - 1);
+        int lastY = Math.min(map.getHeight() - 1, (int) Math.ceil(top / TILE) + 1);
+
+        // The blue chill is global, but every moving detail now comes from a visible map cell.
+        // This follows the same localized emitter language as Fog instead of sweeping a repeated
+        // weather grid across the screen.
+        batch.setColor(0.48f, 0.65f, 0.86f, 0.055f);
+        batch.draw(uiPixel, left, bottom, viewport.getWorldWidth(), viewport.getWorldHeight());
+        for (int x = firstX; x <= lastX; x++) {
+            for (int y = firstY; y <= lastY; y++) {
+                if (!map.isVisible(x, y)) continue;
+                for (int stream = 0; stream < 3; stream++) {
+                    int hash = positionHash(x * 23 + stream * 47, y * 37 - stream * 17,
+                            0x4cf5ad43);
+                    if (Math.floorMod(hash >>> 18, 100) < 36) continue;
+
+                    float phase = coldSnapParticlePhase(lightingClock, hash);
+                    float lifeAlpha = coldSnapParticleAlpha(phase);
+                    float anchorX = x * TILE + 2f + Math.floorMod(hash, 21);
+                    float anchorY = y * TILE + 2f + Math.floorMod(hash >>> 7, 20);
+                    float direction = Math.floorMod(hash >>> 24, 2) == 0 ? -1f : 1f;
+                    float turns = 1.4f + Math.floorMod(hash >>> 14, 6) * 0.22f;
+                    float angle = Math.floorMod(hash >>> 4, 628) / 100f
+                            + phase * (float) Math.PI * 2f * turns * direction;
+                    float radius = 1.5f + (float) Math.sin(phase * Math.PI)
+                            * (2.5f + Math.floorMod(hash >>> 21, 4));
+                    float particleX = anchorX + (float) Math.cos(angle) * radius;
+                    float particleY = anchorY + (float) Math.sin(angle) * radius;
+                    float alpha = (0.27f + Math.floorMod(hash >>> 12, 7) * 0.025f)
+                            * lifeAlpha;
+
+                    if (Math.floorMod(hash >>> 25, 5) == 0) {
+                        // A tiny rotating vapor bloom supplies the blizzard-potion softness.
+                        float size = (8f + Math.floorMod(hash >>> 20, 6))
+                                * (0.72f + phase * 0.45f);
+                        int frame = Math.floorMod((int) (phase * FOG_FRAMES)
+                                + Math.floorMod(hash, FOG_FRAMES), FOG_FRAMES);
+                        float rotation = phase * 230f * direction;
+                        batch.setColor(0.62f, 0.75f, 0.90f, alpha * 0.62f);
+                        batch.draw(pixels.fog(frame), particleX - size / 2f,
+                                particleY - size / 2f, size / 2f, size / 2f,
+                                size, size, 1f, 1f, rotation);
+                    } else {
+                        // Crystals tumble between horizontal and vertical silhouettes locally;
+                        // nothing shares a screen-wide direction or lane.
+                        int orientation = Math.floorMod((int) (phase * 8f)
+                                + Math.floorMod(hash, 4), 4);
+                        float length = 2f + Math.floorMod(hash >>> 22, 3);
+                        batch.setColor(0.72f, 0.87f, 1f, alpha);
+                        if ((orientation & 1) == 0) {
+                            batch.draw(uiPixel, particleX - length / 2f, particleY, length, 1f);
+                            batch.draw(uiPixel, particleX, particleY - 1f, 1f, 3f);
+                        } else {
+                            batch.draw(uiPixel, particleX, particleY - length / 2f, 1f, length);
+                            batch.draw(uiPixel, particleX - 1f, particleY, 3f, 1f);
+                        }
+                    }
+                }
+            }
+        }
+        batch.setColor(Color.WHITE);
+    }
+
+    /** Stable short life and staggered birth time for a tile-local frost emitter. */
+    static float coldSnapParticlePhase(float seconds, int seed) {
+        float lifespan = 0.90f + Math.floorMod(seed >>> 8, 130) / 100f;
+        float offset = Math.floorMod(seed, 1000) / 1000f * lifespan;
+        return positiveModulo(seconds + offset, lifespan) / lifespan;
+    }
+
+    /** Frost materializes and dissolves rather than entering from one edge of the screen. */
+    static float coldSnapParticleAlpha(float phase) {
+        float clamped = Math.max(0f, Math.min(1f, phase));
+        return (float) Math.sqrt(Math.max(0f, Math.sin(clamped * Math.PI)));
+    }
+
+    private void drawStormFlash() {
+        float alpha = stormFlashAlpha(lightingClock);
+        if (alpha <= 0f) return;
+        float left = camera.position.x - viewport.getWorldWidth() / 2f;
+        float bottom = camera.position.y - viewport.getWorldHeight() / 2f;
+        batch.setColor(0.72f, 0.82f, 1f, alpha);
+        batch.draw(uiPixel, left, bottom, viewport.getWorldWidth(), viewport.getWorldHeight());
+        batch.setColor(Color.WHITE);
+    }
+
+    /** Barely visible by day; progressively useful as ambient darkness rises. */
+    static float torchGlowAlpha(float darkness) {
+        return darkness <= 0f ? 0.11f : Math.min(0.48f, 0.20f + darkness * 0.56f);
+    }
+
+    private void drawLightGlow(float centerX, float centerY, float baseAlpha) {
+        float flicker = 0.94f + 0.06f * (float) Math.sin(lightingClock * 11f);
+        float size = TILE * (6.8f + 0.10f * (float) Math.sin(lightingClock * 7f));
+        batch.setColor(1f, 0.82f, 0.48f, baseAlpha * flicker);
+        batch.draw(pixels.smoothEffect(EFFECT_GLOW), centerX - size / 2f, centerY - size / 2f,
+                size, size);
+        batch.setColor(Color.WHITE);
+    }
+
+    private int flameFrame() {
+        return ((int) (lightingClock / 0.18f) & 1) == 0 ? EFFECT_FLAME_A : EFFECT_FLAME_B;
+    }
+
+    /** Small diagonal torch plus flame, tucked beside Klein rather than covering his silhouette. */
+    private void drawCarriedTorch(float actorX, float actorY, int facing, int flame) {
+        boolean left = directionX(facing) < 0;
+        float iconX = actorX + (left ? -1f : 12f);
+        TextureRegion icon = pixels.item(TORCH_ITEM_ICON);
+        if (left) batch.draw(icon, iconX + 13f, actorY + 4f, -13f, 13f);
+        else batch.draw(icon, iconX, actorY + 4f, 13f, 13f);
+        batch.draw(pixels.effect(flame), actorX + (left ? -3f : 13f), actorY + 10f,
+                12f, 12f);
     }
 
     private void drawStructureForeground(RogueTileMap map, int px, int py, int cols, int rows) {
@@ -865,16 +1699,116 @@ public class MarginScreen implements Screen {
                 && map.isVisible((int) motion.fromX, (int) motion.fromY));
     }
 
-    /** The guide terrain cell for tile (x,y); multi-cell types vary deterministically by position. */
+    /** The world tile for (x,y); water/doors retain their authored atlas, floors use materials. */
     private TextureRegion tileRegion(RogueTileMap map, int x, int y) {
+        // Multi-cell structure art supplies its own ground and collision silhouette. Keep an
+        // ordinary floor under every transparent pixel so a cave's blocking rock cells never leak
+        // unrelated forest-autotile crowns through the authored structure image.
+        if (map.getStructureTile(x, y) >= 0) {
+            return pixels.ground(grassCell(x, y));
+        }
         switch (map.getTile(x, y)) {
             case RogueTile.WALL:  return pixels.forest(forestMask(map, x, y));
             case RogueTile.DOOR:  return pixels.terrain(DOOR_CELL);
             case RogueTile.WELL:  return pixels.terrain(WELL_CELL);
             case RogueTile.POND:  return pixels.terrain(POND_CELLS[variant(x, y, POND_CELLS)]);
             case RogueTile.RIVER: return pixels.terrain(RIVER_CELLS[variant(x, y, RIVER_CELLS)]);
-            default:              return pixels.terrain(FLOOR_CELLS[variant(x, y, FLOOR_CELLS)]);
+            default:              return pixels.ground(groundMaterialCell(map, x, y));
         }
+    }
+
+    /**
+     * Presentation-only material classification. The gameplay map deliberately remains simple:
+     * grass, road, mud and stone are all ordinary walkable FLOOR to the turn engine. This method
+     * reads durable geography instead of frame/weather state, so materials never pop between turns.
+     */
+    static int groundMaterialCell(RogueTileMap map, int x, int y) {
+        // Wells sit in small worked-stone aprons; ponds and rivers soften the nearby earth.
+        if (nearTile(map, x, y, 1, RogueTile.WELL)) {
+            int field = patchField(x, y, 0x243f6a88);
+            return field < 112 ? GROUND_COBBLESTONE
+                    : field < 145 ? GROUND_MOSSY_COBBLESTONE : GROUND_BROKEN_COBBLESTONE;
+        }
+        if (nearOpenWater(map, x, y, 1)) {
+            return patchField(x, y, 0x85a308d3) < 132 ? GROUND_MUD : GROUND_PUDDLED_MUD;
+        }
+
+        // The authored Copper Road is three tiles wide: a surviving cobbled center with worn,
+        // dirt-and-gravel shoulders. Contextual water above can naturally break it into mud.
+        int roadY = Math.round(WorldSpine.ROAD_Y * (map.getHeight() - 1));
+        int roadStart = Math.round(WorldSpine.ROAD_X_START * (map.getWidth() - 1));
+        int roadEnd = Math.round(WorldSpine.ROAD_X_END * (map.getWidth() - 1));
+        if (x >= roadStart && x <= roadEnd && Math.abs(y - roadY) <= 1) {
+            int field = patchField(x, y, 0x13198a2e);
+            if (y == roadY) {
+                if (field < 112) return GROUND_COBBLESTONE;
+                if (field < 143) return GROUND_MOSSY_COBBLESTONE;
+                return GROUND_BROKEN_COBBLESTONE;
+            }
+            if (field < 116) return GROUND_PACKED_DIRT_A;
+            if (field < 145) return GROUND_PACKED_DIRT_B;
+            return GROUND_GRAVEL;
+        }
+
+        if (nearOpenWater(map, x, y, 2)) return GROUND_DAMP_GRASS;
+        if (nearTile(map, x, y, 1, RogueTile.DOOR)) {
+            return patchField(x, y, 0xa4093822) < 132
+                    ? GROUND_PACKED_DIRT_A : GROUND_PACKED_DIRT_B;
+        }
+
+        // A continuous leaf/root verge visually seats the treeline into the clearing. A sparse
+        // second row breaks the ruler-straight edge without filling whole rooms with brown noise.
+        if (nearTile(map, x, y, 1, RogueTile.WALL)) {
+            int field = patchField(x, y, 0x299f31d0);
+            if (field < 114) return GROUND_LEAF_LITTER_A;
+            if (field < 145) return GROUND_LEAF_LITTER_B;
+            return GROUND_ROOTS;
+        }
+        if (nearTile(map, x, y, 2, RogueTile.WALL)
+                && patchField(x, y, 0x082efa98) < 112) {
+            return patchField(x, y, 0xec4e6c89) < 128
+                    ? GROUND_LEAF_LITTER_A : GROUND_LEAF_LITTER_B;
+        }
+        return grassCell(x, y);
+    }
+
+    /** Quiet grass dominates; damp and flowered cells form rare overlapping organic patches. */
+    private static int grassCell(int x, int y) {
+        int field = patchField(x, y, 0x452821e6);
+        if (field < 108) return GROUND_DAMP_GRASS;
+        if (field > 151) return GROUND_FLOWERING_GRASS;
+        return patchField(x, y, 0x38d01377) < 128 ? GROUND_GRASS_A : GROUND_GRASS_B;
+    }
+
+    private static boolean nearOpenWater(RogueTileMap map, int x, int y, int radius) {
+        return nearTile(map, x, y, radius, RogueTile.POND)
+                || nearTile(map, x, y, radius, RogueTile.RIVER);
+    }
+
+    /** Chebyshev-radius neighborhood keeps material halos continuous around irregular silhouettes. */
+    private static boolean nearTile(RogueTileMap map, int x, int y, int radius, int tile) {
+        for (int dx = -radius; dx <= radius; dx++) {
+            for (int dy = -radius; dy <= radius; dy++) {
+                if (dx == 0 && dy == 0) continue;
+                if (map.getTile(x + dx, y + dy) == tile) return true;
+            }
+        }
+        return false;
+    }
+
+    /**
+     * Average overlapping 5x5 coordinate hashes into a stable low-frequency field. Neighboring
+     * cells share 20/25 samples, so thresholds create lumpy patches without diagonal bands,
+     * checkerboards, fixed macro-cell edges, save-state changes, or per-frame flicker.
+     */
+    private static int patchField(int x, int y, int salt) {
+        int sum = 0;
+        for (int dx = -2; dx <= 2; dx++) {
+            for (int dy = -2; dy <= 2; dy++) {
+                sum += positionHash(x + dx, y + dy, salt) & 0xff;
+            }
+        }
+        return sum / 25;
     }
 
     /**
@@ -992,14 +1926,35 @@ public class MarginScreen implements Screen {
     }
 
     /** The item-icon cell for a Supply type id, or -1 if the pack has no usable icon. */
-    private static int iconFor(int type) {
+    static int iconFor(int type) {
         return type >= 0 && type < ITEM_ICONS.length ? ITEM_ICONS[type] : -1;
+    }
+
+    /** Preserve the meat silhouette instead of misrepresenting rotten meat as cheese. */
+    private static Color itemTintFor(int type) {
+        if (type == Supply.HALF_ROTTEN_MEAT.ordinal()) return HALF_ROTTEN_TINT;
+        if (type == Supply.SPOILED_MEAT.ordinal()) return SPOILED_TINT;
+        return Color.WHITE;
+    }
+
+    private void drawItemIcon(int type, float x, float y, float width, float height) {
+        int icon = iconFor(type);
+        if (icon < 0) return;
+        batch.setColor(itemTintFor(type));
+        batch.draw(pixels.item(icon), x, y, width, height);
+        batch.setColor(Color.WHITE);
     }
 
     private void renderHud() {
         RoguePlayer p = state.getPlayer();
-        batch.getProjectionMatrix().setToOrtho2D(0, 0, WW, WH);
+        batch.getProjectionMatrix().setToOrtho2D(0, 0, hudWidth(), hudHeight());
         batch.begin();
+
+        if (startupMenuOpen) {
+            renderStartupMenu();
+            batch.end();
+            return;
+        }
 
         renderStatusPanel(p);
         renderBackpackPanel();
@@ -1021,6 +1976,7 @@ public class MarginScreen implements Screen {
         }
 
         if (gameOver) renderGameOverPanel();
+        else if (inventoryOpen) renderInventoryPanel();
         else if (menuOpen) renderMenuPanel();
 
         batch.end();
@@ -1034,9 +1990,21 @@ public class MarginScreen implements Screen {
 
         drawText("HP " + p.getHp() + "/" + p.getMaxHp(), x + 6, y + 53, UI_HEALTH);
         drawBar(x + 54, y + 47, 66, 4, p.getHp() / (float) Math.max(1, p.getMaxHp()), UI_HEALTH);
-        String time = (state.isDay() ? "DAY " : "NIGHT ") + state.getClockTurns()
-                + "  " + state.getWeather().label().toUpperCase();
-        drawText(fitText(time, 116), x + 130, y + 53, UI_ACCENT);
+        boolean torchLit = state.getTorchTurns() > 0;
+        String time = torchLit
+                ? (state.isDay() ? "D" : "N") + state.getClockTurns() + " "
+                        + (state.getWeather() == Weather.COLD_SNAP
+                                ? "COLD" : state.getWeather().label().toUpperCase())
+                : (state.isDay() ? "DAY " : "NIGHT ") + state.getClockTurns()
+                        + "  " + state.getWeather().label().toUpperCase();
+        drawText(fitText(time, torchLit ? 82 : 116), x + 130, y + 53, UI_ACCENT);
+        if (torchLit) {
+            batch.setColor(Color.WHITE);
+            batch.draw(pixels.item(TORCH_ITEM_ICON), x + 213, y + 40, 14, 14);
+            drawBar(x + 228, y + 48, 16, 4,
+                    state.getTorchTurns() / (float) TorchSystem.TORCH_BURN, TORCH_AMBER);
+            drawText(state.getTorchTurns() + "T", x + 226, y + 43, TORCH_AMBER);
+        }
 
         List<StatusChip> chips = statusChips(p);
         StatusChip hovered = statusChipAtPointer(p);
@@ -1222,7 +2190,8 @@ public class MarginScreen implements Screen {
         float rawY = Gdx.graphics.getHeight() - Gdx.input.getY();
         if (screenW <= 0 || screenH <= 0 || rawX < screenX || rawX >= screenX + screenW
                 || rawY < screenY || rawY >= screenY + screenH) return false;
-        pointerHud.set((rawX - screenX) * WW / screenW, (rawY - screenY) * WH / screenH);
+        pointerHud.set((rawX - screenX) * hudWidth() / screenW,
+                (rawY - screenY) * hudHeight() / screenH);
         return true;
     }
 
@@ -1257,79 +2226,29 @@ public class MarginScreen implements Screen {
     }
 
     private void drawStatusIcon(StatusIcon icon, int x, int y, Color color) {
-        switch (icon) {
-            case FOOD:
-                fillRect(x + 1, y + 3, 7, 7, color);
-                fillRect(x + 7, y + 2, 3, 3, UI_TEXT);
-                fillRect(x + 9, y + 1, 2, 2, UI_TEXT);
-                break;
-            case WATER:
-                fillRect(x + 5, y + 9, 2, 2, color);
-                fillRect(x + 4, y + 6, 4, 4, color);
-                fillRect(x + 2, y + 3, 8, 4, color);
-                fillRect(x + 4, y + 1, 4, 2, color);
-                break;
-            case TEMPERATURE:
-                fillRect(x + 5, y + 4, 3, 8, UI_TEXT);
-                fillRect(x + 6, y + 5, 1, 6, color);
-                fillRect(x + 3, y + 1, 7, 5, color);
-                break;
-            case NAUSEA:
-                fillRect(x + 2, y + 8, 8, 2, color);
-                fillRect(x + 2, y + 3, 2, 5, color);
-                fillRect(x + 4, y + 2, 6, 2, color);
-                fillRect(x + 8, y + 4, 2, 3, color);
-                break;
-            case FEVER:
-                fillRect(x + 4, y + 1, 5, 4, color);
-                fillRect(x + 2, y + 4, 8, 4, color);
-                fillRect(x + 5, y + 7, 4, 4, color);
-                fillRect(x + 7, y + 10, 2, 2, color);
-                break;
-            case DELIRIUM:
-                fillRect(x + 1, y + 5, 10, 3, color);
-                fillRect(x + 3, y + 3, 6, 7, color);
-                fillRect(x + 5, y + 5, 2, 3, UI_PANEL_STRONG);
-                break;
-            case DIARRHEA:
-                fillRect(x + 2, y + 7, 2, 4, color);
-                fillRect(x + 5, y + 4, 2, 7, color);
-                fillRect(x + 8, y + 1, 2, 10, color);
-                fillRect(x + 1, y + 1, 10, 2, color);
-                break;
-            case CRIPPLED:
-                fillRect(x + 1, y + 2, 3, 3, color);
-                fillRect(x + 3, y + 4, 3, 3, color);
-                fillRect(x + 5, y + 6, 3, 3, color);
-                fillRect(x + 7, y + 8, 3, 3, color);
-                fillRect(x + 8, y + 1, 2, 4, UI_TEXT);
-                break;
-            case COLLAPSED:
-                fillRect(x + 1, y + 6, 10, 4, color);
-                fillRect(x + 3, y + 3, 6, 6, color);
-                fillRect(x + 5, y + 1, 2, 3, color);
-                fillRect(x + 6, y + 4, 2, 5, UI_PANEL_STRONG);
-                break;
-            default:
-                break;
-        }
+        batch.setColor(color);
+        batch.draw(pixels.statusIcon(icon.ordinal()), x - 2, y - 2, 16, 16);
+        batch.setColor(Color.WHITE);
     }
 
-    /** Eight-slot icon quickbar; only the selected stack spends horizontal space on its name. */
+    /** Lower-right eight-slot quickbar; only the selected stack spends space on its name. */
     private void renderBackpackPanel() {
-        int x = PACK_PANEL_X;
-        int y = TOP_PANEL_Y;
-        drawPanel(x, y, PACK_PANEL_W, TOP_PANEL_H, UI_PANEL);
+        int x = hudWidth() - HUD_MARGIN - PACK_PANEL_W;
+        int y = LOG_PANEL_Y;
+        drawInventoryFrame(x, y, PACK_PANEL_W, TOP_PANEL_H);
 
-        drawHeading("BACKPACK", x + 6, y + 53, UI_MUTED);
         Inventory inv = state.getInventory();
-        String selected = "[TAB] SELECT ITEM";
+        fillRect(x + 3, y + 37, PACK_PANEL_W - 6, 21, INV_HEADER);
+        drawHeading("BACKPACK", x + 7, y + 53, INV_TEXT);
+        drawText(inv.backpackStackCount() + "/" + Inventory.BACKPACK_STACKS,
+                x + PACK_PANEL_W - 27, y + 53, inv.isBackpackFull() ? INV_WARNING : INV_MUTED);
+        String selected = "[TAB] OPEN   [ / ] QUICK SELECT";
         if (selectedSlot >= 0 && inv.backpackType(selectedSlot) >= 0) {
             int type = inv.backpackType(selectedSlot);
             selected = state.getIdentifyMap().displayNameFor(type) + " x" + inv.backpackCount(selectedSlot);
         }
-        drawText(fitText(selected, PACK_PANEL_W - 12), x + 6, y + 42,
-                selectedSlot >= 0 ? UI_ACCENT : UI_MUTED);
+        drawText(fitText(selected, PACK_PANEL_W - 12), x + 7, y + 42,
+                selectedSlot >= 0 ? INV_GOLD : INV_MUTED);
 
         int slotSize = 22;
         int gap = 2;
@@ -1339,86 +2258,341 @@ public class MarginScreen implements Screen {
             int type = inv.backpackType(slot);
             boolean sel = slot == selectedSlot;
             int slotX = sx + slot * (slotSize + gap);
-            fillRect(slotX, sy, slotSize, slotSize, sel ? new Color(0.20f, 0.18f, 0.09f, 0.96f) : UI_SLOT);
-            strokeRect(slotX, sy, slotSize, slotSize, sel ? UI_ACCENT : UI_BORDER);
+            drawInventorySlot(slotX, sy, slotSize, slotSize, sel);
             if (type < 0) continue;
-            int icon = iconFor(type);
-            if (icon >= 0) {
-                batch.setColor(Color.WHITE);
-                batch.draw(pixels.item(icon), slotX + 3, sy + 3, ITEM_ICON, ITEM_ICON);
-            }
+            drawItemIcon(type, slotX + 3, sy + 3, ITEM_ICON, ITEM_ICON);
             int count = inv.backpackCount(slot);
             if (count > 1) {
-                drawText(Integer.toString(count), slotX + 14, sy + 9, sel ? Color.WHITE : UI_TEXT);
+                drawText(Integer.toString(count), slotX + 14, sy + 9,
+                        sel ? INV_GOLD : INV_TEXT);
             }
         }
     }
 
-    /** Bottom event panel uses wrapped visual lines, so long messages cannot leave the screen. */
+    /** Full SPD-style backpack: large grid left, selected-item knowledge and actions right. */
+    private void renderInventoryPanel() {
+        fillRect(0, 0, hudWidth(), hudHeight(), INV_OVERLAY);
+
+        int x = (hudWidth() - INVENTORY_PANEL_W) / 2;
+        int y = (hudHeight() - INVENTORY_PANEL_H) / 2;
+        int top = y + INVENTORY_PANEL_H;
+        drawInventoryFrame(x, y, INVENTORY_PANEL_W, INVENTORY_PANEL_H);
+        fillRect(x + 4, top - 29, INVENTORY_PANEL_W - 8, 24, INV_HEADER);
+        strokeRect(x + 4, top - 29, INVENTORY_PANEL_W - 8, 24, INV_TRIM);
+
+        drawHeading("BACKPACK", x + 14, top - 14, INV_TEXT);
+        Inventory inv = state.getInventory();
+        String capacity = inv.backpackStackCount() + " / " + Inventory.BACKPACK_STACKS + " STACKS";
+        drawText(capacity, x + INVENTORY_PANEL_W - 12 - new GlyphLayout(font, capacity).width,
+                top - 14, inv.isBackpackFull() ? INV_WARNING : INV_MUTED);
+        fillRect(x + 12, top - 31, INVENTORY_PANEL_W - 24, 1, INV_HIGHLIGHT);
+
+        int gridX = x + 14;
+        int gridY = y + 99;
+        for (int slot = 0; slot < Inventory.BACKPACK_STACKS; slot++) {
+            int row = slot / INVENTORY_COLS;
+            int col = slot % INVENTORY_COLS;
+            int sx = gridX + col * (INVENTORY_CELL + INVENTORY_GAP);
+            int sy = gridY + (1 - row) * (INVENTORY_CELL + INVENTORY_GAP);
+            boolean selected = slot == selectedSlot;
+            int type = inv.backpackType(slot);
+
+            drawInventorySlot(sx, sy, INVENTORY_CELL, INVENTORY_CELL, selected);
+            drawText(Integer.toString(slot + 1), sx + 3, sy + INVENTORY_CELL - 4,
+                    selected ? INV_GOLD : INV_MUTED);
+
+            if (type < 0) continue;
+            drawItemIcon(type, sx + 11, sy + 9, 26, 26);
+            int count = inv.backpackCount(slot);
+            if (count > 1) drawText("x" + count, sx + 28, sy + 9,
+                    selected ? INV_GOLD : INV_TEXT);
+        }
+
+        int dividerX = x + 219;
+        fillRect(dividerX, y + 44, 1, INVENTORY_PANEL_H - 82, INV_TRIM);
+        renderInventoryDetails(dividerX + 12, y, top,
+                INVENTORY_PANEL_W - (dividerX - x) - 24);
+
+        fillRect(x + 12, y + 36, INVENTORY_PANEL_W - 24, 1, INV_TRIM);
+        font.setColor(INV_GOLD);
+        font.draw(batch, "WASD SELECT   E ACT   X DROP   TAB / ESC CLOSE",
+                x, y + 17, INVENTORY_PANEL_W, Align.center, false);
+    }
+
+    private void renderInventoryDetails(int detailX, int panelY, int panelTop, int detailWidth) {
+        Inventory inv = state.getInventory();
+        int type = selectedType();
+        Supply supply = Supply.byOrdinal(type);
+        if (supply == null) {
+            drawHeading("EMPTY SLOT", detailX, panelTop - 49, INV_MUTED);
+            drawText("Nothing is stored here.", detailX, panelTop - 68, INV_MUTED);
+            drawText("Select another slot or", detailX, panelTop - 82, INV_MUTED);
+            drawText("pick up supplies with G.", detailX, panelTop - 92, INV_MUTED);
+            return;
+        }
+
+        drawItemIcon(type, detailX, panelTop - 82, 34, 34);
+        String name = state.getIdentifyMap().displayNameFor(type);
+        drawText(fitText(name.toUpperCase(), detailWidth - 40), detailX + 40, panelTop - 52,
+                INV_GOLD);
+        drawText("x" + inv.backpackCount(selectedSlot) + "  " + inventoryCategory(type, supply),
+                detailX + 40, panelTop - 67, INV_MUTED);
+        fillRect(detailX, panelTop - 91, detailWidth, 1, INV_TRIM);
+
+        List<String> description = wrapText(inventoryDescription(type, supply), detailWidth);
+        int baseline = panelTop - 104;
+        for (int i = 0; i < Math.min(4, description.size()); i++) {
+            drawText(description.get(i), detailX, baseline, INV_TEXT);
+            baseline -= UI_LINE;
+        }
+
+        // Actions follow the actual description height. A fixed Y collided with line three on
+        // longer descriptions (most visibly Spoiled Meat at fullscreen scale).
+        int actionHeadingY = Math.min(panelY + 135, baseline - 2);
+        drawHeading("ACTIONS", detailX, actionHeadingY, INV_MUTED);
+        int actionY = actionHeadingY - 16;
+        String primary = inventoryPrimaryAction(supply);
+        if (primary != null) {
+            drawText(primary, detailX, actionY, INV_GOLD);
+            actionY -= 14;
+        }
+        String process = inventoryProcessAction(supply);
+        if (process != null) {
+            drawText(process, detailX, actionY, INV_TEXT);
+            actionY -= 14;
+        }
+        if (supply == Supply.COAL || supply == Supply.WOOD) {
+            drawText("T  CRAFT TORCH", detailX, actionY,
+                    state.getInventory().count(Supply.COAL.ordinal()) > 0
+                            && state.getInventory().count(Supply.WOOD.ordinal()) > 0
+                            ? INV_GOLD : INV_MUTED);
+            actionY -= 14;
+        }
+        drawText("X  DROP STACK", detailX, Math.max(panelY + 49, actionY - 8), INV_WARNING);
+    }
+
+    private String inventoryCategory(int type, Supply supply) {
+        if (supply.possibleIdentities().length > 1 && !state.getIdentifyMap().isIdentified(type)) {
+            return "UNIDENTIFIED";
+        }
+        if (supply == Supply.TORN_PAGE || supply == Supply.SEALED_LETTER) return "DOCUMENT";
+        if (supply.isCure()) return "MEDICINE";
+        if (supply.isWater()) return "DRINK";
+        if (supply.isFood() || supply.cooksTo() != null) return "FOOD";
+        if (supply == Supply.COAL || supply == Supply.WOOD || supply == Supply.SALT) return "MATERIAL";
+        return "SUPPLY";
+    }
+
+    private String inventoryDescription(int type, Supply supply) {
+        if (supply.possibleIdentities().length > 1 && !state.getIdentifyMap().isIdentified(type)) {
+            return "Its true contents are unknown. Use it to identify every supply of this type for the run.";
+        }
+        switch (supply) {
+            case COAL:
+                return "Dense fuel for torches, campfires and boiling water.";
+            case WOOD:
+                return "Dry crafting fuel. One Wood plus one Coal makes a carried torch.";
+            case SALT:
+                return "A preservative that slows the spoilage of carried food.";
+            case RAW_MEAT:
+                return "Restores food, but risks sickness. Cook it at a campfire when possible.";
+            case HALF_ROTTEN_MEAT:
+                return "Spoiling meat with reduced nourishment and a serious sickness risk.";
+            case SPOILED_MEAT:
+                return "Barely edible and highly dangerous. Consume only in desperation.";
+            case COOKED_MEAT:
+                return "Safe, filling meat prepared at a campfire.";
+            case WELL_WATER: case POND_WATER: case RIVER_WATER: case FILTERED_WATER:
+                return supply.drinkRisk() == 0
+                        ? "Drinkable water that restores hydration."
+                        : "Restores hydration with a " + supply.drinkRisk() + "% contamination risk.";
+            case BOILED_WATER:
+                return "Purified water with no contamination risk.";
+            case TOXIC_MUSHROOM: case HONEYMOON_MUSHROOM:
+                return "A dangerous mushroom carrying a known toxin. Not ordinary food.";
+            case HONEY: case HONEYCOMB: case BLOODVEIN_MUSHROOM: case HERBAL_CURE:
+                return "A rare treatment for illness or persistent debuffs.";
+            case TORN_PAGE:
+                return "A torn order tied to Aldric's capture. Read it for its surviving message.";
+            case SEALED_LETTER:
+                return "A sealed document Milek cannot read yet.";
+            default:
+                return state.getIdentifyMap().isIdentified(type)
+                        ? "Its identity is known for this run. Use it when its effect is needed."
+                        : "A compact survival supply recovered from the margins.";
+        }
+    }
+
+    private static String inventoryPrimaryAction(Supply supply) {
+        if (!canUseFromInventory(supply)) return null;
+        if (supply == Supply.TORN_PAGE) return "E  READ";
+        if (supply.isWater()) return "E  DRINK";
+        if (supply.isFood()) return "E  EAT";
+        return "E  USE";
+    }
+
+    private static String inventoryProcessAction(Supply supply) {
+        if (supply.cooksTo() != null) return "K  COOK AT FIRE";
+        if (supply.filtersTo() != null) return "F  FILTER   V  BOIL";
+        if (supply.boilsTo() != null) return "V  BOIL AT FIRE";
+        return null;
+    }
+
+    /** Compact four-line message feed floating at the lower-left without panel chrome. */
     private void renderMessagePanel() {
         int x = HUD_MARGIN;
-        int width = WW - HUD_MARGIN * 2;
-        drawPanel(x, LOG_PANEL_Y, width, LOG_PANEL_H, UI_PANEL);
-        drawHeading("EVENTS", x + 6, LOG_PANEL_Y + 59, UI_MUTED);
-        font.setColor(UI_MUTED);
-        font.draw(batch, "[M] MENU", x + 6, LOG_PANEL_Y + 59,
-                width - 12, Align.right, false);
+        renderBurgerButton();
 
-        List<String> lines = recentLogLines(width - 12, LOG_LINES);
-        int baseline = LOG_PANEL_Y + 48;
+        List<String> lines = recentLogLines(LOG_PANEL_W - 16, LOG_LINES);
+        int baseline = LOG_PANEL_Y + LOG_PANEL_H - 8;
         for (String line : lines) {
-            drawText(line, x + 6, baseline, UI_TEXT);
+            drawLogText(line, x + 8, baseline);
             baseline -= UI_LINE;
         }
 
     }
 
-    /** Pauses the run and keeps every input reminder off the permanent HUD. */
+    private void renderBurgerButton() {
+        int x = hudWidth() - HUD_MARGIN - 30;
+        int y = TOP_PANEL_Y + TOP_PANEL_H - 22;
+        fillRect(x, y, 30, 20, UI_PANEL_STRONG);
+        strokeRect(x, y, 30, 20, UI_BORDER);
+        for (int row = 0; row < 3; row++) {
+            fillRect(x + 7, y + 5 + row * 4, 16, 2, UI_MUTED);
+        }
+    }
+
+    /** Title screen over the original moonlit forest-settlement key art. */
+    private void renderStartupMenu() {
+        batch.setColor(Color.WHITE);
+        batch.draw(pixels.mainMenuBackground(), 0, 0, hudWidth(), hudHeight());
+        fillRect(0, 0, hudWidth(), hudHeight(), new Color(0.005f, 0.009f, 0.007f, 0.30f));
+        if (menuPage == MenuPage.OPTIONS) {
+            renderOptionsPage();
+            return;
+        }
+        if (menuPage == MenuPage.HOW_TO_PLAY) {
+            renderHowToPlayPage();
+            return;
+        }
+
+        drawLargeTitle("THE MARGINS", hudHeight() - 58);
+        font.setColor(UI_MUTED);
+        font.draw(batch, "SURVIVE WHAT THE FOREST GIVES", 0, hudHeight() - 80,
+                hudWidth(), Align.center, false);
+
+        String[] labels = startupMenuLabels();
+        int x = startupButtonX(), firstY = startupFirstButtonY();
+        for (int i = 0; i < labels.length; i++) {
+            drawMenuButton(x, firstY - i * 34, 230, 27, labels[i], i == startupSelection,
+                    i == 0);
+        }
+        drawText("W/S SELECT   ENTER CONFIRM", 10, 10, UI_MUTED);
+    }
+
+    /** Pause root requested by the player; subpages replace it in the same modal surface. */
     private void renderMenuPanel() {
-        fillRect(0, 0, WW, WH, new Color(0.01f, 0.015f, 0.012f, 0.68f));
+        fillRect(0, 0, hudWidth(), hudHeight(), new Color(0.01f, 0.015f, 0.012f, 0.72f));
+        if (menuPage == MenuPage.OPTIONS) {
+            renderOptionsPage();
+            return;
+        }
+        if (menuPage == MenuPage.HOW_TO_PLAY) {
+            renderHowToPlayPage();
+            return;
+        }
 
-        int x = 78, y = 50, width = 324, height = 260;
+        int width = 270, height = 250;
+        int x = (hudWidth() - width) / 2, y = 54;
         drawPanel(x, y, width, height, UI_PANEL_STRONG);
-        headingFont.setColor(UI_ACCENT);
-        headingFont.draw(batch, "MENU", x, y + height - 16, width, Align.center, false);
-        fillRect(x + 12, y + height - 27, width - 24, 1, UI_BORDER);
+        drawHeadingCentered("PAUSED", y + height - 18, UI_ACCENT);
+        fillRect(x + 14, y + height - 31, width - 28, 1, UI_BORDER);
 
-        drawHeading("CONTROLS", x + 16, y + height - 40, UI_MUTED);
+        String[] labels = {"RESUME", "OPTIONS", "HOW TO PLAY", "MAIN MENU"};
+        int buttonX = pauseButtonX(), firstY = pauseFirstButtonY();
+        for (int i = 0; i < labels.length; i++) {
+            drawMenuButton(buttonX, firstY - i * 40, 210, 32, labels[i],
+                    i == menuSelection, i == 0);
+        }
+        drawText("ESC / M  RESUME", x + 14, y + 13, UI_MUTED);
+    }
 
-        int left = x + 18;
-        int right = x + 168;
-        int top = y + height - 58;
+    private void renderOptionsPage() {
+        int width = 280, height = 210;
+        int x = (hudWidth() - width) / 2, y = 72;
+        drawPanel(x, y, width, height, UI_PANEL_STRONG);
+        drawHeadingCentered("OPTIONS", y + height - 18, UI_ACCENT);
+        fillRect(x + 14, y + height - 31, width - 28, 1, UI_BORDER);
 
-        drawText("WASD / ARROWS", left, top, UI_ACCENT);
-        drawText("Move", left + 78, top, UI_TEXT);
-        drawText("Q", left, top - 14, UI_ACCENT);
-        drawText("Attack", left + 78, top - 14, UI_TEXT);
-        drawText("G", left, top - 28, UI_ACCENT);
-        drawText("Take item", left + 78, top - 28, UI_TEXT);
-        drawText("SPACE", left, top - 42, UI_ACCENT);
-        drawText("Wait", left + 78, top - 42, UI_TEXT);
+        drawMenuButton((hudWidth() - 210) / 2, 159, 210, 30,
+                "FULLSCREEN: " + (Gdx.graphics.isFullscreen() ? "ON" : "OFF"),
+                menuSelection == 0, true);
+        drawMenuButton((hudWidth() - 210) / 2, 120, 210, 30,
+                "BACK", menuSelection == 1, false);
+        drawText("ENTER TO TOGGLE", x + 14, y + 18, UI_MUTED);
+    }
 
-        drawText("TAB / ]", right, top, UI_ACCENT);
-        drawText("Next item", right + 54, top, UI_TEXT);
-        drawText("[", right, top - 14, UI_ACCENT);
-        drawText("Previous item", right + 54, top - 14, UI_TEXT);
-        drawText("E", right, top - 28, UI_ACCENT);
-        drawText("Use item", right + 54, top - 28, UI_TEXT);
-        drawText("J", right, top - 42, UI_ACCENT);
-        drawText("Journal", right + 54, top - 42, UI_TEXT);
+    private void renderHowToPlayPage() {
+        int width = 360, height = 300;
+        int x = (hudWidth() - width) / 2, y = 30;
+        drawPanel(x, y, width, height, UI_PANEL_STRONG);
+        drawHeadingCentered("HOW TO PLAY", y + height - 18, UI_ACCENT);
+        fillRect(x + 14, y + height - 31, width - 28, 1, UI_BORDER);
 
-        fillRect(x + 12, y + 128, width - 24, 1, UI_BORDER);
-        drawHeading("SURVIVAL", x + 16, y + 116, UI_MUTED);
-        drawText("C  Forage", left, y + 98, UI_TEXT);
-        drawText("B  Campfire", left, y + 84, UI_TEXT);
-        drawText("T  Craft torch", left, y + 70, UI_TEXT);
-        drawText("K  Cook", right, y + 98, UI_TEXT);
-        drawText("F  Filter water", right, y + 84, UI_TEXT);
-        drawText("V  Boil water", right, y + 70, UI_TEXT);
+        int left = x + 18, right = x + 190, top = y + height - 50;
+        drawHeading("EXPLORE", left, top, UI_MUTED);
+        drawText("WASD / ARROWS  Move", left, top - 17, UI_TEXT);
+        drawText("Q  Attack", left, top - 31, UI_TEXT);
+        drawText("G  Take item", left, top - 45, UI_TEXT);
+        drawText("SPACE  Wait", left, top - 59, UI_TEXT);
+        drawText("TAB  Backpack", left, top - 73, UI_TEXT);
+        drawText("J  Journal", left, top - 87, UI_TEXT);
 
-        fillRect(x + 12, y + 48, width - 24, 1, UI_BORDER);
-        font.setColor(UI_ACCENT);
-        font.draw(batch, "[M / ESC] RESUME", x, y + 24, width, Align.center, false);
+        drawHeading("SURVIVE", right, top, UI_MUTED);
+        drawText("C  Forage", right, top - 17, UI_TEXT);
+        drawText("B  Campfire", right, top - 31, UI_TEXT);
+        drawText("T  Craft torch", right, top - 45, UI_TEXT);
+        drawText("K  Cook", right, top - 59, UI_TEXT);
+        drawText("F  Filter water", right, top - 73, UI_TEXT);
+        drawText("V  Boil water", right, top - 87, UI_TEXT);
+        drawText("E  Use selected item", right, top - 101, UI_TEXT);
+
+        fillRect(x + 14, y + 92, width - 28, 1, UI_BORDER);
+        drawText("Stay fed, hydrated, warm, and hidden.", x + 18, y + 76, UI_TEXT);
+        drawText("Treelines block sight. Light helps you—and reveals you.",
+                x + 18, y + 62, UI_TEXT);
+        drawMenuButton((hudWidth() - 210) / 2, 42, 210, 30,
+                "BACK", menuSelection == 0, false);
+    }
+
+    private void drawMenuButton(int x, int y, int width, int height, String label,
+                                boolean selected, boolean primary) {
+        Color edge = selected ? UI_ACCENT : UI_BORDER;
+        Color fill = selected ? new Color(0.16f, 0.18f, 0.12f, 0.98f)
+                : new Color(0.065f, 0.080f, 0.067f, 0.96f);
+        fillRect(x + 2, y - 2, width, height, new Color(0f, 0f, 0f, 0.55f));
+        fillRect(x, y, width, height, fill);
+        strokeRect(x, y, width, height, edge);
+        strokeRect(x + 2, y + 2, width - 4, height - 4,
+                selected ? UI_ACCENT : new Color(0.16f, 0.20f, 0.17f, 1f));
+        font.setColor(selected || primary ? UI_ACCENT : UI_TEXT);
+        font.draw(batch, label, x, y + height / 2f + 4, width, Align.center, false);
+    }
+
+    private void drawLargeTitle(String value, int baseline) {
+        float oldX = headingFont.getData().scaleX;
+        float oldY = headingFont.getData().scaleY;
+        headingFont.getData().setScale(2f);
+        headingFont.setColor(new Color(0.02f, 0.03f, 0.02f, 0.90f));
+        headingFont.draw(batch, value, 2, baseline - 2, hudWidth(), Align.center, false);
+        headingFont.setColor(UI_TEXT);
+        headingFont.draw(batch, value, 0, baseline, hudWidth(), Align.center, false);
+        headingFont.getData().setScale(oldX, oldY);
+    }
+
+    private void drawHeadingCentered(String value, int baseline, Color color) {
+        headingFont.setColor(color);
+        headingFont.draw(batch, value, 0, baseline, hudWidth(), Align.center, false);
     }
 
     private List<String> recentLogLines(int maxWidth, int maxLines) {
@@ -1439,8 +2613,9 @@ public class MarginScreen implements Screen {
     private void renderTextPage(DialogNode node, String footer) {
         if (node == null) return;
 
-        fillRect(0, 0, WW, WH, new Color(0.01f, 0.015f, 0.012f, 0.58f));
-        int panelX = 18, panelY = 58, panelW = WW - 36, panelH = 210;
+        fillRect(0, 0, hudWidth(), hudHeight(), new Color(0.01f, 0.015f, 0.012f, 0.58f));
+        int panelW = WW - 36, panelH = 210;
+        int panelX = (hudWidth() - panelW) / 2, panelY = 58;
         drawPanel(panelX, panelY, panelW, panelH, UI_PANEL_STRONG);
 
         String heading = node.speaker != null ? node.speaker : "NARRATION";
@@ -1485,8 +2660,9 @@ public class MarginScreen implements Screen {
      *  Pure lookup: no choices, no advancement, no new chrome (NFR-3). An empty list shows the
      *  "no threads yet" line — the Journal knows nothing before the first quest starts (AC-2). */
     private void renderJournalPage() {
-        fillRect(0, 0, WW, WH, new Color(0.01f, 0.015f, 0.012f, 0.58f));
-        int panelX = 18, panelY = 58, panelW = WW - 36, panelH = 210;
+        fillRect(0, 0, hudWidth(), hudHeight(), new Color(0.01f, 0.015f, 0.012f, 0.58f));
+        int panelW = WW - 36, panelH = 210;
+        int panelX = (hudWidth() - panelW) / 2, panelY = 58;
         drawPanel(panelX, panelY, panelW, panelH, UI_PANEL_STRONG);
 
         drawHeading("JOURNAL", panelX + 10, panelY + panelH - 10, UI_ACCENT);
@@ -1531,8 +2707,9 @@ public class MarginScreen implements Screen {
     }
 
     private void renderGameOverPanel() {
-        fillRect(0, 0, WW, WH, new Color(0.01f, 0.01f, 0.008f, 0.66f));
-        int x = 90, y = 143, w = 300, h = 72;
+        fillRect(0, 0, hudWidth(), hudHeight(), new Color(0.01f, 0.01f, 0.008f, 0.66f));
+        int w = 300, h = 72;
+        int x = (hudWidth() - w) / 2, y = 143;
         drawPanel(x, y, w, h, UI_PANEL_STRONG);
         headingFont.setColor(UI_HEALTH);
         headingFont.draw(batch, "YOU FELL IN THE MARGINS", x, y + 48, w, Align.center, false);
@@ -1545,6 +2722,16 @@ public class MarginScreen implements Screen {
         font.draw(batch, fontSafe(value), x, y);
     }
 
+    /** Hard one-pixel outline plus a two-pixel cast shadow keeps floating log text terrain-safe. */
+    private void drawLogText(String value, float x, float y) {
+        drawText(value, x + 2, y - 2, UI_LOG_SHADOW);
+        drawText(value, x - 1, y, UI_LOG_SHADOW);
+        drawText(value, x + 1, y, UI_LOG_SHADOW);
+        drawText(value, x, y - 1, UI_LOG_SHADOW);
+        drawText(value, x, y + 1, UI_LOG_SHADOW);
+        drawText(value, x, y, UI_TEXT);
+    }
+
     private void drawHeading(String value, float x, float y, Color color) {
         headingFont.setColor(color);
         headingFont.draw(batch, value, x, y);
@@ -1553,6 +2740,26 @@ public class MarginScreen implements Screen {
     private void drawPanel(float x, float y, float width, float height, Color fill) {
         fillRect(x, y, width, height, fill);
         strokeRect(x, y, width, height, UI_BORDER);
+    }
+
+    /** Layered leather/copper frame used by both the quickbar and full backpack. */
+    private void drawInventoryFrame(float x, float y, float width, float height) {
+        fillRect(x + 2, y - 2, width, height, new Color(0.025f, 0.012f, 0.004f, 0.76f));
+        fillRect(x, y, width, height, INV_OUTLINE);
+        fillRect(x + 1, y + 1, width - 2, height - 2, INV_TRIM);
+        fillRect(x + 3, y + 3, width - 6, height - 6, INV_PANEL);
+        strokeRect(x + 3, y + 3, width - 6, height - 6, INV_HIGHLIGHT);
+    }
+
+    /** Recessed red-leather slot with a thick gold focus state, matching the supplied reference. */
+    private void drawInventorySlot(float x, float y, float width, float height, boolean selected) {
+        fillRect(x, y, width, height, INV_OUTLINE);
+        fillRect(x + 1, y + 1, width - 2, height - 2, selected ? INV_GOLD : INV_TRIM);
+        fillRect(x + 3, y + 3, width - 6, height - 6,
+                selected ? INV_SLOT_SELECTED : INV_SLOT);
+        if (selected) {
+            fillRect(x + 3, y + height - 4, width - 6, 1, INV_HIGHLIGHT);
+        }
     }
 
     private void drawBar(float x, float y, float width, float height, float ratio, Color fill) {
@@ -1623,11 +2830,26 @@ public class MarginScreen implements Screen {
                 .replace("\u00d7", "x");
     }
 
+    private int hudWidth() {
+        return Math.round(viewport.getWorldWidth());
+    }
+
+    private int hudHeight() {
+        return Math.round(viewport.getWorldHeight());
+    }
+
     @Override public void resize(int w, int h) { viewport.update(w, h); }
     @Override public void show() {}
-    @Override public void hide() {}
-    @Override public void pause() {}
+    @Override public void hide() { saveActiveJourney(); }
+    @Override public void pause() { saveActiveJourney(); }
     @Override public void resume() {}
+
+    private void saveActiveJourney() {
+        if (state != null && !startupMenuOpen && state.getPlayer().isAlive()) {
+            SaveService.save(state);
+            hasContinue = true;
+        }
+    }
     @Override public void dispose() {
         batch.dispose();
         font.dispose();

@@ -9,6 +9,7 @@ public class DesktopLauncher {
         Lwjgl3ApplicationConfiguration config = new Lwjgl3ApplicationConfiguration();
         config.setTitle("The Margins 2D");
         config.setWindowedMode(960, 640);
+        config.setMaximized(true);
         config.useVsync(true);
         config.setForegroundFPS(60);
         new Lwjgl3Application(new MarginsGame(), config);
