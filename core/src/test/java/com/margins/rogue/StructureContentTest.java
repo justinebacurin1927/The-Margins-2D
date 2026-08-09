@@ -173,6 +173,49 @@ class StructureContentTest {
     }
 
     @Test
+    void authoredLootCannotBeFakedByTheGenericScatter() {
+        // The generic eastness scatter also drops scatterable items near every room center, so a
+        // count inside a structure box can pass even if placeStructureLoot placed nothing (review
+        // fix). Prove the authored pass actually ran, three ways by the item's provability:
+        //  (1) a guaranteed NON-scatterable item in the box can only be authored — the generic
+        //      pool excludes the 4 structure items;
+        //  (2) a guaranteed scatterable item in a box whose room gets ZERO generic items
+        //      (eastness <= 0.2 → supplyCountFor 0) can only be authored;
+        //  (3) otherwise (Beehive Grove: eastness ~0.46, generic ceiling 1, scatterable-only set)
+        //      the guaranteed item is present on every fixed seed — one generic draw can't be
+        //      HONEY on five different seeds.
+        WorldSpine spine = new WorldSpine(96, 48);
+        for (StructureTable.Structure st : StructureTable.all()) {
+            for (StructureTable.LootEntry entry : st.loot) {
+                if (entry.chancePercent < 100) continue; // guaranteed entries prove the pass ran
+                RunState s = new RunState(42L);
+                int[] box = footprint(s.getTileMap(), st.structureType);
+                if (!entry.supply.isScatterable()) {
+                    assertTrue(floorItemsOfTypeInBox(s, entry.supply.ordinal(), box) >= entry.count,
+                            st.displayName + ": guaranteed non-scatterable " + entry.supply
+                                    + " can only be authored (the generic pool excludes it)");
+                } else {
+                    float east = spine.eastness((box[0] + box[2]) / 2);
+                    if (east <= 0.2f) {
+                        assertTrue(floorItemsOfTypeInBox(s, entry.supply.ordinal(), box) >= entry.count,
+                                st.displayName + " (eastness " + east + "): guaranteed " + entry.supply
+                                        + " in a zero-generic room can only be authored");
+                    } else {
+                        for (long seed = 1; seed <= 5; seed++) {
+                            RunState rs = new RunState(seed);
+                            int[] b = footprint(rs.getTileMap(), st.structureType);
+                            assertTrue(floorItemsOfTypeInBox(rs, entry.supply.ordinal(), b) >= entry.count,
+                                    st.displayName + " (eastness " + east + "): guaranteed " + entry.supply
+                                            + " present on seed " + seed
+                                            + " — one generic draw cannot fake it on every seed");
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    @Test
     void theNewLootItemsAreAppendedLastAndKeptOutOfTheGenericScatter() {
         // Appended last (AD-6): the 4 new types carry the highest ordinals, so old saves and
         // existing ordinals are unchanged.
@@ -215,13 +258,70 @@ class StructureContentTest {
             s.getPlayer().placeAt(cell[0], cell[1]);
             s.getEnemies().clear();
             s.getCompanions().clear();
+            // Pace the room until the hazard fires: one seeded roll per landed step (AD-5), so a
+            // 20–25% chance is bound to fire within a short deterministic sequence on this seed.
+            // The OLD test accepted "0 OR damage", so it passed for any structure whose roll missed
+            // — it never proved the damage path ran. Every landed step must drop ONLY the hazard's
+            // damage (no hunger/cold leak), and the hazard must fire within the cap.
+            boolean fired = false;
+            int damageSeen = 0;
+            TurnEngine engine = new TurnEngine();
+            for (int i = 0; i < 40 && !fired; i++) {
+                int dx = (i % 2 == 0 ? cell[2] : -cell[2]);
+                int dy = (i % 2 == 0 ? cell[3] : -cell[3]);
+                int hpBefore = s.getPlayer().getHp();
+                engine.advance(s, PlayerAction.move(dx, dy, RoguePlayer.directionOf(dx, dy)));
+                int dropped = hpBefore - s.getPlayer().getHp();
+                assertTrue(dropped == 0 || dropped == st.hazard.damage(),
+                        st.displayName + ": a step drops only the hazard's damage (got " + dropped + ")");
+                if (dropped > 0) { fired = true; damageSeen = dropped; }
+            }
+            assertTrue(fired, st.displayName + ": its hazard fires on the fixed seed within 40 steps");
+            assertEquals(st.hazard.damage(), damageSeen,
+                    st.displayName + ": the firing step applies exactly the hazard's damage");
+        }
+    }
+
+    @Test
+    void enteringAStructureFromWildernessTriggersItsHazard() {
+        // AC-2 "when I reach it": the trigger must fire on the wilderness→structure transition,
+        // not only when pacing inside an interior. Find a wilderness cell beside the structure,
+        // step in; the OUT step lands on wilderness and must stay a no-op.
+        StructureTable.Structure st = StructureTable.forType(RogueTileMap.STRUCTURE_HUNTERS_BLIND);
+        RunState s = runWithClearWeather(42L);
+        int[] pair = wildernessNextToStructure(s.getTileMap(), st.structureType);
+        assertNotNull(pair, "a structure has a wilderness entrance cell");
+        s.getPlayer().placeAt(pair[0], pair[1]); // wilderness start
+        s.getEnemies().clear();
+        s.getCompanions().clear();
+        boolean fired = false;
+        TurnEngine engine = new TurnEngine();
+        for (int i = 0; i < 40 && !fired; i++) {
+            int dx = (i % 2 == 0 ? pair[2] : -pair[2]); // in (land on structure), then out
+            int dy = (i % 2 == 0 ? pair[3] : -pair[3]);
             int hpBefore = s.getPlayer().getHp();
-            new TurnEngine().advance(s,
-                    PlayerAction.move(cell[2], cell[3], RoguePlayer.directionOf(cell[2], cell[3])));
+            engine.advance(s, PlayerAction.move(dx, dy, RoguePlayer.directionOf(dx, dy)));
             int dropped = hpBefore - s.getPlayer().getHp();
             assertTrue(dropped == 0 || dropped == st.hazard.damage(),
-                    st.displayName + ": a step-risk drops exactly the hazard's damage (got " + dropped + ")");
+                    "the entry/exit step drops only the hazard's damage (got " + dropped + ")");
+            if (dropped > 0) fired = true;
         }
+        assertTrue(fired, "entering the structure from wilderness fires its hazard within 40 steps");
+    }
+
+    @Test
+    void aZeroDisplacementMoveDoesNotTriggerTheHazard() {
+        // A MOVE(0,0) is a no-op, not a step — the hazard must NOT fire on it (review fix). The
+        // screen never submits one (readAction only emits cardinal moves), but the invariant is
+        // pinned: start == destination must not spend a step-risk roll.
+        RunState s = runWithClearWeather(42L);
+        int[] cell = walkableCellAndNeighbor(s.getTileMap(), RogueTileMap.STRUCTURE_HUNTERS_BLIND);
+        s.getPlayer().placeAt(cell[0], cell[1]);
+        s.getEnemies().clear();
+        s.getCompanions().clear();
+        int hp = s.getPlayer().getHp();
+        new TurnEngine().advance(s, PlayerAction.move(0, 0, RoguePlayer.EAST));
+        assertEquals(hp, s.getPlayer().getHp(), "a (0,0) move does not step onto the hazard");
     }
 
     @Test
@@ -257,6 +357,25 @@ class StructureContentTest {
         }
         assertTrue(hits > 0, "the weak floor plank fires on some seeds (" + hits + " of " + SEEDS + ")");
         assertTrue(misses > 0, "the weak floor plank is a chance, not a guarantee (" + misses + " missed)");
+        // AD-5 determinism: the SAME seed must reproduce the SAME hazard outcome — a hazard drawn
+        // from an unseeded/global Random would pass the hit/miss loop above but fail here.
+        for (long seed : new long[]{2L, 7L, 21L}) {
+            RunState a = runWithClearWeather(seed);
+            RunState b = runWithClearWeather(seed);
+            int[] ca = walkableCellAndNeighbor(a.getTileMap(), RogueTileMap.STRUCTURE_HUNTERS_BLIND);
+            int[] cb = walkableCellAndNeighbor(b.getTileMap(), RogueTileMap.STRUCTURE_HUNTERS_BLIND);
+            a.getPlayer().placeAt(ca[0], ca[1]);
+            b.getPlayer().placeAt(cb[0], cb[1]);
+            a.getEnemies().clear();
+            b.getEnemies().clear();
+            a.getCompanions().clear();
+            b.getCompanions().clear();
+            int ha = a.getPlayer().getHp(), hb = b.getPlayer().getHp();
+            new TurnEngine().advance(a, PlayerAction.move(ca[2], ca[3], RoguePlayer.directionOf(ca[2], ca[3])));
+            new TurnEngine().advance(b, PlayerAction.move(cb[2], cb[3], RoguePlayer.directionOf(cb[2], cb[3])));
+            assertEquals(ha - a.getPlayer().getHp(), hb - b.getPlayer().getHp(),
+                    "seed " + seed + ": same seed reproduces the same hazard outcome (AD-5)");
+        }
     }
 
     // --- Task 5: the AD-6 seam (structure content is derived, never persisted) ---
@@ -267,7 +386,7 @@ class StructureContentTest {
         int[] sample = firstStructureCell(s.getTileMap());
         assertNotNull(sample, "the map has a structure cell to sample");
         int sampleType = s.getTileMap().getStructureType(sample[0], sample[1]);
-        int itemCount = s.getFloorItems().size();
+        List<String> layout = floorLayout(s);
 
         RunState loaded = json().fromJson(RunState.class, json().toJson(s));
         loaded.restoreAfterLoad();
@@ -277,8 +396,34 @@ class StructureContentTest {
         assertSame(StructureTable.forType(sampleType),
                 StructureTable.forType(loaded.getTileMap().getStructureType(sample[0], sample[1])),
                 "tier/loot/hazard derive from the persisted structure layer");
-        assertEquals(itemCount, loaded.getFloorItems().size(),
-                "the authored structure loot survives the round-trip");
+        assertEquals(layout, floorLayout(loaded),
+                "the FULL floor layout (item types AND positions, incl. authored structure loot) "
+                        + "survives the round-trip — count-only let a serializer that preserved "
+                        + "count while mangling content pass (review fix)");
+    }
+
+    @Test
+    void aPreThreeTwoSaveBackfillsStructureLootOnLoad() {
+        // A 3.1-era save persisted the structureTypes layer but never ran the authored loot pass
+        // and has no structureLootPlaced key → the flag loads false → restoreAfterLoad backfills
+        // exactly once (review fix; the gap was invisible to round-trips of fresh state).
+        RunState s = new RunState(42L); // fresh 3.2 state to serialize
+        String json = json().toJson(s);
+        String pre32 = json.replaceAll(",\\s*\"structureLootPlaced\":(true|false)", "");
+        assertNotEquals(json, pre32, "a fresh 3.2 save carries the structureLootPlaced flag");
+
+        RunState loaded = json().fromJson(RunState.class, pre32);
+        loaded.restoreAfterLoad();
+        StructureTable.Structure blind = StructureTable.forType(RogueTileMap.STRUCTURE_HUNTERS_BLIND);
+        int[] box = footprint(loaded.getTileMap(), blind.structureType);
+        assertTrue(floorItemsOfTypeInBox(loaded, Supply.ROPE.ordinal(), box) >= 1,
+                "the load-time backfill restores Hunter's Blind's authored rope on a pre-3.2 save");
+
+        // The flag flips true on backfill, so re-saving and re-loading must NOT double-place.
+        RunState reloaded = json().fromJson(RunState.class, json().toJson(loaded));
+        reloaded.restoreAfterLoad();
+        assertEquals(loaded.getFloorItems().size(), reloaded.getFloorItems().size(),
+                "re-loading a backfilled save does not double the structure loot (flag persisted)");
     }
 
     // --- Task 6: AC pins + the AD-16 budget with hazards active ---
@@ -303,6 +448,27 @@ class StructureContentTest {
         long elapsedMs = (System.nanoTime() - start) / 1_000_000;
         assertTrue(elapsedMs < 10_000,
                 "600 hazard-active acted turns resolved in " + elapsedMs + "ms (AD-16 seed)");
+    }
+
+    @Test
+    void seedFortyTwoFloorLayoutIsByteIdentical() {
+        // Task 3's "pinned pre-story seed's non-structure scatter is unchanged" pin, made concrete:
+        // the FULL seed-42 floor layout (generic eastness scatter = the stream PREFIX, structure
+        // loot = the additive suffix, AD-5) is frozen. Any disturbance to the generic pass — a new
+        // scatterable type, a walkability change, an insertion into the generic draw sequence —
+        // shifts this snapshot and fails here. Recorded from the verified implementation; update
+        // deliberately when story content legitimately changes the layout.
+        assertEquals(
+                "COAL@76,32|COAL@8,29|COOKED_MEAT@74,9|FILTERED_WATER@57,10|FOLDED_CLOTH@14,17|"
+                + "FOLDED_CLOTH@16,38|FOLDED_CLOTH@63,37|HALF_ROTTEN_MEAT@62,32|HERBAL_CURE@33,33|"
+                + "HERBAL_CURE@74,9|HONEY@45,5|HONEY@83,24|HONEYCOMB@35,23|HONEYCOMB@45,2|"
+                + "POND_WATER@58,10|PRESERVED_FOOD@13,12|PRESERVED_FOOD@17,15|PRESERVED_FOOD@42,31|"
+                + "PRESERVED_FOOD@61,12|PRESERVED_FOOD@85,32|RAW_MEAT@77,7|RIVER_WATER@81,24|"
+                + "ROPE@36,12|ROPE@62,37|ROPE@78,13|SALT@27,44|SALT@56,10|SALT@80,36|SALT@9,29|"
+                + "SMALL_TOOLS@20,30|SMALL_TOOLS@35,44|SMALL_TOOLS@36,5|SMALL_TOOLS@74,10|"
+                + "TOXIC_MUSHROOM@63,32|WELL_WATER@33,10|WOOD@31,41|WOOD@45,6|WOOD@80,36",
+                String.join("|", floorLayout(new RunState(42L))),
+                "seed 42's floor layout (generic + authored) is byte-identical (AD-5)");
     }
 
     // --- helpers ---
@@ -419,6 +585,34 @@ class StructureContentTest {
         for (int x = 0; x < m.getWidth(); x++) {
             for (int y = 0; y < m.getHeight(); y++) {
                 if (m.getStructureType(x, y) >= 0) return new int[]{x, y};
+            }
+        }
+        return null;
+    }
+
+    /** The full floor layout as a sorted list of "TYPE@x,y" — the byte-identity pin. */
+    private static List<String> floorLayout(RunState s) {
+        List<String> items = new ArrayList<>();
+        for (FloorItem it : s.getFloorItems()) {
+            items.add(Supply.byOrdinal(it.type).name() + "@" + it.x + "," + it.y);
+        }
+        items.sort(null);
+        return items;
+    }
+
+    /** {wx, wy, dx, dy}: a walkable WILDERNESS cell with a 4-adjacent walkable cell of the given
+     *  structure type (the destination the player steps onto to enter it), or null. */
+    private static int[] wildernessNextToStructure(RogueTileMap m, int type) {
+        int[][] dirs = {{1, 0}, {-1, 0}, {0, 1}, {0, -1}};
+        for (int x = 0; x < m.getWidth(); x++) {
+            for (int y = 0; y < m.getHeight(); y++) {
+                if (m.getStructureType(x, y) >= 0 || !m.isWalkable(x, y)) continue;
+                for (int[] d : dirs) {
+                    int nx = x + d[0], ny = y + d[1];
+                    if (m.getStructureType(nx, ny) == type && m.isWalkable(nx, ny)) {
+                        return new int[]{x, y, d[0], d[1]};
+                    }
+                }
             }
         }
         return null;

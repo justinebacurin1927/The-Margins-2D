@@ -55,7 +55,7 @@
 #   item is now folded into new Story 1.1's acceptance criteria (AD-6).
 
 generated: 2026-08-06
-last_updated: 2026-08-09  # Story 3.2 done (dev, 349 tests green) → review; Epic 3 in-progress
+last_updated: 2026-08-09  # Story 3.2 done (review: 3 decisions + 6 patches applied, 355 tests green) → review complete; Epic 3 in-progress
 project: The Margin
 project_key: NOKEY
 tracking_system: file-system
@@ -86,7 +86,7 @@ development_status:
   # Epic 3 — Forays into Herois (the world & its loot)
   epic-3: in-progress
   3-1-hybrid-map-generation: done
-  3-2-the-11-world-structures-across-three-danger-tiers: review
+  3-2-the-11-world-structures-across-three-danger-tiers: done
   3-3-the-foray-loop-end-to-end: backlog
   3-4-night-and-weather-shift-location-danger: backlog
   3-5-horizontal-progression-skill-and-knowledge: backlog

@@ -90,6 +90,11 @@ public class RunState {
     // light reverts to the campfire (a stationary source) or goes dark. Field-initialized (AD-6)
     // so a pre-1.6 save loads at 0 (no torch).
     private int torchTurns = 0;
+    // Authored structure loot placed (Story 3.2, review fix): true once placeStructureLoot has run
+    // for this floor. Persisted so a 3.2+ save reloads WITHOUT re-scattering (no double loot).
+    // AD-6 migration: field-absent (pre-3.2) saves load FALSE, so restoreAfterLoad backfills the
+    // authored loot a 3.1-era save never got — structures + hazards without loot was the AC-2 gap.
+    private boolean structureLootPlaced;
     private long seed;
     private transient Random rng;
     private boolean lastStandUsed;        // persisted: one reprieve per run (FR-16/17)
@@ -141,8 +146,10 @@ public class RunState {
 
         placeFloorActors(result, player.getTileX(), player.getTileY());
         // Story 3.2 (AC-2): scatter each structure's authored loot set inside its footprint, AFTER
-        // the generic scatter so that pass's seeded draw sequence is untouched (AD-5).
+        // the generic scatter so that pass's seeded draw sequence is untouched (AD-5). A generated
+        // floor carries the authored loot, so the load-time backfill flag is set (review fix).
         placeStructureLoot(player.getTileX(), player.getTileY());
+        structureLootPlaced = true;
     }
 
     /**
@@ -289,6 +296,16 @@ public class RunState {
         if (weather == null) weather = Weather.CLEAR;
         cycleNumber = clockTurns / CYCLE_LENGTH;
         if (identifyMap != null) identifyMap.reconcile(Supply.count()); // grow a pre-1.5 save's shorter binding
+        // Story 3.2 review fix: a pre-3.2 save (no structureLootPlaced key → false) restored the
+        // structureTypes layer but never got the authored loot pass — structures + hazards, no loot
+        // (AC-2 gap). Backfill ONCE: only when the typed structure layer exists (a legacy
+        // pre-structureTypes save has none — its cells are the getStructureType OLD_HOUSE shim, not
+        // real structures, so scattering would be wrong). The flag is persisted, so a 3.2+ save
+        // skips; the backfill draws from the rebuilt seed (AD-5: deterministic per loaded seed).
+        if (!structureLootPlaced && tileMap.hasStructureTypeLayer()) {
+            placeStructureLoot(player.getTileX(), player.getTileY());
+            structureLootPlaced = true;
+        }
         player.setMap(tileMap);
         for (RogueEnemy e : enemies) {
             e.setMap(tileMap);

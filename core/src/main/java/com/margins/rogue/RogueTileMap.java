@@ -67,6 +67,13 @@ public class RogueTileMap {
         return structureTypes[x][y];
     }
 
+    /** True when this map carries the typed structure layer (Story 3.1+). Legacy maps (cells but no
+     *  type layer) return false — their getStructureType is the OLD_HOUSE compatibility shim, not
+     *  real structure content (Story 3.2 review fix gates the loot backfill on this). */
+    public boolean hasStructureTypeLayer() {
+        return structureTypes != null;
+    }
+
     public void setStructureTile(int x, int y, int cell) {
         setStructureTile(x, y, STRUCTURE_OLD_HOUSE, cell);
     }

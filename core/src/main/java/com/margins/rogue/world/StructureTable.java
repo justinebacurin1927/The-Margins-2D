@@ -95,8 +95,10 @@ public final class StructureTable {
         return new LootEntry(supply, count, chancePercent);
     }
 
-    /** The authored content for one World-Structure type. Instances are static finals built once
-     *  at class load; {@link #withLoot}/{@link #withLockedCellar} assign the loot arrays fluently. */
+    /** The authored content for one World-Structure type. Instances are static finals; the loot
+     *  arrays are FINAL and injected through the constructor, so a caller can never reassign
+     *  another structure's content (review fix — the old withLoot/withLockedCellar fluents left
+     *  mutable public arrays on the singletons). */
     public static final class Structure {
         public final int structureType;
         public final String displayName;
@@ -106,82 +108,94 @@ public final class StructureTable {
          *  (Decision 1); null for the monotone core. */
         public final String tierExceptionReason;
         /** The reachable floor loot (AC-2) — scattered in the structure's footprint by RunState. */
-        public LootEntry[] loot = new LootEntry[0];
+        public final LootEntry[] loot;
         /** The rich loot behind the Old House's locked cellar — data only in 3.2; the lockpicking
          *  roll that exposes it is Story 3.5's SKILL hook. Empty for every other structure. */
-        public LootEntry[] lockedLoot = new LootEntry[0];
+        public final LootEntry[] lockedLoot;
 
         Structure(int structureType, String displayName, Tier tier, Hazard hazard,
-                  String tierExceptionReason) {
+                  String tierExceptionReason, LootEntry[] loot, LootEntry[] lockedLoot) {
             this.structureType = structureType;
             this.displayName = displayName;
             this.tier = tier;
             this.hazard = hazard;
             this.tierExceptionReason = tierExceptionReason;
+            this.loot = loot;
+            this.lockedLoot = lockedLoot;
         }
-
-        public Structure withLoot(LootEntry... entries) { this.loot = entries; return this; }
-        public Structure withLockedCellar(LootEntry... entries) { this.lockedLoot = entries; return this; }
     }
+
+    /** The empty cellar marker: every structure except the Old House locks nothing. */
+    private static final LootEntry[] NO_CELLAR = new LootEntry[0];
 
     // --- The 11 authored entries (AC-1/AC-2). Tiers match epics.md; the two worked examples
     // (Hunter's Blind, Old House) are contractual; the rest are tunable content (PRD §8).
 
     public static final Structure HUNTERS_BLIND = new Structure(
-            RogueTileMap.STRUCTURE_HUNTERS_BLIND, "Hunter's Blind", Tier.ONE, Hazard.WEAK_FLOOR_PLANK, null)
-            .withLoot(loot(Supply.ROPE, 1, 100), loot(Supply.SMALL_TOOLS, 1, 100),
-                    loot(Supply.MAP_FRAGMENT, 1, 20));
+            RogueTileMap.STRUCTURE_HUNTERS_BLIND, "Hunter's Blind", Tier.ONE, Hazard.WEAK_FLOOR_PLANK, null,
+            new LootEntry[]{loot(Supply.ROPE, 1, 100), loot(Supply.SMALL_TOOLS, 1, 100),
+                    loot(Supply.MAP_FRAGMENT, 1, 20)},
+            NO_CELLAR);
 
     public static final Structure FALLEN_LOG_HOLLOW = new Structure(
-            RogueTileMap.STRUCTURE_FALLEN_LOG_HOLLOW, "Fallen Log Hollow", Tier.ONE, Hazard.SOFT_ROT, null)
-            .withLoot(loot(Supply.SMALL_TOOLS, 1, 100), loot(Supply.WOOD, 1, 100),
-                    loot(Supply.SALT, 1, 50));
+            RogueTileMap.STRUCTURE_FALLEN_LOG_HOLLOW, "Fallen Log Hollow", Tier.ONE, Hazard.SOFT_ROT, null,
+            new LootEntry[]{loot(Supply.SMALL_TOOLS, 1, 100), loot(Supply.WOOD, 1, 100),
+                    loot(Supply.SALT, 1, 50)},
+            NO_CELLAR);
 
     public static final Structure FOREST_SHRINE = new Structure(
-            RogueTileMap.STRUCTURE_FOREST_SHRINE, "Forest Shrine", Tier.ONE, Hazard.COLLAPSING_STONE, null)
-            .withLoot(loot(Supply.SALT, 1, 100), loot(Supply.COAL, 1, 60));
+            RogueTileMap.STRUCTURE_FOREST_SHRINE, "Forest Shrine", Tier.ONE, Hazard.COLLAPSING_STONE, null,
+            new LootEntry[]{loot(Supply.SALT, 1, 100), loot(Supply.COAL, 1, 60)},
+            NO_CELLAR);
 
     public static final Structure BEEHIVE_GROVE = new Structure(
-            RogueTileMap.STRUCTURE_BEEHIVE_GROVE, "Beehive Grove", Tier.ONE, Hazard.SWARM, null)
-            .withLoot(loot(Supply.HONEY, 1, 100), loot(Supply.HONEYCOMB, 1, 70));
+            RogueTileMap.STRUCTURE_BEEHIVE_GROVE, "Beehive Grove", Tier.ONE, Hazard.SWARM, null,
+            new LootEntry[]{loot(Supply.HONEY, 1, 100), loot(Supply.HONEYCOMB, 1, 70)},
+            NO_CELLAR);
 
     public static final Structure KITCHEN_CAMP = new Structure(
-            RogueTileMap.STRUCTURE_KITCHEN_CAMP, "Worn Down Kitchen Camp", Tier.TWO, Hazard.ASH_RESIDUE, null)
-            .withLoot(loot(Supply.PRESERVED_FOOD, 1, 100), loot(Supply.SALT, 1, 100),
-                    loot(Supply.COAL, 1, 60), loot(Supply.SMALL_TOOLS, 1, 50));
+            RogueTileMap.STRUCTURE_KITCHEN_CAMP, "Worn Down Kitchen Camp", Tier.TWO, Hazard.ASH_RESIDUE, null,
+            new LootEntry[]{loot(Supply.PRESERVED_FOOD, 1, 100), loot(Supply.SALT, 1, 100),
+                    loot(Supply.COAL, 1, 60), loot(Supply.SMALL_TOOLS, 1, 50)},
+            NO_CELLAR);
 
     public static final Structure COLLAPSED_WATCHTOWER = new Structure(
             RogueTileMap.STRUCTURE_COLLAPSED_WATCHTOWER, "Collapsed Watchtower", Tier.TWO,
-            Hazard.TOWER_COLLAPSE, null)
-            .withLoot(loot(Supply.ROPE, 1, 100), loot(Supply.SMALL_TOOLS, 1, 80),
-                    loot(Supply.MAP_FRAGMENT, 1, 25), loot(Supply.FOLDED_CLOTH, 1, 50));
+            Hazard.TOWER_COLLAPSE, null,
+            new LootEntry[]{loot(Supply.ROPE, 1, 100), loot(Supply.SMALL_TOOLS, 1, 80),
+                    loot(Supply.MAP_FRAGMENT, 1, 25), loot(Supply.FOLDED_CLOTH, 1, 50)},
+            NO_CELLAR);
 
     public static final Structure POACHERS_CAMP = new Structure(
-            RogueTileMap.STRUCTURE_POACHERS_CAMP, "Poacher's Camp", Tier.TWO, Hazard.SNARE_TRAP, null)
-            .withLoot(loot(Supply.ROPE, 1, 100), loot(Supply.SMALL_TOOLS, 1, 70),
-                    loot(Supply.RAW_MEAT, 1, 60), loot(Supply.FOLDED_CLOTH, 1, 40));
+            RogueTileMap.STRUCTURE_POACHERS_CAMP, "Poacher's Camp", Tier.TWO, Hazard.SNARE_TRAP, null,
+            new LootEntry[]{loot(Supply.ROPE, 1, 100), loot(Supply.SMALL_TOOLS, 1, 70),
+                    loot(Supply.RAW_MEAT, 1, 60), loot(Supply.FOLDED_CLOTH, 1, 40)},
+            NO_CELLAR);
 
     public static final Structure SUNKEN_WELL = new Structure(
-            RogueTileMap.STRUCTURE_SUNKEN_WELL, "Sunken Well", Tier.TWO, Hazard.SLIP_AND_FALL, null)
-            .withLoot(loot(Supply.COAL, 1, 100), loot(Supply.PRESERVED_FOOD, 1, 60),
-                    loot(Supply.SALT, 1, 50), loot(Supply.SMALL_TOOLS, 1, 60));
+            RogueTileMap.STRUCTURE_SUNKEN_WELL, "Sunken Well", Tier.TWO, Hazard.SLIP_AND_FALL, null,
+            new LootEntry[]{loot(Supply.COAL, 1, 100), loot(Supply.PRESERVED_FOOD, 1, 60),
+                    loot(Supply.SALT, 1, 50), loot(Supply.SMALL_TOOLS, 1, 60)},
+            NO_CELLAR);
 
     public static final Structure OLD_HOUSE = new Structure(
             RogueTileMap.STRUCTURE_OLD_HOUSE, "The Old House", Tier.THREE, Hazard.STRUCTURAL_DECAY,
-            "home-cluster T3-by-hazard-depth (AD-8)")
-            .withLoot(loot(Supply.PRESERVED_FOOD, 2, 100), loot(Supply.FOLDED_CLOTH, 1, 100))
-            .withLockedCellar(loot(Supply.PRESERVED_FOOD, 3, 100), loot(Supply.FOLDED_CLOTH, 2, 100));
+            "home-cluster T3-by-hazard-depth (AD-8)",
+            new LootEntry[]{loot(Supply.PRESERVED_FOOD, 2, 100), loot(Supply.FOLDED_CLOTH, 1, 100)},
+            new LootEntry[]{loot(Supply.PRESERVED_FOOD, 3, 100), loot(Supply.FOLDED_CLOTH, 2, 100)});
 
     public static final Structure GRAVEYARD = new Structure(
             RogueTileMap.STRUCTURE_GRAVEYARD, "Mercenary Graveyard", Tier.THREE, Hazard.GRAVE_GROUND,
-            "home-cluster T3-by-hazard-depth (AD-8)")
-            .withLoot(loot(Supply.FOLDED_CLOTH, 1, 100), loot(Supply.SMALL_TOOLS, 1, 50));
+            "home-cluster T3-by-hazard-depth (AD-8)",
+            new LootEntry[]{loot(Supply.FOLDED_CLOTH, 1, 100), loot(Supply.SMALL_TOOLS, 1, 50)},
+            NO_CELLAR);
 
     public static final Structure DEEP_CAVE = new Structure(
             RogueTileMap.STRUCTURE_DEEP_CAVE, "Deep Cave Mouth", Tier.THREE, Hazard.CAVE_IN,
-            "Region-2 threshold (AD-12) — T3 is transition depth, not surface east-west")
-            .withLoot(loot(Supply.PRESERVED_FOOD, 1, 100), loot(Supply.FOLDED_CLOTH, 1, 60),
-                    loot(Supply.MAP_FRAGMENT, 1, 30));
+            "Region-2 threshold (AD-12) — T3 is transition depth, not surface east-west",
+            new LootEntry[]{loot(Supply.PRESERVED_FOOD, 1, 100), loot(Supply.FOLDED_CLOTH, 1, 60),
+                    loot(Supply.MAP_FRAGMENT, 1, 30)},
+            NO_CELLAR);
 
     /** All 11 entries, in structure-type order (deterministic iteration for placement + tests). */
     public static final Structure[] ALL = {
