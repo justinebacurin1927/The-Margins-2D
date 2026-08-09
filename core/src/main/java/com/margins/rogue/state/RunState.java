@@ -9,6 +9,7 @@ import com.margins.rogue.RogueEnemy;
 import com.margins.rogue.RoguePlayer;
 import com.margins.rogue.RogueTileMap;
 import com.margins.rogue.Weather;
+import com.margins.rogue.world.StructureTable;
 import com.margins.rogue.world.WorldSpine;
 import com.margins.rogue.item.FloorItem;
 import com.margins.rogue.item.Inventory;
@@ -139,6 +140,9 @@ public class RunState {
         player = new RoguePlayer(startCx, startCy, tileMap);
 
         placeFloorActors(result, player.getTileX(), player.getTileY());
+        // Story 3.2 (AC-2): scatter each structure's authored loot set inside its footprint, AFTER
+        // the generic scatter so that pass's seeded draw sequence is untouched (AD-5).
+        placeStructureLoot(player.getTileX(), player.getTileY());
     }
 
     /**
@@ -187,6 +191,56 @@ public class RunState {
                 }
             }
         }
+    }
+
+    /**
+     * Story 3.2 (FR-10, AC-2): scatter each structure's authored loot set inside its footprint —
+     * structures are destinations, so their loot is authored content (StructureTable), not the
+     * generic eastness scatter. Runs AFTER {@link #placeFloorActors}, so the generic pass's seeded
+     * draw sequence is byte-identical to the 3.1 baseline and structure loot is a stable suffix of
+     * the stream (AD-5): one draw per chance entry, one per placed item. Loot lands only on
+     * walkable footprint cells (never walls/furniture) and never on the player's tile. The locked
+     * cellar's rich loot is data in the table only — Story 3.5's lockpicking exposes it, never this.
+     */
+    private void placeStructureLoot(int avoidX, int avoidY) {
+        for (StructureTable.Structure structure : StructureTable.all()) {
+            int[] box = structureFootprint(tileMap, structure.structureType);
+            if (box == null) continue; // every structure is stamped, but stay defensive
+            List<int[]> cells = new ArrayList<>();
+            for (int x = box[0]; x <= box[2]; x++) {
+                for (int y = box[1]; y <= box[3]; y++) {
+                    if (tileMap.isWalkable(x, y) && !(x == avoidX && y == avoidY)) {
+                        cells.add(new int[]{x, y});
+                    }
+                }
+            }
+            if (cells.isEmpty()) continue;
+            for (StructureTable.LootEntry entry : structure.loot) {
+                // Guaranteed entries skip the roll; chance entries draw exactly once (AD-5).
+                boolean hit = entry.chancePercent >= 100 || rng.nextInt(100) < entry.chancePercent;
+                if (!hit) continue;
+                for (int k = 0; k < entry.count; k++) {
+                    int[] c = cells.get(rng.nextInt(cells.size()));
+                    floorItems.add(new FloorItem(entry.supply.ordinal(), 1, c[0], c[1]));
+                }
+            }
+        }
+    }
+
+    /** The bounding box of a structure's stamped footprint, or null if the type isn't on the map. */
+    private static int[] structureFootprint(RogueTileMap m, int type) {
+        int minX = m.getWidth(), minY = m.getHeight(), maxX = -1, maxY = -1;
+        for (int x = 0; x < m.getWidth(); x++) {
+            for (int y = 0; y < m.getHeight(); y++) {
+                if (m.getStructureType(x, y) == type) {
+                    minX = Math.min(minX, x);
+                    minY = Math.min(minY, y);
+                    maxX = Math.max(maxX, x);
+                    maxY = Math.max(maxY, y);
+                }
+            }
+        }
+        return maxX < 0 ? null : new int[]{minX, minY, maxX, maxY};
     }
 
     /** Enemy count per region: 0 in the safe west (near Corneo), rising to 3 in the eastern

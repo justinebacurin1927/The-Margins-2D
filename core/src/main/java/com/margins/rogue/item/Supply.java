@@ -50,7 +50,19 @@ public enum Supply {
     // Story 2.4 discovery seed (FR-3): Aldric's torn order, left where he was taken. A single-
     // identity lore note (inert on use — reading is narration) so the H1 no-RNG-draw rule applies,
     // and it stays in the backpack as the seed Story 2.5's discovery-triggered quests hook.
-    TORN_PAGE("Torn Page", TrueIdentity.CHASERS_ORDER);
+    TORN_PAGE("Torn Page", TrueIdentity.CHASERS_ORDER),
+
+    // Story 3.2 (FR-10, AC-2): the World-Structure loot items. Structure-destination loot ONLY —
+    // Rope / Small Tools are inert craft materials (the repair economics are Story 4.5), Map
+    // Fragment is the inert knowledge collectible (the query is Story 3.5), Preserved Food is a
+    // nourishing provision. Appended last so existing ordinals (and old saves) are unchanged (AD-6).
+    // Deliberately NOT scatterable: admitting them to the generic eastness scatter would grow its
+    // pool and shift every existing seed's layout (AD-5 byte-identical stream) — structure loot is
+    // an authored pass (RunState.placeStructureLoot), not random forest junk.
+    ROPE("Rope", TrueIdentity.ROPE_ID),
+    SMALL_TOOLS("Small Tools", TrueIdentity.SMALL_TOOLS_ID),
+    MAP_FRAGMENT("Map Fragment", TrueIdentity.MAP_FRAGMENT_ID),
+    PRESERVED_FOOD("Preserved Food", TrueIdentity.PRESERVED_FOOD_ID);
 
     private final String displayName;
     private final TrueIdentity[] possible;
@@ -65,10 +77,12 @@ public enum Supply {
         return possible;
     }
 
-    /** Spent on use, except inert types (the Sealed Letter, the Torn Page, and fuel/storage that
-     *  aren't eaten). */
+    /** Spent on use, except inert types (the Sealed Letter, the Torn Page, and fuel/storage/craft
+     *  materials that aren't eaten). The Story 3.2 materials (Rope, Small Tools, Map Fragment) are
+     *  carried loot with their uses in later stories (4.5/3.5) — USING one is a no-op. */
     public boolean isConsumedOnUse() {
-        return this != SEALED_LETTER && this != TORN_PAGE && this != COAL && this != SALT && this != WOOD;
+        return this != SEALED_LETTER && this != TORN_PAGE && this != COAL && this != SALT && this != WOOD
+                && this != ROPE && this != SMALL_TOOLS && this != MAP_FRAGMENT;
     }
 
     /** The toxin track a provision carries (Story 1.7, FR-8). Mushrooms are deterministic — a
@@ -84,6 +98,7 @@ public enum Supply {
             case WELL_WATER: case POND_WATER: case RIVER_WATER: case FILTERED_WATER: case BOILED_WATER:
             case TOXIC_MUSHROOM: case HONEYMOON_MUSHROOM:
             case HONEY: case HONEYCOMB: case BLOODVEIN_MUSHROOM: case HERBAL_CURE:
+            case PRESERVED_FOOD:
                 return true;
             default: return false;
         }
@@ -137,7 +152,7 @@ public enum Supply {
     public boolean isFood() {
         switch (this) {
             case RAW_MEAT: case HALF_ROTTEN_MEAT: case SPOILED_MEAT: case COOKED_MEAT:
-            case HONEY: case HONEYCOMB:
+            case HONEY: case HONEYCOMB: case PRESERVED_FOOD:
                 return true;
             default: return false;
         }
@@ -189,11 +204,17 @@ public enum Supply {
         return VALUES.length;
     }
 
-    /** Whether this type may appear in the random floor scatter (review M1). Only the quest-seed
-     *  lore note (TORN_PAGE) is excluded: it must appear ONLY via its scripted capture placement,
-     *  else it leaks the east/Copper-Road lore early and duplicates the post-capture seed. */
+    /** Whether this type may appear in the random floor scatter (review M1). The quest-seed lore
+     *  note (TORN_PAGE) must appear ONLY via its scripted capture placement, and the Story 3.2
+     *  structure-loot items (Rope / Small Tools / Map Fragment / Preserved Food) must appear ONLY
+     *  via the authored structure pass — excluding them keeps the generic scatter's pool length
+     *  unchanged, so every existing seed's wilderness layout is byte-identical (AD-5). */
     public boolean isScatterable() {
-        return this != TORN_PAGE;
+        switch (this) {
+            case TORN_PAGE: case ROPE: case SMALL_TOOLS: case MAP_FRAGMENT: case PRESERVED_FOOD:
+                return false;
+            default: return true;
+        }
     }
 
     /** The scatterable types, precomputed once at class load for {@link #scatterableOrdinals()}. */

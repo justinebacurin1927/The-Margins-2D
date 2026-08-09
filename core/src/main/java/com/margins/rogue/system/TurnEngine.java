@@ -65,6 +65,12 @@ public class TurnEngine {
                         player.tryMove(action.dx, action.dy);
                     }
                     acted = true;
+                    // Story 3.2 (AC-2): stepping onto a World-Structure exposes its hazard — only
+                    // when the move actually landed on (tx,ty) (a slowed/crippled stumble never
+                    // reached it). One seeded roll per step (AD-5); no new tile, no persisted state.
+                    if (player.getTileX() == tx && player.getTileY() == ty) {
+                        HazardSystem.step(state, tx, ty, result.messages);
+                    }
                 }
                 break;
             case ATTACK:

@@ -55,7 +55,17 @@ public enum TrueIdentity {
     CHASERS_ORDER("Chaser's order",
             "Chaser's order: '…prisoners to the road-head, east along the Copper Road.'") {
         public void apply(RoguePlayer p) { /* narration — no effect (Story 2.4) */ }
-    };
+    },
+
+    // Story 3.2 (FR-10, AC-2): the World-Structure loot identities. Rope / Small Tools / Map
+    // Fragment are inert craft materials / collectibles — their uses (repair economics, knowledge
+    // querying) are Stories 4.5 / 3.5, so applying them here is a no-op. Preserved Food is a
+    // Story 1.5 provision (a nourishing staple that resists spoilage — it is the old house /
+    // kitchen camp's reason to be a destination).
+    ROPE_ID("Rope") { public void apply(RoguePlayer p) { /* craft material — inert on use (repairs are 4.5) */ } },
+    SMALL_TOOLS_ID("Small tools") { public void apply(RoguePlayer p) { /* tool — inert on use */ } },
+    MAP_FRAGMENT_ID("Map fragment") { public void apply(RoguePlayer p) { /* knowledge collectible — inert; query is 3.5 */ } },
+    PRESERVED_FOOD_ID("Preserved food") { public void apply(RoguePlayer p) { p.eat(50); } };
 
     private final String displayName;
     private final String loreLine;

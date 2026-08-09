@@ -232,6 +232,11 @@ public class FloorGenerator {
         map.setTile(town.x + 1, town.y + 1, RogueTile.WELL);   // the town well, by the plaza
         map.setTile(spine.roadEndX() - 5, spine.roadY(), RogueTile.POND);   // a roadside pond
         map.setTile(spine.roadEndX() - 2, spine.roadY(), RogueTile.RIVER);  // the road meets the river
+        // Story 3.2 (AC-2): the Sunken Well's namesake — a stable well-water source at its center
+        // (PRD: "Sunken Well (stable)"; its slip-and-fall hazard is the counterweight). The center
+        // cell is walkable FLOOR under sunkenWellTile, so WELL preserves walkability; it draws
+        // nothing from `rand` (AD-5), folding Story 1.5's water-source feature into the structure.
+        map.setTile(sunkenWell.cx(), sunkenWell.cy(), RogueTile.WELL);
 
         // Connectivity guarantee (O4 carry): the landmark skeleton must be one component from the
         // start. Runs AFTER the structure stamps — a corridor that crossed a structure's future
