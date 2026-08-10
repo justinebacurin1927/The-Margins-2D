@@ -742,6 +742,10 @@ public class MarginScreen implements Screen {
         if (down(Input.Keys.K) && s != null && s.cooksTo() != null)   return PlayerAction.cook(s.ordinal(), facing);
         if (down(Input.Keys.F) && s != null && s.filtersTo() != null) return PlayerAction.filter(s.ordinal(), facing);
         if (down(Input.Keys.V) && s != null && s.boilsTo() != null)   return PlayerAction.boil(s.ordinal(), facing);
+        // Story 3.5 (FR-11): L lockpicks the Old House's cellar. The skill roll, tool check and
+        // placement live in LockpickSystem; a refused pick (wrong structure / no tools / already
+        // open) commits no turn — the inert-USE precedent. Core-owned, so the screen only submits.
+        if (down(Input.Keys.L)) return PlayerAction.lockpick(facing);
         // Story 2.4 (review H1): the discovery note is read with E even though it is not a
         // provision (reading is narration). It is NOT added to isProvision() — that would route
         // it through ConsumptionSystem as food; the explicit gate keeps the note inert-and-readable.
@@ -873,10 +877,11 @@ public class MarginScreen implements Screen {
         }
     }
 
-    /** Mystery consumables, provisions and the Torn Page all have a meaningful E action. */
+    /** Mystery consumables, provisions and the read-narration notes (Torn Page, Map Fragment) all
+     *  have a meaningful E action. */
     static boolean canUseFromInventory(Supply supply) {
         return supply != null && (supply.isProvision() || supply.isConsumedOnUse()
-                || supply == Supply.TORN_PAGE);
+                || supply == Supply.TORN_PAGE || supply == Supply.MAP_FRAGMENT);
     }
 
     /** Four-by-two cursor movement with SPD-like edge wrapping. Row zero is the visual top row. */
@@ -2437,7 +2442,7 @@ public class MarginScreen implements Screen {
 
     private static String inventoryPrimaryAction(Supply supply) {
         if (!canUseFromInventory(supply)) return null;
-        if (supply == Supply.TORN_PAGE) return "E  READ";
+        if (supply == Supply.TORN_PAGE || supply == Supply.MAP_FRAGMENT) return "E  READ";
         if (supply.isWater()) return "E  DRINK";
         if (supply.isFood()) return "E  EAT";
         return "E  USE";
@@ -2568,6 +2573,7 @@ public class MarginScreen implements Screen {
         drawText("F  Filter water", right, top - 73, UI_TEXT);
         drawText("V  Boil water", right, top - 87, UI_TEXT);
         drawText("E  Use selected item", right, top - 101, UI_TEXT);
+        drawText("L  Lockpick", right, top - 115, UI_TEXT);
 
         fillRect(x + 14, y + 92, width - 28, 1, UI_BORDER);
         drawText("Stay fed, hydrated, warm, and hidden.", x + 18, y + 76, UI_TEXT);

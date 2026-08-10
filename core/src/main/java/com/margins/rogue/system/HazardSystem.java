@@ -85,12 +85,23 @@ public final class HazardSystem {
         if (structure == null) return StructureTable.Hazard.NONE; // defensive: unmapped type has no hazard
                                                                   // (step() already guards this; harden the widened seam)
         if (state.isDay()) return structure.hazard;
-        switch (structure.structureType) {
+        StructureTable.Hazard flip = nightFlipFor(structure.structureType);
+        return flip != null ? flip : structure.hazard;            // unchanged at night unless it flips
+    }
+
+    /** Story 3.5 (AC-2): the NIGHT hazard for a structure type, independent of the current clock —
+     *  the authored night flip from Story 3.4 (four named locations; the Beehive Grove flips SAFER),
+     *  or null when a structure keeps its authored hazard at night. The location-danger knowledge
+     *  query (KnowledgeSystem) reads this; {@link #nightHazardFor} uses it for the night branch, so
+     *  the day baseline and the flip mapping each have one source. Package-private so the mapping
+     *  is unit-testable. */
+    static StructureTable.Hazard nightFlipFor(int structureType) {
+        switch (structureType) {
             case RogueTileMap.STRUCTURE_GRAVEYARD:     return StructureTable.Hazard.GRAVE_UNDEAD;
             case RogueTileMap.STRUCTURE_SUNKEN_WELL:   return StructureTable.Hazard.WELL_CREATURE;
             case RogueTileMap.STRUCTURE_POACHERS_CAMP: return StructureTable.Hazard.POACHER_PATROL;
             case RogueTileMap.STRUCTURE_BEEHIVE_GROVE: return StructureTable.Hazard.NONE; // the sole safer-flip
-            default:                                   return structure.hazard;          // unchanged at night
+            default:                                   return null;                        // no flip — keep the baseline
         }
     }
 }

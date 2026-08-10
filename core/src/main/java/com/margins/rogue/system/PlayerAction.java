@@ -13,7 +13,10 @@ public class PlayerAction {
         // COOK/FILTER/BOIL act on the given backpack itemType (the raw meat / raw water stack).
         COLLECT, BUILD_CAMPFIRE, COOK, FILTER, BOIL,
         // Story 1.6 (FR-7): craft the carried torch from the backpack's Wood + Coal.
-        CRAFT_TORCH
+        CRAFT_TORCH,
+        // Story 3.5 (FR-11): SKILL-governed lockpicking — opens the Old House's locked cellar.
+        // No itemType (the COLLECT/BUILD_CAMPFIRE precedent); the tool is checked by LockpickSystem.
+        LOCKPICK
     }
 
     public final Kind kind;
@@ -84,5 +87,9 @@ public class PlayerAction {
 
     public static PlayerAction boil(int itemType, int dir) {
         return new PlayerAction(Kind.BOIL, 0, 0, dir, itemType);
+    }
+
+    public static PlayerAction lockpick(int dir) {
+        return new PlayerAction(Kind.LOCKPICK, 0, 0, dir, -1);
     }
 }

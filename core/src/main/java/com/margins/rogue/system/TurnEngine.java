@@ -127,6 +127,18 @@ public class TurnEngine {
                     }
                     break;
                 }
+                // Story 3.5 (AC-2): reading a map fragment records queryable, PERSISTED knowledge
+                // (FlagStore — no new RunState field, AD-6). The Torn Page precedent: narration,
+                // no turn, never consumed (Decision 4) — the fragment stays a re-readable knowledge
+                // token, and each read accumulates the known map (mapFragmentsRead).
+                if (s == Supply.MAP_FRAGMENT && state.getInventory().count(action.itemType) > 0) {
+                    int before = state.getFlagStore().get(KnowledgeSystem.KEY_MAP_FRAGMENTS_READ);
+                    state.getFlagStore().set(KnowledgeSystem.KEY_MAP_FRAGMENTS_READ, before + 1);
+                    result.messages.add(before == 0
+                            ? "You study the map fragment — a piece of the region settles in your mind."
+                            : "You study the map fragment — the region grows clearer.");
+                    break;
+                }
                 if (s != null && state.getInventory().count(action.itemType) > 0) {
                     TrueIdentity id = state.getIdentifyMap().identityOf(action.itemType);
                     if (id != null) {
@@ -228,6 +240,12 @@ public class TurnEngine {
                 break;
             case BOIL:
                 acted = PurificationSystem.boil(state, action.itemType, result.messages);
+                break;
+            case LOCKPICK:
+                // Story 3.5 (FR-11, AC-2): the SKILL-governed cellar roll. Refused (not at the Old
+                // House / no tool / already open) commits no turn; success AND failure spend the
+                // turn through the acted pipeline.
+                acted = LockpickSystem.lockpick(state, result.messages);
                 break;
         }
 

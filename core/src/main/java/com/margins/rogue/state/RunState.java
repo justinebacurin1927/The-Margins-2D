@@ -225,27 +225,46 @@ public class RunState {
      */
     private void placeStructureLoot(int avoidX, int avoidY) {
         for (StructureTable.Structure structure : StructureTable.all()) {
-            int[] box = structureFootprint(tileMap, structure.structureType);
-            if (box == null) continue; // every structure is stamped, but stay defensive
-            List<int[]> cells = new ArrayList<>();
-            for (int x = box[0]; x <= box[2]; x++) {
-                for (int y = box[1]; y <= box[3]; y++) {
-                    if (tileMap.isWalkable(x, y) && !(x == avoidX && y == avoidY)) {
-                        cells.add(new int[]{x, y});
-                    }
-                }
-            }
-            if (cells.isEmpty()) continue;
-            for (StructureTable.LootEntry entry : structure.loot) {
-                // Guaranteed entries skip the roll; chance entries draw exactly once (AD-5).
-                boolean hit = entry.chancePercent >= 100 || rng.nextInt(100) < entry.chancePercent;
-                if (!hit) continue;
-                for (int k = 0; k < entry.count; k++) {
-                    int[] c = cells.get(rng.nextInt(cells.size()));
-                    floorItems.add(new FloorItem(entry.supply.ordinal(), 1, c[0], c[1]));
+            placeLootInFootprint(structure, structure.loot, avoidX, avoidY);
+        }
+    }
+
+    /** Place a loot set inside a structure's walkable footprint (one seeded draw per chance entry
+     *  and per placed item, AD-5), never on the given tile (the player's). Shared by the
+     *  generation-time authored pass ({@link #placeStructureLoot}) and Story 3.5's runtime cellar
+     *  open ({@link #placeLockedCellarLoot}) — the same placement rule, one source. */
+    private void placeLootInFootprint(StructureTable.Structure structure, StructureTable.LootEntry[] entries,
+                                      int avoidX, int avoidY) {
+        int[] box = structureFootprint(tileMap, structure.structureType);
+        if (box == null) return; // every structure is stamped, but stay defensive
+        List<int[]> cells = new ArrayList<>();
+        for (int x = box[0]; x <= box[2]; x++) {
+            for (int y = box[1]; y <= box[3]; y++) {
+                if (tileMap.isWalkable(x, y) && !(x == avoidX && y == avoidY)) {
+                    cells.add(new int[]{x, y});
                 }
             }
         }
+        if (cells.isEmpty()) return;
+        for (StructureTable.LootEntry entry : entries) {
+            // Guaranteed entries skip the roll; chance entries draw exactly once (AD-5).
+            boolean hit = entry.chancePercent >= 100 || rng.nextInt(100) < entry.chancePercent;
+            if (!hit) continue;
+            for (int k = 0; k < entry.count; k++) {
+                int[] c = cells.get(rng.nextInt(cells.size()));
+                floorItems.add(new FloorItem(entry.supply.ordinal(), 1, c[0], c[1]));
+            }
+        }
+    }
+
+    /** Story 3.5 (FR-11, AC-2): place the Old House's locked cellar loot (StructureTable.lockedLoot)
+     *  in its footprint — the same authored-loot placement pattern as {@link #placeStructureLoot},
+     *  called at RUNTIME by LockpickSystem when the SKILL roll opens the cellar (never at
+     *  generation, so the cellar stays genuinely locked until picked). Runs on the live seeded
+     *  stream (AD-5); the generation stream is untouched because this is a later event draw. */
+    public void placeLockedCellarLoot(int avoidX, int avoidY) {
+        StructureTable.Structure oldHouse = StructureTable.forType(RogueTileMap.STRUCTURE_OLD_HOUSE);
+        placeLootInFootprint(oldHouse, oldHouse.lockedLoot, avoidX, avoidY);
     }
 
     /** The bounding box of a structure's stamped footprint, or null if the type isn't on the map. */

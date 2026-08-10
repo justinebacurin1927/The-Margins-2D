@@ -4,7 +4,7 @@ baseline_commit: 3f09f19
 
 # Story 3.5: Horizontal progression — SKILL and knowledge
 
-Status: ready-for-dev
+Status: done
 
 ## Story
 
@@ -72,27 +72,39 @@ The `3f09f19` baseline already provides most of the horizontal-progression frame
 
 ## Tasks / Subtasks
 
-- [ ] **Task 1 — AC-1: the no-combat-XP pin (AC: 1)**
-  - [ ] A test that resolves a kill through `CombatSystem` and asserts NO player number rises: STR/GRIT/INSTINCT/VOICE/SKILL and max-HP are unchanged after the kill, and there is no kill-count / level / XP field or counter anywhere on the player or run (by construction). Guards against a future regression adding one.
+- [x] **Task 1 — AC-1: the no-combat-XP pin (AC: 1)**
+  - [x] A test that resolves a kill through `CombatSystem` and asserts NO player number rises: STR/GRIT/INSTINCT/VOICE/SKILL and max-HP are unchanged after the kill, and there is no kill-count / level / XP field or counter anywhere on the player or run (by construction). Guards against a future regression adding one.
 
-- [ ] **Task 2 — SKILL-governed lockpicking exposes the Old House cellar (AC: 2)**
-  - [ ] A `PlayerAction` (LOCKPICK, the `COLLECT`/`BUILD_CAMPFIRE` precedent — no itemType) + its `TurnEngine`/`LockpickSystem` handler: acts only when Klein is on an `STRUCTURE_OLD_HOUSE` cell, the cellar is not yet open (FlagStore key), and he carries `SMALL_TOOLS`. One seeded SKILL-scaled roll (AD-5) — higher SKILL opens more often; on success expose `lockedLoot` (place it in the Old House footprint, the `placeStructureLoot` pattern) and set the FlagStore opened-key; on failure spend the turn with a message. A refused attempt (wrong place / no tool / already open) commits no turn.
-  - [ ] Persisted opened-state via FlagStore (no new `RunState` field, AD-6): a reload neither re-locks nor double-places the cellar loot.
-  - [ ] Tests: higher SKILL opens the cellar more often across a seed range; on success `lockedLoot` is reachable in the footprint; the opened flag persists across save/load (no re-lock, no double loot); a refused attempt (no tool / already open / not at the Old House) commits no turn; one seeded draw, deterministic per seed (AD-5).
+- [x] **Task 2 — SKILL-governed lockpicking exposes the Old House cellar (AC: 2)**
+  - [x] A `PlayerAction` (LOCKPICK, the `COLLECT`/`BUILD_CAMPFIRE` precedent — no itemType) + its `TurnEngine`/`LockpickSystem` handler: acts only when Klein is on an `STRUCTURE_OLD_HOUSE` cell, the cellar is not yet open (FlagStore key), and he carries `SMALL_TOOLS`. One seeded SKILL-scaled roll (AD-5) — higher SKILL opens more often; on success expose `lockedLoot` (place it in the Old House footprint, the `placeStructureLoot` pattern) and set the FlagStore opened-key; on failure spend the turn with a message. A refused attempt (wrong place / no tool / already open) commits no turn.
+  - [x] Persisted opened-state via FlagStore (no new `RunState` field, AD-6): a reload neither re-locks nor double-places the cellar loot.
+  - [x] Tests: higher SKILL opens the cellar more often across a seed range; on success `lockedLoot` is reachable in the footprint; the opened flag persists across save/load (no re-lock, no double loot); a refused attempt (no tool / already open / not at the Old House) commits no turn; one seeded draw, deterministic per seed (AD-5).
 
-- [ ] **Task 3 — Queryable, persistent knowledge (AC: 2)**
-  - [ ] Reading/collecting a `MAP_FRAGMENT` records a **persisted** knowledge fact (FlagStore key or a field-initialized store; AD-6-safe). Wire `TrueIdentity.MAP_FRAGMENT_ID` / the `USE` path (the Torn Page precedent: narration, no turn, not consumed — Decision 4).
-  - [ ] A **query API** answers what Klein knows — composing item-safety (existing `IdentifyMap.isIdentified`), map-fragment knowledge (new), and location-danger (a pure query over Story 3.4 `nightHazardFor`/`StructureTable`). Core-owned (AD-1/AD-2).
-  - [ ] Tests: reading a fragment records queryable knowledge; the knowledge persists across save/load (round-trip); the location-danger query answers correctly (e.g. the Graveyard/Sunken Well/Poacher's Camp are night-dangerous, the Beehive is a night-safer exception); item-safety knowledge stays queryable via `IdentifyMap` (regression-safe). No new `RogueTile`, no new noise, no extra clock tick.
+- [x] **Task 3 — Queryable, persistent knowledge (AC: 2)**
+  - [x] Reading/collecting a `MAP_FRAGMENT` records a **persisted** knowledge fact (FlagStore key or a field-initialized store; AD-6-safe). Wire `TrueIdentity.MAP_FRAGMENT_ID` / the `USE` path (the Torn Page precedent: narration, no turn, not consumed — Decision 4).
+  - [x] A **query API** answers what Klein knows — composing item-safety (existing `IdentifyMap.isIdentified`), map-fragment knowledge (new), and location-danger (a pure query over Story 3.4 `nightHazardFor`/`StructureTable`). Core-owned (AD-1/AD-2).
+  - [x] Tests: reading a fragment records queryable knowledge; the knowledge persists across save/load (round-trip); the location-danger query answers correctly (e.g. the Graveyard/Sunken Well/Poacher's Camp are night-dangerous, the Beehive is a night-safer exception); item-safety knowledge stays queryable via `IdentifyMap` (regression-safe). No new `RogueTile`, no new noise, no extra clock tick.
 
-- [ ] **Task 4 — AC-3: the SM-3 knowledge-survives pin (AC: 3)**
-  - [ ] A comparative test from one seed: a "knowing" run (drinks only identified-safe water, opens the cellar via SKILL, reads the map fragment) vs a "naive" run (risky water, cellar unopened). Assert the knowing run is measurably better off — more usable provisions and/or longer survival — and that **no player stat/number rose** in either run (no XP; SKILL and all stats unchanged from start). Deterministic-on-seed, turn-level.
+- [x] **Task 4 — AC-3: the SM-3 knowledge-survives pin (AC: 3)**
+  - [x] A comparative test from one seed: a "knowing" run (drinks only identified-safe water, opens the cellar via SKILL, reads the map fragment) vs a "naive" run (risky water, cellar unopened). Assert the knowing run is measurably better off — more usable provisions and/or longer survival — and that **no player stat/number rose** in either run (no XP; SKILL and all stats unchanged from start). Deterministic-on-seed, turn-level.
 
-- [ ] **Task 5 — AC pins + no-regression + boot (AC: all)**
-  - [ ] AC-1 pin: Task 1. AC-2 pins: Tasks 2-3 (lockpicking + knowledge query). AC-3 pin: Task 4.
-  - [ ] Scope guard: NO SKILL-growth/leveling, NO durability/repair (Epic 4), NO combat change, NO Sense/Ant, NO new `RogueTile`, NO new persisted `RunState` field (FlagStore/field-initialized store only), NO new noise, NO extra clock tick — each pinned by a test or by construction.
-  - [ ] Full suite: `mvn -o -pl core test` — the **385** 3.4-post-review tests stay green, plus the new SKILL/knowledge tests. No regressions.
-  - [ ] Launch: `mvn -o -q -pl core install` + `timeout 40 mvn -o -pl desktop exec:java` — boot clean.
+- [x] **Task 5 — AC pins + no-regression + boot (AC: all)**
+  - [x] AC-1 pin: Task 1. AC-2 pins: Tasks 2-3 (lockpicking + knowledge query). AC-3 pin: Task 4.
+  - [x] Scope guard: NO SKILL-growth/leveling, NO durability/repair (Epic 4), NO combat change, NO Sense/Ant, NO new `RogueTile`, NO new persisted `RunState` field (FlagStore/field-initialized store only), NO new noise, NO extra clock tick — each pinned by a test or by construction.
+  - [x] Full suite: `mvn -o -pl core test` — the **385** 3.4-post-review tests stay green, plus the new SKILL/knowledge tests. No regressions.
+  - [x] Launch: `mvn -o -q -pl core install` + `timeout 40 mvn -o -pl desktop exec:java` — boot clean.
+
+### Review Findings
+
+_Adversarial code review 2026-08-10 (Blind Hunter + Edge Case Hunter + Acceptance Auditor, all Opus). Auditor verdict: **all four ACs satisfied at the core level** — no spec-constraint violations (no SKILL-growth, no durability/repair, no combat change, no new RogueTile, no new persisted RunState field, no noise, no extra clock tick on a read; the `placeStructureLoot` → `placeLootInFootprint` refactor is behavior-preserving, `nightFlipFor` extraction identical). 4 patches applied, 2 deferred, 4 dismissed. Severities are the triage's final call._
+
+- [x] [Review][Patch] Bind a LOCKPICK key so AC-2's SKILL is player-exercisable (High) [`core/src/main/java/com/margins/MarginScreen.java`] — the core LOCKPICK action existed but no screen input produced it, so the cellar was only test-reachable. Raised independently by blind + edge; the auditor's residual [Med] "lockpicking not player-reachable in-game" is this same gap. **Fixed:** `L` in `readAction` (the inert-USE precedent — a refused pick commits no turn) + `L  Lockpick` in the how-to-play SURVIVE column. Boot + 398 tests verified.
+- [x] [Review][Patch] Open the E-gate for the MAP_FRAGMENT read (Med) [`core/src/main/java/com/margins/MarginScreen.java`] — `canUseFromInventory` admitted only provisions, consumed-on-use and the Torn Page, so a fragment could never be read from the world-E or backpack-E path. **Fixed:** MAP_FRAGMENT admitted (both gates) + `inventoryPrimaryAction` returns `E  READ` — the Torn Page read-narration precedent (no turn, never consumed).
+- [x] [Review][Patch] Diff the under-player cellar-loot check against a pre-lockpick snapshot (Low) [`core/src/test/java/com/margins/rogue/system/HorizontalProgressionTest.java`] — the avoid-rule assertion assumed nothing under the player, but generation loot may legitimately sit on the lockpick cell. **Fixed:** snapshot `underPlayerBefore`; assert the player tile is unchanged by the pick (generation loot, if any, preserved).
+- [x] [Review][Patch] Pin the SKILL clamp deterministically instead of a stream-count ceiling (Low) [`core/src/test/java/com/margins/rogue/system/HorizontalProgressionTest.java`] — `high < 80` could flake if a future refactor shifts the rng stream (AD-5). **Fixed:** assert `SurvivalCraft.skillChance` clamps at 95 (the "high SKILL is a chance, not a guarantee" property) in place of the count guard.
+- [x] [Review][Defer] The "unifying query surface" is three APIs, not one call (Low) — `KnowledgeSystem` exposes map-fragment + location-danger; item-safety stays on `IdentifyMap`, so "what do I know?" composes three APIs (the tests compose them). AC-2's queryable requirement is met individually; a single `whatDoIKnow(state)` is future UI work, not a spec violation. Deferred — no consumer yet.
+- [x] [Review][Defer] AC-3's map-fragment knowledge isn't independently demonstrated to help (Low) — in the comparative test the fragment is read but the HP/provision delta is driven by water-identification + the cellar. The fragment's knowledge is foundation state with no consuming mechanic yet (later stories); a benefit test waits on that consumer. Deferred.
+- Dismissed (4): the night-only `locationNightHazard` (consistent with the spec's night seam), SMALL_TOOLS equipped-slot / MAP_FRAGMENT identify visibility (no current consumer), LockpickSystem's success message on an empty-footprint placement (unreachable on generated maps), and all verified-sound items (precondition order per Decision 2, AC-3 probe-vs-run rng alignment, `nightFlipFor` extraction, `placeLootInFootprint` byte-identity).
 
 ## Dev Notes
 
@@ -155,16 +167,30 @@ Claude Opus 4.8 (1M context), the session's model.
 
 ### Debug Log References
 
-- (populated during dev-story)
+- RED: `HorizontalProgressionTest` failed to compile before implementation (LOCKPICK / LockpickSystem / KnowledgeSystem absent) — the red phase.
+- GREEN: full core suite 398 tests green (385 3.4-post-review + 13 new), 0 failures.
+- Launch: `mvn -o -q -pl core install` + `timeout 40 mvn -o -pl desktop exec:java` — clean boot (exit 143 = timeout kill, no exceptions).
 
 ### Completion Notes List
 
-- (populated during dev-story)
+- AC-1 pin (Task 1): a two-swing kill through CombatSystem leaves STR/GRIT/INSTINCT/VOICE/SKILL and max-HP unchanged, plus a reflection scan proving no xp/level/experience/kill field exists on RoguePlayer or RunState (the `skill` field is explicitly excluded from the kill-scan — it is the horizontal axis, not an XP counter).
+- SKILL lockpicking (Task 2): `PlayerAction.LOCKPICK` + `LockpickSystem` — one seeded roll at the existing `SurvivalCraft.skillChance` curve (reuse, not a new curve), gated on standing at the Old House + carrying `SMALL_TOOLS` + cellar not open; success places `lockedLoot` (3 PRESERVED_FOOD + 2 FOLDED_CLOTH) in the Old House footprint via the new `RunState.placeLockedCellarLoot` and sets the FlagStore `old-house.cellar-opened` key; failure spends the turn; refused commits no turn. `placeStructureLoot` was refactored to a shared private `placeLootInFootprint` (byte-identical seed-42 layout preserved — StructureContentTest green).
+- Knowledge query (Task 3): reading a MAP_FRAGMENT records `knowledge.map-fragments-read` (FlagStore) — narration, no turn, never consumed (Torn Page precedent); `KnowledgeSystem` answers mapFragmentsRead + locationNightHazard (a pure query over the extracted `HazardSystem.nightFlipFor`), composing the existing IdentifyMap item-safety store.
+- AC-3 pin (Task 4): a comparative test from one seed (a tainted-waterskin seed where the cellar opens within the cap) — the knowing run (drinks only identified-safe water, reads the fragment, opens the cellar) ends with strictly more HP and more usable provisions than the naive run (drinks all risky water blindly), with NO stat/number rising in either.
+- Scope guard (Task 5): lockpicking adds no new persisted RunState field (FlagStore-backed — json carries no mapFragmentsRead/cellarOpened/lockedCellar), no SKILL growth from doing, no noise, no extra clock tick on a read, Small Tools not consumed (durability is Epic 4).
 
 ### File List
 
-- (populated during dev-story)
+- core/src/main/java/com/margins/rogue/system/PlayerAction.java — added `LOCKPICK` Kind + `lockpick(int)` factory.
+- core/src/main/java/com/margins/rogue/system/LockpickSystem.java — NEW: the SKILL-governed cellar roll + FlagStore opened-state + preconditions.
+- core/src/main/java/com/margins/rogue/system/KnowledgeSystem.java — NEW: the queryable knowledge surface (mapFragmentsRead + locationNightHazard).
+- core/src/main/java/com/margins/rogue/state/RunState.java — extracted `placeLootInFootprint` (shared), added `placeLockedCellarLoot` (runtime cellar-open placement).
+- core/src/main/java/com/margins/rogue/system/HazardSystem.java — extracted `nightFlipFor` (clock-independent night-flip mapping) used by `nightHazardFor` + the knowledge query.
+- core/src/main/java/com/margins/rogue/system/TurnEngine.java — added the `LOCKPICK` case + the `MAP_FRAGMENT` read branch.
+- core/src/test/java/com/margins/rogue/system/HorizontalProgressionTest.java — NEW: 13 tests (AC-1 kill pin + reflection, lockpick curve/persistence/refusal/determinism, knowledge record/round-trip/location-danger/IdentifyMap, AC-3 comparative, scope guard).
 
 ## Change Log
 
 - 2026-08-10: Created Story 3.5 — Horizontal progression: SKILL and knowledge (FR-11, SM-3). Knowledge-centric scope (confirmed): SKILL-governed lockpicking (opens the Old House cellar), the map-fragment/location-danger knowledge query (persistent + queryable), the no-combat-XP pin, and the SM-3 knowledge-survives pin. SKILL-growth/leveling and durability/repair (Epic 4) explicitly OUT. Status backlog → ready-for-dev. Sprint status updated.
+- 2026-08-10: Dev-story implemented — `LOCKPICK` action + `LockpickSystem` (SKILL-curve roll, FlagStore opened-state, `placeLockedCellarLoot`), `KnowledgeSystem` (map-fragment count + location-danger query via extracted `HazardSystem.nightFlipFor`), the AC-1/AC-3 pins, and the scope guard. Full suite 398 tests green (385 + 13 new); boot clean. Status ready-for-dev → in-progress → review. Sprint status updated.
+- 2026-08-10: Code review (Blind + Edge + Auditor, all Opus) — all four ACs satisfied; 4 patches applied: the L lockpick binding + how-to-play legend (AC-2 player-reachability, the reviewers' High/Med), the MAP_FRAGMENT E-read gate (`canUseFromInventory` + `E  READ` label), the under-player cellar-loot snapshot diff, and the deterministic SKILL-clamp pin. 2 Lows deferred (unifying query surface; fragment-benefit test), 4 dismissed. 398 tests green; boot clean. Status review → done (Epic 3's last story). Sprint status updated.

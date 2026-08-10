@@ -55,7 +55,7 @@
 #   item is now folded into new Story 1.1's acceptance criteria (AD-6).
 
 generated: 2026-08-06
-last_updated: 2026-08-10  # Story 3.5 created (ready-for-dev) — horizontal progression: SKILL lockpicking + knowledge query; Epic 3 in-progress (last story)
+last_updated: 2026-08-10  # Story 3.5 review complete — all ACs met, 4 patches applied (L lockpick binding + MAP_FRAGMENT E-read gate + test hardenings); 398 tests green, boot clean. Epic 3 done (all 5 stories).
 project: The Margin
 project_key: NOKEY
 tracking_system: file-system
@@ -84,12 +84,12 @@ development_status:
   epic-2-retrospective: optional
 
   # Epic 3 — Forays into Herois (the world & its loot)
-  epic-3: in-progress
+  epic-3: done
   3-1-hybrid-map-generation: done
   3-2-the-11-world-structures-across-three-danger-tiers: done
   3-3-the-foray-loop-end-to-end: done
   3-4-night-and-weather-shift-location-danger: done
-  3-5-horizontal-progression-skill-and-knowledge: ready-for-dev
+  3-5-horizontal-progression-skill-and-knowledge: done
   epic-3-retrospective: optional
 
   # Epic 4 — Combat & Its Costs
