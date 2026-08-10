@@ -34,8 +34,10 @@ class NightWeatherHazardTest {
     private static RunState night(long seed, Weather w) {
         RunState s = new RunState(seed);
         TurnEngine engine = new TurnEngine();
-        for (int i = 0; i < 100; i++) engine.advance(s, PlayerAction.wait(RoguePlayer.SOUTH)); // → clock 100, Night
-        assertFalse(s.isDay(), "the 100th acted turn opens Night");
+        // Drive to the first Night turn via DAY_LENGTH acted WAITs (never a hard-coded 100 — a
+        // day-length retune must not silently break every night test).
+        for (int i = 0; i < RunState.DAY_LENGTH; i++) engine.advance(s, PlayerAction.wait(RoguePlayer.SOUTH));
+        assertFalse(s.isDay(), "the DAY_LENGTH-th acted turn opens Night");
         s.setWeather(w); // re-pin after any boundary roll
         return s;
     }
@@ -211,6 +213,44 @@ class NightWeatherHazardTest {
             if (dropped == max) stacked = true;
         }
         assertTrue(stacked, "some night Graveyard step lands BOTH the stumble and the undead (they stack)");
+    }
+
+    @Test
+    void theSameSeedReproducesTheSameNightStormHazardOutcome() {
+        // Review pin (AD-5): the invariant the story claimed but did not pin — two identical-seed
+        // runs, walked identically at a night flipped structure under Storm, reproduce the SAME HP
+        // sequence. A hazard drawn from an unseeded/global Random would pass the other tests but
+        // diverge here. (Sunken Well WELL_CREATURE at night; the well cell is also structural-free,
+        // so this isolates the night-flip + shared rng determinism.)
+        for (long seed : new long[]{2L, 7L, 21L}) {
+            RunState a = night(seed, Weather.STORM);
+            RunState b = night(seed, Weather.STORM);
+            int[] ca = structureCellAndNeighbor(a.getTileMap(), RogueTileMap.STRUCTURE_SUNKEN_WELL);
+            int[] cb = structureCellAndNeighbor(b.getTileMap(), RogueTileMap.STRUCTURE_SUNKEN_WELL);
+            assertNotNull(ca);
+            a.getPlayer().placeAt(ca[0], ca[1]);
+            b.getPlayer().placeAt(cb[0], cb[1]);
+            a.getEnemies().clear(); b.getEnemies().clear();
+            a.getCompanions().clear(); b.getCompanions().clear();
+            TurnEngine ea = new TurnEngine(), eb = new TurnEngine();
+            for (int i = 0; i < 20; i++) {
+                int dx = (i % 2 == 0 ? ca[2] : -ca[2]);
+                int dy = (i % 2 == 0 ? ca[3] : -ca[3]);
+                ea.advance(a, PlayerAction.move(dx, dy, RoguePlayer.directionOf(dx, dy)));
+                eb.advance(b, PlayerAction.move(dx, dy, RoguePlayer.directionOf(dx, dy)));
+                assertEquals(a.getPlayer().getHp(), b.getPlayer().getHp(),
+                        "seed " + seed + " step " + i + ": same seed reproduces the same night+Storm outcome (AD-5)");
+            }
+        }
+    }
+
+    @Test
+    void nightHazardForToleratesAnUnmappedStructure() {
+        // Review patch (P1): the now-package-private seam hardens against a null structure (an
+        // unmapped type via forType) — step() already guards it, but a direct caller must not NPE.
+        RunState n = night(42L, Weather.CLEAR);
+        assertEquals(Hazard.NONE, HazardSystem.nightHazardFor(n, StructureTable.forType(-1)),
+                "an unmapped/null structure resolves to NONE, not an NPE");
     }
 
     @Test

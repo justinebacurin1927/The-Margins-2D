@@ -4,7 +4,7 @@ baseline_commit: 1279f91
 
 # Story 3.4: Night and weather shift location danger
 
-Status: review
+Status: done
 
 ## Story
 
@@ -84,6 +84,14 @@ Story 3.4 fills the seam Story 3.3 built. The `1279f91` baseline already provide
 - [x] **Task 5 — AC pins + no-forced-scope (AC: all)**
   - [x] AC-1 pin: the four night flips + the Beehive exception (Task 1). AC-2 pin: Storm's structural bump (Task 2). AC-3 pin: derived/one-draw/round-trip (Task 3).
   - [x] Scope guard: assert 3.4 authored NO enemy actors, NO detection/patrol-density change, NO `FovSystem`/`TemperatureSystem` edit (Fog/Cold-Snap untouched), NO new tile/field/noise/clock tick — the flips live entirely in the hazard model + the seam.
+
+### Review Findings
+
+_Adversarial code review 2026-08-10 (Blind Hunter + Edge Case Hunter + Acceptance Auditor, all Opus). Auditor verdict: all ACs met, no over-reach, no under-delivery — enum-append is save/load clean, chance-cap correct, one structure draw per step (the override replaces), Storm never touches the night variants, contractual worked-examples intact. 1 decision, 2 patches, 3 dismissed. Severities are the triage's final call._
+
+- [x] [Review][Decision] The Beehive safer-flip draws zero structure-hazard rolls at night vs one by day (Low) — At night the Beehive resolves `Hazard.NONE`, whose `onStep` early-returns before `rng.nextInt`, so a night Beehive step consumes zero structure-hazard draws while a day step (`SWARM`, 25%) consumes one. **Not an AD-5 violation:** per-seed byte-identical sequences hold (the code is fully deterministic), and draw-count is already per-*event*/context-dependent in this codebase (wilderness steps draw zero structure rolls; day steps draw zero overlay rolls). The story's Task 2/3 "no draw-count change" wording meant "the override adds no *second* draw," which holds. **Resolved (decision): leave the safer-flip drawless** — a safe location legitimately has no hazard event to roll; forcing a wasted draw is gold-plating. Dismissed, no code change; the "one draw per step" claim is read as "no second/redundant draw."
+- [x] [Review][Patch] Harden the now-package-private `nightHazardFor` against a null structure (Low) [`core/src/main/java/com/margins/rogue/system/HazardSystem.java`] — Story 3.4 widened `nightHazardFor` from `private` to package-private (for direct unit testing). Production `step` guards `structure == null` at `:42` before calling it, so the NPE is **not production-reachable** — but the now-directly-callable seam dereferences `structure.hazard`/`structure.structureType` with no guard, so a direct caller passing an unmapped type (`StructureTable.forType` → null) NPEs. Add `if (structure == null) return Hazard.NONE;` at the top — consistent with `step`'s existing guard, future-proofs the widened seam. (Raised by edge+blind.)
+- [x] [Review][Patch] Add the determinism pin the story claimed + de-hard-code the night boundary (Low) [`core/src/test/java/com/margins/rogue/system/NightWeatherHazardTest.java`] — Tasks 2/3 promise "pin the draw count / no draw-count change," but no test pins the actual invariant that matters: same seed → same night+Storm hazard resolution. Add a same-seed determinism pin (the 3.2 `hazardsFireAcrossSeedsAndHonorAd5` pattern — two identical-seed runs at a night flipped structure under Storm reproduce the same HP outcome). Also replace the hard-coded `for (i<100)` night-boundary literal in the `night(...)` helper with `RunState.DAY_LENGTH` so a day-length retune doesn't silently break every night test. (Blind Hunter: missing pin + `DAY_LENGTH` literal.)
 
 ## Dev Notes
 
@@ -168,3 +176,4 @@ Claude Opus 4.8 (1M context), the session's model.
 
 - 2026-08-10: Created Story 3.4 — Night and weather shift location danger (FR-10/FR-5). Fills the 3.3 `nightHazardFor` seam with per-location night flips + Storm's structural-collapse stack. Status backlog → ready-for-dev. Sprint status updated.
 - 2026-08-10: Implemented via dev-story — Tasks 1-5 complete (night flips, Beehive safer-flip, Storm structural stack; 11 new tests). 383 core tests green, desktop boot clean. Only `StructureTable`+`HazardSystem` changed in main (scope clean). Status ready-for-dev → review. Sprint status updated.
+- 2026-08-10: Code review (3-layer adversarial). Auditor: all ACs met, no over-reach. 1 decision resolved (Beehive safer-flip left drawless — AD-5 per-seed determinism holds) + 2 patches applied (null-guard the widened `nightHazardFor`; add a same-seed night+Storm determinism pin + de-hard-code the night boundary to `DAY_LENGTH`). 385 core tests green. Status review → done.

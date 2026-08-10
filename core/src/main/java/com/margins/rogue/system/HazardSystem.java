@@ -82,6 +82,8 @@ public final class HazardSystem {
      *  makes exactly one structure-hazard draw (AD-5). This is the seam Story 3.3 built; Story 3.4
      *  fills it without touching {@link #step}'s trigger. Package-private so the mapping is unit-testable. */
     static StructureTable.Hazard nightHazardFor(RunState state, StructureTable.Structure structure) {
+        if (structure == null) return StructureTable.Hazard.NONE; // defensive: unmapped type has no hazard
+                                                                  // (step() already guards this; harden the widened seam)
         if (state.isDay()) return structure.hazard;
         switch (structure.structureType) {
             case RogueTileMap.STRUCTURE_GRAVEYARD:     return StructureTable.Hazard.GRAVE_UNDEAD;
