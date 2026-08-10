@@ -42,6 +42,20 @@ public class RunState {
     public static final int NIGHT_LENGTH = 70;
     public static final int CYCLE_LENGTH = DAY_LENGTH + NIGHT_LENGTH;
 
+    /** Story 3.1's safe tier (FR-9, AC-1/AC-2): eastness ≤ 0.2 is the enemy/supply-free home
+     *  cluster — the "safe point" a foray leaves and returns to. The inclusive boundary line means
+     *  a home-cluster landmark sitting exactly on it (the Graveyard center, x=19) is still safe. */
+    public static final float SAFE_TIER_EASTNESS = 0.2f;
+    /** Story 3.3 (Decision 1): a built campfire's safe radius (Manhattan) — standing within it is
+     *  "at camp", not on a foray (the camp case beside the home cluster). Tunable content (PRD §8). */
+    public static final int CAMPFIRE_SAFE_RADIUS = 5;
+    /** Story 3.3 (FR-10, AC-2): the day/night boundary log lines. "Dusk falls" announces the end of
+     *  the day's foray budget (the DAY→NIGHT flip); "Dawn breaks." opens a new day's budget. The day
+     *  is the planning unit (UJ-2) — the clock's flip is the game's rhythm, emitted by the acted
+     *  pipeline like the Weather onsetLine (Story 1.3's pattern; AD-4). */
+    public static final String LINE_DUSK = "Dusk falls — the forest grows close.";
+    public static final String LINE_DAWN = "Dawn breaks.";
+
     private RogueTileMap tileMap;
     private RoguePlayer player;
     private List<RogueEnemy> enemies;
@@ -462,6 +476,35 @@ public class RunState {
     }
 
     public boolean isDay() { return getClockPhase() == DayPhase.DAY; }
+
+    /** Whether Klein is out on a foray (Story 3.3, FR-10): away from every safe point — outside the
+     *  home-cluster safe tier (eastness ≤ {@link #SAFE_TIER_EASTNESS}, Story 3.1) AND farther than
+     *  {@link #CAMPFIRE_SAFE_RADIUS} from any built campfire. Derived from position + constants
+     *  (AD-6 — no new persisted field; the WorldSpine/DayPhase precedent). The screen renders it;
+     *  no system mutates it. */
+    public boolean onForay() {
+        WorldSpine spine = new WorldSpine(tileMap.getWidth(), tileMap.getHeight());
+        if (spine.eastness(player.getTileX()) <= SAFE_TIER_EASTNESS) return false;
+        if (hasCampfire() && Math.abs(player.getTileX() - campfireX)
+                + Math.abs(player.getTileY() - campfireY) <= CAMPFIRE_SAFE_RADIUS) return false;
+        return true;
+    }
+
+    /** Turns remaining in the current Day phase (Story 3.3, AC-2): the foray budget — "make it home
+     *  before dark" (UJ-2). 0 during Night (the budget is spent). Derived from the clock (AD-6);
+     *  never persisted. */
+    public int turnsUntilNightfall() {
+        int intoCycle = clockTurns % CYCLE_LENGTH;
+        return intoCycle < DAY_LENGTH ? DAY_LENGTH - intoCycle : 0;
+    }
+
+    /** Which 0-based day/night cycle the run is in (Story 3.3, AC-2): the "day is the planning
+     *  unit" count (UJ-2). {@code clockTurns / CYCLE_LENGTH} — derived, never persisted (AD-6).
+     *  Distinct from {@link #getCycleNumber()} (the weather-roll cycle, which only advances at a
+     *  boundary); this is the raw derived day count. */
+    public int dayNumber() {
+        return clockTurns / CYCLE_LENGTH;
+    }
 
     /** The weather in effect this cycle (FR-5). Effects live in later stories (1.4/1.5/1.6/3.x). */
     public Weather getWeather() { return weather; }

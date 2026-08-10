@@ -4,7 +4,7 @@ baseline_commit: 4445594
 
 # Story 3.3: The foray loop, end to end
 
-Status: ready-for-dev
+Status: review
 
 ## Story
 
@@ -69,31 +69,31 @@ Story 3.3 **does not** build the foray loop from scratch. The `4445594` baseline
 
 ## Tasks / Subtasks
 
-- [ ] **Task 1 — The foray-loop derivation + safe-point query (AC: 1)**
-  - [ ] Core-owned, derived: a `Foray` query (pure, in `RunState` or a `rogue/Foray`/`world` helper — the `WorldSpine` precedent) answering: is Klein on a foray (away from the safe point — outside the home-cluster safe tier `eastness ≤ 0.2f` AND outside the campfire radius)? Turns-until-nightfall (from `clockTurns % CYCLE_LENGTH` vs `DAY_LENGTH`)? Day count (`clockTurns / CYCLE_LENGTH`)?
-  - [ ] Derived, not persisted (AD-6): no new `RunState` field. The safe point = the Corneo home cluster (safe tier `eastness ≤ 0.2f`) + a built campfire's radius — both already queryable.
-  - [ ] Tests: on-foray is false at the spawn/home-cluster, true at a mid-map/east position; turns-until-nightfall and day count derive correctly at cycle boundaries; a campfire counts as a safe point.
+- [x] **Task 1 — The foray-loop derivation + safe-point query (AC: 1)**
+  - [x] Core-owned, derived: a `Foray` query (pure, in `RunState` or a `rogue/Foray`/`world` helper — the `WorldSpine` precedent) answering: is Klein on a foray (away from the safe point — outside the home-cluster safe tier `eastness ≤ 0.2f` AND outside the campfire radius)? Turns-until-nightfall (from `clockTurns % CYCLE_LENGTH` vs `DAY_LENGTH`)? Day count (`clockTurns / CYCLE_LENGTH`)?
+  - [x] Derived, not persisted (AD-6): no new `RunState` field. The safe point = the Corneo home cluster (safe tier `eastness ≤ 0.2f`) + a built campfire's radius — both already queryable.
+  - [x] Tests: on-foray is false at the spawn/home-cluster, true at a mid-map/east position; turns-until-nightfall and day count derive correctly at cycle boundaries; a campfire counts as a safe point.
 
-- [ ] **Task 2 — The budget readout + day/night log lines (AC: 2)**
-  - [ ] A "turns until nightfall" / day-count readout in the top HUD panel (Story 1.8's panel — the existing `time` string at `MarginScreen.renderStatusPanel`). Core-owned derivation; the screen only renders it (AD-1/AD-2).
-  - [ ] A log line at each day/night boundary ("Dusk falls — the forest grows close." at the DAY→NIGHT flip, "Dawn breaks." at NIGHT→DAY) — core-owned (AD-4), emitted by the acted-turn pipeline like the Weather `onsetLine` (Story 1.3's pattern).
-  - [ ] Tests: the readout values are correct at Day 0 / cycle boundaries; the flip lines emit exactly on the boundary turn (once each), and never on a refused (un-acted) turn.
+- [x] **Task 2 — The budget readout + day/night log lines (AC: 2)**
+  - [x] A "turns until nightfall" / day-count readout in the top HUD panel (Story 1.8's panel — the existing `time` string at `MarginScreen.renderStatusPanel`). Core-owned derivation; the screen only renders it (AD-1/AD-2).
+  - [x] A log line at each day/night boundary ("Dusk falls — the forest grows close." at the DAY→NIGHT flip, "Dawn breaks." at NIGHT→DAY) — core-owned (AD-4), emitted by the acted-turn pipeline like the Weather `onsetLine` (Story 1.3's pattern).
+  - [x] Tests: the readout values are correct at Day 0 / cycle boundaries; the flip lines emit exactly on the boundary turn (once each), and never on a refused (un-acted) turn.
 
-- [ ] **Task 3 — AC-3's night-overlay on the return leg (the concrete overreach) (AC: 3)**
-  - [ ] A **generic night-risk overlay** in the existing hazard step-trigger: while it is night AND Klein lacks a light (no torch, no campfire light at his tile), the return leg is riskier — a deterministic-per-step stumble/fall (message + small HP cost) distinct from any structure's authored hazard. The `HazardSystem` step resolves base-hazard OR night-override through a **clearly-marked seam** (a method/extension point 3.4's per-location flips extend) — 3.3 does NOT author per-location night states.
-  - [ ] Light is the counter (Decision 4): a lit torch/campfire suppresses the night-overlay risk (you can see the ground). Cost is the 60-turn torch burn + Wood+Coal — no free loop.
-  - [ ] Core-layer only (AD-2): effects land on existing surfaces (message log, HP). One seeded `rng` draw per step (AD-5) where the overlay is probabilistic; no new tile, no persisted field, no noise, no extra clock tick.
-  - [ ] Tests: at night without light, stepping (the return leg) risks the stumble — deterministic on a fixed seed; at day or with a lit torch it never fires; it fires on the structure step too (the overlay stacks with the authored hazard); the existing `StructureContentTest` hazard suite stays green.
+- [x] **Task 3 — AC-3's night-overlay on the return leg (the concrete overreach) (AC: 3)**
+  - [x] A **generic night-risk overlay** in the existing hazard step-trigger: while it is night AND Klein lacks a light (no torch, no campfire light at his tile), the return leg is riskier — a deterministic-per-step stumble/fall (message + small HP cost) distinct from any structure's authored hazard. The `HazardSystem` step resolves base-hazard OR night-override through a **clearly-marked seam** (a method/extension point 3.4's per-location flips extend) — 3.3 does NOT author per-location night states.
+  - [x] Light is the counter (Decision 4): a lit torch/campfire suppresses the night-overlay risk (you can see the ground). Cost is the 60-turn torch burn + Wood+Coal — no free loop.
+  - [x] Core-layer only (AD-2): effects land on existing surfaces (message log, HP). One seeded `rng` draw per step (AD-5) where the overlay is probabilistic; no new tile, no persisted field, no noise, no extra clock tick.
+  - [x] Tests: at night without light, stepping (the return leg) risks the stumble — deterministic on a fixed seed; at day or with a lit torch it never fires; it fires on the structure step too (the overlay stacks with the authored hazard); the existing `StructureContentTest` hazard suite stays green.
 
-- [ ] **Task 4 — The AC-1 carry-back pin + no-regression (AC: 1)**
-  - [ ] A walk-the-arc test: Klein starts at the safe point in daylight, travels east to a structure (e.g. a guaranteed-loot one), scavenges a guaranteed-authored item (e.g. the Hunter's Blind ROPE or Forest Shrine SALT — a non-scatterable or zero-generic-room item, per 3.2's P1 proof pattern), and returns to the safe point — asserting the item is in the inventory (the continuous-map carry), and that no floor-transition/descend call exists anywhere in the arc.
-  - [ ] Full suite: `mvn -o -pl core test` — the **355** 3.2-post-review tests stay green, plus the new foray tests. No regressions across the structure/hazard/survival/persistence suites.
-  - [ ] Launch: `mvn -o -q -pl core install` + `timeout 40 mvn -o -pl desktop exec:java` — boot clean (the HUD readout + night overlay render, camera still follows).
+- [x] **Task 4 — The AC-1 carry-back pin + no-regression (AC: 1)**
+  - [x] A walk-the-arc test: Klein starts at the safe point in daylight, travels east to a structure (e.g. a guaranteed-loot one), scavenges a guaranteed-authored item (e.g. the Hunter's Blind ROPE or Forest Shrine SALT — a non-scatterable or zero-generic-room item, per 3.2's P1 proof pattern), and returns to the safe point — asserting the item is in the inventory (the continuous-map carry), and that no floor-transition/descend call exists anywhere in the arc.
+  - [x] Full suite: `mvn -o -pl core test` — the **355** 3.2-post-review tests stay green, plus the new foray tests. No regressions across the structure/hazard/survival/persistence suites.
+  - [x] Launch: `mvn -o -q -pl core install` + `timeout 40 mvn -o -pl desktop exec:java` — boot clean (the HUD readout + night overlay render, camera still follows).
 
-- [ ] **Task 5 — AC pins + no-forced-scope (AC: all)**
-  - [ ] AC-1 pin: Task 4's carry-back arc. AC-2 pin: the budget readout test (Task 2) — the four tracks + clock share one acted-turn budget (already structurally true; pinned). AC-3 pin: Task 3's night-overlay tests.
-  - [ ] Scope guard: assert the seam is genuinely a seam (3.4 can extend the night overlay per-location without reworking 3.3's trigger) — a review-visible marker, not speculative 3.4 content.
-  - [ ] No new persisted field, no new `RogueTile`, no noise emission from the overlay, no extra clock tick — each pinned by a test or by construction.
+- [x] **Task 5 — AC pins + no-forced-scope (AC: all)**
+  - [x] AC-1 pin: Task 4's carry-back arc. AC-2 pin: the budget readout test (Task 2) — the four tracks + clock share one acted-turn budget (already structurally true; pinned). AC-3 pin: Task 3's night-overlay tests.
+  - [x] Scope guard: assert the seam is genuinely a seam (3.4 can extend the night overlay per-location without reworking 3.3's trigger) — a review-visible marker, not speculative 3.4 content.
+  - [x] No new persisted field, no new `RogueTile`, no noise emission from the overlay, no extra clock tick — each pinned by a test or by construction.
 
 ## Dev Notes
 
@@ -156,16 +156,34 @@ Claude Opus 4.8 (1M context), the session's model.
 
 ### Debug Log References
 
-- (populated during dev-story)
+- 2026-08-10 dev-story, Tasks 1-5, red-green per task:
+  - Task 1 RED: `RunState.onForay()/turnsUntilNightfall()/dayNumber()` missing (compile) → GREEN: added the three derivations + `SAFE_TIER_EASTNESS`/`CAMPFIRE_SAFE_RADIUS` constants. One test bug found by the RED run (a test-placed x=24 was eastness 0.253 > 0.2 — genuinely on a foray; fixed the test's "home" spot to `spine.tileX(CORNEO_X)`).
+  - Task 2 RED: `RunState.LINE_DUSK/LINE_DAWN` + `MarginScreen.timeLabel` missing → GREEN: flip-line emission in `TurnEngine`'s acted path (mirrors the Weather `onsetLine`), `timeLabel` static extracted from `renderStatusPanel`. One test assertion bug fixed (after 170 turns it's Day 1, so `turnsUntilNightfall()` = 100, not 0).
+  - Task 3 RED: `HazardSystem.NIGHT_STUMBLE_MESSAGE` missing → GREEN: night overlay + `nightHazardFor` seam in `HazardSystem`. The stacking test proved both damages can land on one night structure step (dropped == 2) on seed 11.
+  - Task 4 GREEN on the first run: the BFS walk-the-arc found the authored ROPE, picked it up, and carried it home on seed 42.
+  - Task 5 GREEN: the save JSON carries no foray state (string-scan) and the derived queries agree across a round-trip.
+  - Full core suite: 369 tests, 0 failures (355 baseline + 15 new). Desktop boot clean under `timeout 40` (exit 124 = GNU timeout kill; no exceptions).
+- No HALT conditions triggered; no new dependencies required.
 
 ### Completion Notes List
 
-- (populated during dev-story)
+- **Task 1 (AC:1) — the foray derivation, derived not persisted (AD-6).** `RunState.onForay()` (home-cluster safe tier `eastness ≤ 0.2f` OR within `CAMPFIRE_SAFE_RADIUS` of a built campfire), `turnsUntilNightfall()` (`clockTurns % CYCLE_LENGTH` vs `DAY_LENGTH`; 0 at night), `dayNumber()` (`clockTurns / CYCLE_LENGTH`). Three tests pin the spawn/mid-map/campfire cases and the cycle-boundary arithmetic via acted turns. `SAFE_TIER_EASTNESS` is the Story 3.1 convention made a named constant (the inclusive ≤ 0.2 keeps the Graveyard at x=19 safe).
+- **Task 2 (AC:2) — the budget made felt.** The acted pipeline now emits `LINE_DUSK`/`LINE_DAWN` exactly on the DAY→NIGHT (clock 100) and NIGHT→DAY (clock 170) turns and no other (a refused wall-bump at the boundary emits nothing and spends no turn). `MarginScreen.timeLabel` renders "D{day} DAY {clock} N-{budget}  {weather}" by day and "NIGHT {clock}  {weather}" by night (+ torch burn), replacing the inline string — the pure builder is headless-tested at Day 0 / 75 / 100 / 170.
+- **Task 3 (AC:3) — the generic night overlay + the 3.4 seam.** `HazardSystem.step` runs `nightOverlay` first (20% per step, 1 HP, one seeded draw AD-5, message + damage together), then the structure hazard through `nightHazardFor(state, structure)` — the clearly-marked 3.4 seam (returns the base hazard today; 3.4 authors per-location flips there, not in `step`). Light suppresses: a torch (`getTorchTurns() > 0`) or standing at the campfire (`isPlayerAtFire()` — a lit campfire's light is stationary, so walking away loses its protection). Stacks with authored hazards (a dark structure can land both). No new tile, field, noise, or clock tick.
+- **Task 4 (AC:1) — the walk-the-arc carry-back pin.** `aDayForayCarriesTheLootBackToTheSafePoint`: BFS path spawn → Hunter's Blind's authored ROPE cell → pick up → BFS home; asserts the ROPE is in the inventory at the safe point, onForay was true mid-arc and false on return, the tileMap reference is unchanged (no floor transition exists in the code — retired pre-AD-8), and the clock spent exactly the arc's acted turns (one budget, AC:2).
+- **Task 5 — scope guard.** The seam is genuinely a seam: the stacking test proves the base hazard still resolves on the night path (`nightHazardFor` passes through), so 3.4 extends one method without reworking the 3.3 trigger. `theForayDerivationsNeedNoPersistedState` round-trips and string-scans the JSON for foray/nightfall keys (none). No new `RogueTile`, no noise emitter, no extra clock tick (each pinned or by construction).
+- **Verification:** `mvn -o -pl core test` = 369 tests / 0 failures. `mvn -o -q -pl core install` + `timeout 40 mvn -o -pl desktop exec:java` = clean boot (timeout-killed, no exceptions).
 
 ### File List
 
-- (populated during dev-story)
+- `core/src/main/java/com/margins/rogue/state/RunState.java` — `SAFE_TIER_EASTNESS`, `CAMPFIRE_SAFE_RADIUS`, `LINE_DUSK`, `LINE_DAWN`; `onForay()`, `turnsUntilNightfall()`, `dayNumber()`.
+- `core/src/main/java/com/margins/rogue/system/TurnEngine.java` — day/night flip-line emission on the acted path (AD-4).
+- `core/src/main/java/com/margins/rogue/system/HazardSystem.java` — night overlay + the `nightHazardFor` 3.4 seam.
+- `core/src/main/java/com/margins/MarginScreen.java` — `timeLabel(RunState)` static (budget readout), used by `renderStatusPanel`.
+- `core/src/test/java/com/margins/rogue/ForayLoopTest.java` — NEW: 12 tests across Tasks 1-5 (derivation, flip lines, night overlay, carry-back arc, no-persisted-state).
+- `core/src/test/java/com/margins/MarginScreenTimeLabelTest.java` — NEW: 3 tests for the HUD readout at Day 0 / cycle boundaries / torch.
 
 ## Change Log
 
 - 2026-08-10: Created Story 3.3 — The foray loop, end to end (FR-10). Status backlog → ready-for-dev. Sprint status updated.
+- 2026-08-10: Implemented via dev-story — Tasks 1-5 complete, 369 core tests green, desktop boot clean. Status ready-for-dev → review. Sprint status updated.

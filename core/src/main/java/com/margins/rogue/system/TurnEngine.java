@@ -1,5 +1,6 @@
 package com.margins.rogue.system;
 
+import com.margins.rogue.DayPhase;
 import com.margins.rogue.RoguePlayer;
 import com.margins.rogue.RogueTile;
 import com.margins.rogue.Weather;
@@ -248,9 +249,17 @@ public class TurnEngine {
             if (player.getThirstStatus() != tAfterTicks) result.messages.add(ThirstSystem.thirstTierLine(player.getThirstStatus()));
             TemperatureSystem.tick(state, result.messages); // the weather + fire drivers need the whole run (Story 1.6)
             SpoilageSystem.tick(state); // food ages on the acted path (FR-6, Story 1.5)
+            DayPhase phaseBefore = state.getClockPhase();
             Weather before = state.getWeather();
             state.tickClock(); // rolls the next cycle's weather at a boundary (FR-5)
             if (state.getWeather() != before) result.messages.add(state.getWeather().onsetLine());
+            // Story 3.3 (AC-2): announce the day/night flip — the clock is the foray's planning unit
+            // (UJ-2). Emitted by the acted pipeline exactly like the Weather onsetLine above (AD-4):
+            // on the boundary turn and no other, and never on a refused (un-acted) turn.
+            if (state.getClockPhase() != phaseBefore) {
+                result.messages.add(state.getClockPhase() == DayPhase.NIGHT
+                        ? RunState.LINE_DUSK : RunState.LINE_DAWN);
+            }
             DetectionSystem.update(state, result.messages); // advance awareness before enemies move (AD-4)
             CompanionSystem.follow(state, result.messages); // the ally fights/follows in the Companion+Enemy-AI phase (AD-4, AD-10)
             CombatSystem.enemyPhase(state, result.messages);

@@ -1982,6 +1982,23 @@ public class MarginScreen implements Screen {
         batch.end();
     }
 
+    /** Story 3.3 (AC-2): the top-panel time readout. The day is the planning unit (UJ-2): during
+     *  the day it shows the cycle/day number, the clock, and the turns-until-nightfall foray budget
+     *  ("make it home before dark"); at night it shows the night clock (the budget is spent). The
+     *  weather and a lit torch's burn still read. Pure string build from core state (AD-1/AD-2), no
+     *  Gdx — so it's headless-testable like the other panel builders. */
+    static String timeLabel(RunState state) {
+        boolean torchLit = state.getTorchTurns() > 0;
+        String weather = state.getWeather() == Weather.COLD_SNAP
+                ? "COLD" : state.getWeather().label().toUpperCase();
+        if (state.isDay()) {
+            String phase = "D" + state.dayNumber() + " " + (torchLit ? "D" : "DAY ")
+                    + state.getClockTurns() + " N-" + state.turnsUntilNightfall();
+            return torchLit ? phase + " " + weather : phase + "  " + weather;
+        }
+        return (torchLit ? "N" : "NIGHT ") + state.getClockTurns() + "  " + weather;
+    }
+
     /** Compact top-left survival panel: condition names live in hover/click cards, not the bar. */
     private void renderStatusPanel(RoguePlayer p) {
         int x = HUD_MARGIN;
@@ -1991,12 +2008,7 @@ public class MarginScreen implements Screen {
         drawText("HP " + p.getHp() + "/" + p.getMaxHp(), x + 6, y + 53, UI_HEALTH);
         drawBar(x + 54, y + 47, 66, 4, p.getHp() / (float) Math.max(1, p.getMaxHp()), UI_HEALTH);
         boolean torchLit = state.getTorchTurns() > 0;
-        String time = torchLit
-                ? (state.isDay() ? "D" : "N") + state.getClockTurns() + " "
-                        + (state.getWeather() == Weather.COLD_SNAP
-                                ? "COLD" : state.getWeather().label().toUpperCase())
-                : (state.isDay() ? "DAY " : "NIGHT ") + state.getClockTurns()
-                        + "  " + state.getWeather().label().toUpperCase();
+        String time = timeLabel(state);
         drawText(fitText(time, torchLit ? 82 : 116), x + 130, y + 53, UI_ACCENT);
         if (torchLit) {
             batch.setColor(Color.WHITE);
