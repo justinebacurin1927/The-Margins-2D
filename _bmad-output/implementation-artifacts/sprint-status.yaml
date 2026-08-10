@@ -55,7 +55,7 @@
 #   item is now folded into new Story 1.1's acceptance criteria (AD-6).
 
 generated: 2026-08-06
-last_updated: 2026-08-10  # Story 3.5 review complete — all ACs met, 4 patches applied (L lockpick binding + MAP_FRAGMENT E-read gate + test hardenings); 398 tests green, boot clean. Epic 3 done (all 5 stories).
+last_updated: 2026-08-10  # Epic 3 retro complete (5/5 action items, AG-stat decision for 4.1); Epic 3 done. Ready for Epic 4 (combat).
 project: The Margin
 project_key: NOKEY
 tracking_system: file-system
@@ -90,7 +90,7 @@ development_status:
   3-3-the-foray-loop-end-to-end: done
   3-4-night-and-weather-shift-location-danger: done
   3-5-horizontal-progression-skill-and-knowledge: done
-  epic-3-retrospective: optional
+  epic-3-retrospective: done
 
   # Epic 4 — Combat & Its Costs
   epic-4: backlog
@@ -160,3 +160,24 @@ action_items:
     action: "Re-triage the deferred-work backlog (~30 entries across 9 stories) before Epic 3 — close/merge obsolete items, tag Epic 2-relevant ones (epic-1 retro action #5). [CLOSED 2026-08-08: re-triaged 41 entries — 22 closed (superseded by the continuous-map refactor, the saveVersion gate, and the 1.2→1.6→1.8 chain), 18 open tagged to target epics (3 tagged Epic 2: O1 applyCacheReveal `== 1`, O2 stale AD-8 citation, O3 opening-weather onset). See deferred-work.md triage header.]"
     owner: "Dev"
     status: done
+  # Epic 3 retrospective action items (2026-08-10) — Epic 3 complete (5/5 stories, all on main).
+  - epic: 4
+    action: "Add a screen-reachability gate to the review/create-story workflow — every new PlayerAction must be bound to an input key and every new Supply must have a consume path before a story is done (3.5's LOCKPICK/MAP_FRAGMENT were core-green but UI-unreachable; caught only by review). Owner: Dev, at create-story time. Success: no story lands with a test-only-reachable feature."
+    owner: "Dev"
+    status: open
+  - epic: 4
+    action: "Add AG as a real 6th stat before Story 4.1 — RoguePlayer field with a deterministic default (AD-6), serialization round-trip, dodge/Trembling reference the real field, folded into the horizontal-growth spine. [Project Lead decision 2026-08-10: add AG, do not re-interpret turn-order via an existing stat.] Owned by 4.1's create-story + dev-story. Success: 4.1's 'turn order by AG' resolves against a real stat; SaveMigrationTest + AC-1 reflection pin still green."
+    owner: "Dev"
+    status: open
+  - epic: 4
+    action: "Re-triage deferred-work before Epic 4's combat stories — tag Epic 4-consumable items (equip slot O7/O8 → 4.4 gear, Rope/Small Tools repair materials → 4.5, hazard-variety → combat), close obsolete ones. Owner: Dev, before Story 4.4. Success: no Epic 4 story surprises from an untagged seam."
+    owner: "Dev"
+    status: open
+  - epic: 4
+    action: "Re-run a failed review layer once before skipping — the 3.5 Acceptance-Auditor re-run pattern becomes the rule; if a layer fails in 2+ epics running, investigate (prompt size / API) rather than accept the drop. Owner: Dev. Success: no epic ships with a dropped layer that wasn't re-run at least once."
+    owner: "Dev"
+    status: open
+  - epic: 4
+    action: "Story 4.1 dev notes carry the CombatSystem invariants — every combat damage route through CombatSystem (no HP mutation outside it), dead-before-act ordering (AD-4), and the acted-branch order (hunger → … → checkLastStand → FOV) must not be disturbed by combat's turn-order changes. Owner: Dev, at 4.1 create-story."
+    owner: "Dev"
+    status: open
