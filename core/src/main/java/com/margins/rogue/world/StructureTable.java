@@ -50,7 +50,14 @@ public final class StructureTable {
         SLIP_AND_FALL("slip and fall", 20, 1, "The well's stones are slick — you slip."),
         STRUCTURAL_DECAY("structural decay", 20, 2, "The floor groans and a section collapses beneath you."),
         GRAVE_GROUND("grave-ground", 20, 1, "The grave-ground crumbles underfoot."),
-        CAVE_IN("cave-in", 20, 2, "Stone shifts overhead at the cave mouth.");
+        CAVE_IN("cave-in", 20, 2, "Stone shifts overhead at the cave mouth."),
+        // Story 3.4 (FR-10, AC-1): the night flips of the three hostile locations — each strictly
+        // worse than its daytime baseline (Graveyard GRAVE_GROUND, Sunken Well SLIP_AND_FALL,
+        // Poacher's Camp SNARE_TRAP). Resolved via HazardSystem.nightHazardFor at night; the day
+        // baselines are unchanged (byte-stable day hazards). Tunable content (PRD §8).
+        GRAVE_UNDEAD("undead", 35, 2, "The dead stir — a cold hand claws at you."),
+        WELL_CREATURE("well creature", 35, 2, "Something in the well lunges from the dark."),
+        POACHER_PATROL("night patrol", 35, 2, "A poacher's patrol closes in through the dark.");
 
         private final String displayName;
         private final int chancePercent;
@@ -68,10 +75,33 @@ public final class StructureTable {
         public int chancePercent() { return chancePercent; }
         public int damage() { return damage; }
 
+        /** Story 3.4 (AC-2): whether this is a structural/collapse hazard — the decayed-structure
+         *  family Storm makes more likely to give way. The night flips (undead/creature/patrol) are
+         *  creature/patrol danger, not structural, so Storm never bumps them. */
+        public boolean isStructural() {
+            switch (this) {
+                case WEAK_FLOOR_PLANK: case SOFT_ROT: case COLLAPSING_STONE:
+                case TOWER_COLLAPSE: case STRUCTURAL_DECAY: case CAVE_IN:
+                    return true;
+                default:
+                    return false;
+            }
+        }
+
         /** Step-trigger (AC-2): one seeded draw per step (AD-5); a hit applies the damage and
          *  announces it on the message log. NONE never fires. */
         public void onStep(RoguePlayer p, Random rng, List<String> messages) {
-            if (chancePercent > 0 && rng.nextInt(100) < chancePercent) {
+            onStep(p, rng, messages, 0);
+        }
+
+        /** Story 3.4 (AC-2): the step-trigger with a weather chance bonus (percentage points) —
+         *  still ONE seeded draw (AD-5), against the raised effective chance (capped at 100). The
+         *  bonus only lifts a real hazard (NONE never fires). HazardSystem passes Storm's structural
+         *  bonus here; every other case passes 0 and this is identical to the base roll. */
+        public void onStep(RoguePlayer p, Random rng, List<String> messages, int chanceBonus) {
+            if (chancePercent <= 0) return; // NONE (and any 0% hazard) never fires, bonus or not
+            int chance = Math.min(100, chancePercent + Math.max(0, chanceBonus));
+            if (rng.nextInt(100) < chance) {
                 if (damage > 0) p.hurtRaw(damage);
                 if (!message.isEmpty()) messages.add(message);
             }

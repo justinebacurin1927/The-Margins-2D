@@ -4,7 +4,7 @@ baseline_commit: 1279f91
 
 # Story 3.4: Night and weather shift location danger
 
-Status: ready-for-dev
+Status: review
 
 ## Story
 
@@ -62,28 +62,28 @@ Story 3.4 fills the seam Story 3.3 built. The `1279f91` baseline already provide
 
 ## Tasks / Subtasks
 
-- [ ] **Task 1 — Per-location night hazard flips via the `nightHazardFor` seam (AC: 1)**
-  - [ ] Author the night `Hazard` variants (tunable content, PRD §8; new `StructureTable.Hazard` entries): a Graveyard undead hazard, a Sunken Well creature hazard, a Poacher's Camp aggressive-patrol hazard — each worse than its day baseline (higher chance and/or damage, a night-specific `message`). The Beehive Grove night state is `Hazard.NONE` (Decision 3, the sole safer flip).
-  - [ ] Fill `HazardSystem.nightHazardFor(state, structure)`: when `!state.isDay()`, map the four named structure types (`RogueTileMap.STRUCTURE_GRAVEYARD/SUNKEN_WELL/POACHERS_CAMP/BEEHIVE_GROVE`) to their night hazard; every other structure (and all of daytime) returns `structure.hazard` unchanged. Do NOT touch `step`'s trigger.
-  - [ ] Tests: at night each of the four flips to its night hazard (undead/creature/patrol worse; Beehive → NONE, no damage); at day all four resolve their authored day hazard; a non-flipped structure (e.g. Hunter's Blind) is identical day and night; the flip is deterministic per fixed seed (AD-5).
+- [x] **Task 1 — Per-location night hazard flips via the `nightHazardFor` seam (AC: 1)**
+  - [x] Author the night `Hazard` variants (tunable content, PRD §8; new `StructureTable.Hazard` entries): a Graveyard undead hazard, a Sunken Well creature hazard, a Poacher's Camp aggressive-patrol hazard — each worse than its day baseline (higher chance and/or damage, a night-specific `message`). The Beehive Grove night state is `Hazard.NONE` (Decision 3, the sole safer flip).
+  - [x] Fill `HazardSystem.nightHazardFor(state, structure)`: when `!state.isDay()`, map the four named structure types (`RogueTileMap.STRUCTURE_GRAVEYARD/SUNKEN_WELL/POACHERS_CAMP/BEEHIVE_GROVE`) to their night hazard; every other structure (and all of daytime) returns `structure.hazard` unchanged. Do NOT touch `step`'s trigger.
+  - [x] Tests: at night each of the four flips to its night hazard (undead/creature/patrol worse; Beehive → NONE, no damage); at day all four resolve their authored day hazard; a non-flipped structure (e.g. Hunter's Blind) is identical day and night; the flip is deterministic per fixed seed (AD-5).
 
-- [ ] **Task 2 — Storm raises structural-collapse chance at decayed structures (AC: 2)**
-  - [ ] Categorize the structural/collapse hazards (weak floor plank, soft rot, collapsing stone, tower collapse, structural decay, cave-in) — a `boolean structural` on `Hazard`, or an explicit set. Author a Storm chance bonus (tunable, PRD §8).
-  - [ ] Apply the bonus in `HazardSystem` (the seam owner) around the SINGLE seeded roll: while `getWeather() == STORM` and the resolved hazard is structural, the effective `chancePercent` rises by the bonus (capped ≤ 100). Preserve the one-`nextInt`-per-step contract (extend `Hazard.onStep`/add a scaled resolve; do NOT add a second draw). Fog/Cold Snap/Rain add no location bonus (Decision 4).
-  - [ ] Tests: under Storm a structural hazard fires measurably more often than under Clear across a seed range (same structure, same position); a non-structural hazard (e.g. a swarm) is unaffected by Storm; still exactly one seeded draw per step (no draw-count change); deterministic per fixed seed.
+- [x] **Task 2 — Storm raises structural-collapse chance at decayed structures (AC: 2)**
+  - [x] Categorize the structural/collapse hazards (weak floor plank, soft rot, collapsing stone, tower collapse, structural decay, cave-in) — a `boolean structural` on `Hazard`, or an explicit set. Author a Storm chance bonus (tunable, PRD §8).
+  - [x] Apply the bonus in `HazardSystem` (the seam owner) around the SINGLE seeded roll: while `getWeather() == STORM` and the resolved hazard is structural, the effective `chancePercent` rises by the bonus (capped ≤ 100). Preserve the one-`nextInt`-per-step contract (extend `Hazard.onStep`/add a scaled resolve; do NOT add a second draw). Fog/Cold Snap/Rain add no location bonus (Decision 4).
+  - [x] Tests: under Storm a structural hazard fires measurably more often than under Clear across a seed range (same structure, same position); a non-structural hazard (e.g. a swarm) is unaffected by Storm; still exactly one seeded draw per step (no draw-count change); deterministic per fixed seed.
 
-- [ ] **Task 3 — AD-5/AD-6 discipline + 3.3 overlay coexistence (AC: 3)**
-  - [ ] Derived, no new persisted field: the flips read `isDay()`/`getWeather()` only. A save/load round-trip reproduces the same night+Storm hazard resolution (string-scan the JSON for any new key — none).
-  - [ ] One structure draw per step: the night override replaces (never stacks two structure hazards) — pin the draw count. The generic 3.3 night-stumble overlay still fires and stacks on top at a flipped structure (reuse the 3.3 stacking pattern at, e.g., the night Graveyard).
-  - [ ] No new `RogueTile`, no new persisted field, no noise emission, no extra clock tick — each pinned by a test or by construction.
+- [x] **Task 3 — AD-5/AD-6 discipline + 3.3 overlay coexistence (AC: 3)**
+  - [x] Derived, no new persisted field: the flips read `isDay()`/`getWeather()` only. A save/load round-trip reproduces the same night+Storm hazard resolution (string-scan the JSON for any new key — none).
+  - [x] One structure draw per step: the night override replaces (never stacks two structure hazards) — pin the draw count. The generic 3.3 night-stumble overlay still fires and stacks on top at a flipped structure (reuse the 3.3 stacking pattern at, e.g., the night Graveyard).
+  - [x] No new `RogueTile`, no new persisted field, no noise emission, no extra clock tick — each pinned by a test or by construction.
 
-- [ ] **Task 4 — No-regression + boot (AC: all)**
-  - [ ] Full suite: `mvn -o -pl core test` — the **372** 3.3-post-review tests stay green (the four flipped structures' DAY hazard is unchanged, so `StructureContentTest`'s day-time hazard suite is untouched; `ForayLoopTest`'s `theNightOverlayStacksWithTheAuthoredHazard` uses Hunter's Blind, a non-flipped structure, so it stays green), plus the new night/Storm tests.
-  - [ ] Launch: `mvn -o -q -pl core install` + `timeout 40 mvn -o -pl desktop exec:java` — boot clean.
+- [x] **Task 4 — No-regression + boot (AC: all)**
+  - [x] Full suite: `mvn -o -pl core test` — the **372** 3.3-post-review tests stay green (the four flipped structures' DAY hazard is unchanged, so `StructureContentTest`'s day-time hazard suite is untouched; `ForayLoopTest`'s `theNightOverlayStacksWithTheAuthoredHazard` uses Hunter's Blind, a non-flipped structure, so it stays green), plus the new night/Storm tests.
+  - [x] Launch: `mvn -o -q -pl core install` + `timeout 40 mvn -o -pl desktop exec:java` — boot clean.
 
-- [ ] **Task 5 — AC pins + no-forced-scope (AC: all)**
-  - [ ] AC-1 pin: the four night flips + the Beehive exception (Task 1). AC-2 pin: Storm's structural bump (Task 2). AC-3 pin: derived/one-draw/round-trip (Task 3).
-  - [ ] Scope guard: assert 3.4 authored NO enemy actors, NO detection/patrol-density change, NO `FovSystem`/`TemperatureSystem` edit (Fog/Cold-Snap untouched), NO new tile/field/noise/clock tick — the flips live entirely in the hazard model + the seam.
+- [x] **Task 5 — AC pins + no-forced-scope (AC: all)**
+  - [x] AC-1 pin: the four night flips + the Beehive exception (Task 1). AC-2 pin: Storm's structural bump (Task 2). AC-3 pin: derived/one-draw/round-trip (Task 3).
+  - [x] Scope guard: assert 3.4 authored NO enemy actors, NO detection/patrol-density change, NO `FovSystem`/`TemperatureSystem` edit (Fog/Cold-Snap untouched), NO new tile/field/noise/clock tick — the flips live entirely in the hazard model + the seam.
 
 ## Dev Notes
 
@@ -142,16 +142,29 @@ Claude Opus 4.8 (1M context), the session's model.
 
 ### Debug Log References
 
-- (populated during dev-story)
+- 2026-08-10 dev-story, Tasks 1-5 (red-green, one test file `NightWeatherHazardTest`):
+  - RED: `Hazard.GRAVE_UNDEAD/WELL_CREATURE/POACHER_PATROL`, `Hazard.isStructural()`, and the package-private `HazardSystem.nightHazardFor` all missing (compile fail) → GREEN.
+  - GREEN Task 1: 3 night `Hazard` variants (35%/2 each, night message) + `nightHazardFor` switch (Graveyard→undead, Sunken Well→creature, Poacher's Camp→patrol, Beehive→NONE; day + all others → `structure.hazard`).
+  - GREEN Task 2: `Hazard.isStructural()` (the 6-hazard collapse family) + a `Hazard.onStep(..., chanceBonus)` overload (still one `nextInt`, chance capped ≤100) + `HazardSystem.stormBonus` (Storm × structural → +20pp, else 0). Storm-vs-Clear fire-rate test measured 60-seed Forest Shrine counts (Storm strictly > Clear).
+  - GREEN Task 3: round-trip (no new JSON key; night+Storm re-derives identically), overlay-stacks-on-flip (max = overlay 1 + undead 2), one-clock-tick pin.
+  - Full core suite: 383 tests, 0 failures (372 baseline + 11 new). Desktop boot clean (`timeout` kill, exit 124, no exceptions).
+- No HALT conditions; no new dependencies.
 
 ### Completion Notes List
 
-- (populated during dev-story)
+- **Task 1 (AC:1) — the night flips fill the 3.3 seam.** `HazardSystem.nightHazardFor(state, structure)` now returns, at night, `GRAVE_UNDEAD` (Graveyard), `WELL_CREATURE` (Sunken Well), `POACHER_PATROL` (Poacher's Camp) — each strictly worse than its day baseline (35%/2 vs 20-25%/1) — and `Hazard.NONE` for the Beehive Grove (the sole safer-flip, swarm dormant). By day, and for every other structure, it returns the authored `structure.hazard` unchanged. Derived from `isDay()` (no persisted state); made package-private so the mapping is unit-tested directly.
+- **Task 2 (AC:2) — Storm stacks on structural locations.** `Hazard.isStructural()` marks the collapse family (weak plank, soft rot, collapsing stone, tower collapse, structural decay, cave-in). A new `Hazard.onStep(p, rng, messages, chanceBonus)` overload raises the effective chance for the SAME single seeded draw (cap 100); `HazardSystem.stormBonus` supplies +20pp only when `getWeather()==STORM` AND the hazard is structural. Fog (FovSystem) and Cold Snap (TemperatureSystem) already land their effects and are untouched; Rain adds nothing.
+- **Task 3 (AC:3) — discipline.** No new persisted field (round-trip string-scans the JSON — none; night+Storm re-derives from `clockTurns`/`weather`). One structure draw per step (the flip replaces the day hazard; `steppingOntoTheNightGraveyardDealsTheUndeadDamage` pins HP-drop ∈ {0, undead}). The generic 3.3 night stumble still stacks at a flipped structure (max = 1 + 2). One clock tick per step.
+- **Task 5 — scope guard (by construction).** Only `StructureTable.java` + `HazardSystem.java` changed in main — no `FovSystem`/`TemperatureSystem`/`DetectionSystem`/`CombatSystem`/`RogueTile`/`RunState` edits, no enemy actors, no new tile/persisted field/noise/clock tick. "Undead/creature/patrol active" is expressed as the location's worse night step-hazard (the seam's currency); real patrol/garrison AI stays Epic 4.
+- **Verification:** `mvn -o -pl core test` = 383 tests / 0 failures. `mvn -o -q -pl core install` + `timeout mvn -o -pl desktop exec:java` = clean boot.
 
 ### File List
 
-- (populated during dev-story)
+- `core/src/main/java/com/margins/rogue/world/StructureTable.java` — 3 night `Hazard` variants (`GRAVE_UNDEAD`/`WELL_CREATURE`/`POACHER_PATROL`), `Hazard.isStructural()`, `Hazard.onStep(..., chanceBonus)` overload.
+- `core/src/main/java/com/margins/rogue/system/HazardSystem.java` — filled `nightHazardFor` (per-location night flips; package-private), `stormBonus` + `STORM_STRUCTURAL_BONUS`, Storm-aware `step`.
+- `core/src/test/java/com/margins/rogue/system/NightWeatherHazardTest.java` — NEW: 11 tests across Tasks 1-5 (night flips, Beehive exception, Storm fire-rate, non-structural-unaffected, round-trip, overlay-stacks, one-tick).
 
 ## Change Log
 
 - 2026-08-10: Created Story 3.4 — Night and weather shift location danger (FR-10/FR-5). Fills the 3.3 `nightHazardFor` seam with per-location night flips + Storm's structural-collapse stack. Status backlog → ready-for-dev. Sprint status updated.
+- 2026-08-10: Implemented via dev-story — Tasks 1-5 complete (night flips, Beehive safer-flip, Storm structural stack; 11 new tests). 383 core tests green, desktop boot clean. Only `StructureTable`+`HazardSystem` changed in main (scope clean). Status ready-for-dev → review. Sprint status updated.

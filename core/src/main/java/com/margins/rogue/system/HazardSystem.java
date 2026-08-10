@@ -1,5 +1,7 @@
 package com.margins.rogue.system;
 
+import com.margins.rogue.RogueTileMap;
+import com.margins.rogue.Weather;
 import com.margins.rogue.state.RunState;
 import com.margins.rogue.world.StructureTable;
 
@@ -22,6 +24,10 @@ public final class HazardSystem {
     /** The stumble's log line — announced with its damage (observation discipline, 1.8). */
     public static final String NIGHT_STUMBLE_MESSAGE = "You stumble in the dark.";
 
+    /** Story 3.4 (AC-2): Storm's structural-collapse bonus (percentage points) added to a decayed
+     *  structure's hazard chance while Storm is the active weather. Tunable content (PRD §8). */
+    static final int STORM_STRUCTURAL_BONUS = 20;
+
     private HazardSystem() {}
 
     /** Resolve the step-risks on the tile the player just stepped onto: the generic NIGHT OVERLAY
@@ -34,7 +40,17 @@ public final class HazardSystem {
         if (type < 0) return; // wilderness — no structure hazard
         StructureTable.Structure structure = StructureTable.forType(type);
         if (structure == null) return; // defensive: an unknown structure type has no authored hazard
-        nightHazardFor(state, structure).onStep(state.getPlayer(), state.rng(), messages);
+        StructureTable.Hazard hazard = nightHazardFor(state, structure); // AC-1: the night flip (or day baseline)
+        hazard.onStep(state.getPlayer(), state.rng(), messages, stormBonus(state, hazard)); // AC-2: Storm stacks
+    }
+
+    /** Story 3.4 (AC-2): the weather chance bonus for THIS hazard — Storm raises a structural
+     *  hazard's collapse chance; every other weather (and every non-structural hazard) adds 0. The
+     *  bonus lifts the chance of the SAME single seeded draw (AD-5), never a second roll. Fog and
+     *  Cold Snap land their effects elsewhere (FovSystem/TemperatureSystem); Rain has no location
+     *  effect — none touch the hazard chance here. */
+    private static int stormBonus(RunState state, StructureTable.Hazard hazard) {
+        return (state.getWeather() == Weather.STORM && hazard.isStructural()) ? STORM_STRUCTURAL_BONUS : 0;
     }
 
     /** Story 3.3 (AC-3, Decisions 3/4): the generic night-risk overlay. While it is Night AND Klein
@@ -56,13 +72,23 @@ public final class HazardSystem {
         }
     }
 
-    /** Story 3.4 SEAM: the hazard to resolve for a structure on the night path, or its daytime
-     *  baseline. 3.3 authors NO per-location night states — every structure keeps its authored
-     *  hazard at night; the generic {@link #nightOverlay} above is the only night change. 3.4 fills
-     *  this with the per-location flips (Graveyard undead, Sunken Well creature, Poacher's Camp
-     *  patrols, Beehive Grove safer) WITHOUT reworking the 3.3 trigger — extend here, not in
-     *  {@link #step}. */
-    private static StructureTable.Hazard nightHazardFor(RunState state, StructureTable.Structure structure) {
-        return structure.hazard;
+    /** Story 3.4 (AC-1): the hazard to resolve for a structure — the per-location NIGHT flip, or the
+     *  authored daytime baseline. By day every structure keeps {@code structure.hazard}. At night
+     *  four named locations flip (FR-10): the Mercenary Graveyard's undead and the Sunken Well's
+     *  creature become active, the Poacher's Camp patrols turn more aggressive (each strictly worse),
+     *  and the Beehive Grove flips SAFER — its swarm goes dormant ({@code Hazard.NONE}, the sole
+     *  exception). Every other structure keeps its authored hazard at all hours. Derived from
+     *  {@code isDay()} (AD-6 — no persisted state); the flip REPLACES the day hazard, so a step still
+     *  makes exactly one structure-hazard draw (AD-5). This is the seam Story 3.3 built; Story 3.4
+     *  fills it without touching {@link #step}'s trigger. Package-private so the mapping is unit-testable. */
+    static StructureTable.Hazard nightHazardFor(RunState state, StructureTable.Structure structure) {
+        if (state.isDay()) return structure.hazard;
+        switch (structure.structureType) {
+            case RogueTileMap.STRUCTURE_GRAVEYARD:     return StructureTable.Hazard.GRAVE_UNDEAD;
+            case RogueTileMap.STRUCTURE_SUNKEN_WELL:   return StructureTable.Hazard.WELL_CREATURE;
+            case RogueTileMap.STRUCTURE_POACHERS_CAMP: return StructureTable.Hazard.POACHER_PATROL;
+            case RogueTileMap.STRUCTURE_BEEHIVE_GROVE: return StructureTable.Hazard.NONE; // the sole safer-flip
+            default:                                   return structure.hazard;          // unchanged at night
+        }
     }
 }
