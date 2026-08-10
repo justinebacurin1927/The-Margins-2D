@@ -55,7 +55,7 @@
 #   item is now folded into new Story 1.1's acceptance criteria (AD-6).
 
 generated: 2026-08-06
-last_updated: 2026-08-10  # Story 3.3 → done (code review passed — 2 decisions + 2 patches, 372 tests green); Epic 3 in-progress
+last_updated: 2026-08-10  # Story 3.4 created (ready-for-dev) — night/weather shift location danger, fills the 3.3 nightHazardFor seam; Epic 3 in-progress
 project: The Margin
 project_key: NOKEY
 tracking_system: file-system
@@ -88,7 +88,7 @@ development_status:
   3-1-hybrid-map-generation: done
   3-2-the-11-world-structures-across-three-danger-tiers: done
   3-3-the-foray-loop-end-to-end: done
-  3-4-night-and-weather-shift-location-danger: backlog
+  3-4-night-and-weather-shift-location-danger: ready-for-dev
   3-5-horizontal-progression-skill-and-knowledge: backlog
   epic-3-retrospective: optional
 
