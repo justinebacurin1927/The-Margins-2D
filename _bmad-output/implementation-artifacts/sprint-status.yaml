@@ -55,7 +55,7 @@
 #   item is now folded into new Story 1.1's acceptance criteria (AD-6).
 
 generated: 2026-08-06
-last_updated: 2026-08-10  # Story 3.4 → done (code review passed — 1 decision + 2 patches, 385 tests green); Epic 3 in-progress
+last_updated: 2026-08-10  # Story 3.5 created (ready-for-dev) — horizontal progression: SKILL lockpicking + knowledge query; Epic 3 in-progress (last story)
 project: The Margin
 project_key: NOKEY
 tracking_system: file-system
@@ -89,7 +89,7 @@ development_status:
   3-2-the-11-world-structures-across-three-danger-tiers: done
   3-3-the-foray-loop-end-to-end: done
   3-4-night-and-weather-shift-location-danger: done
-  3-5-horizontal-progression-skill-and-knowledge: backlog
+  3-5-horizontal-progression-skill-and-knowledge: ready-for-dev
   epic-3-retrospective: optional
 
   # Epic 4 — Combat & Its Costs
