@@ -7,7 +7,7 @@
 # (takes about a minute the first time).
 
 set -e
-cd "$(dirname "$0")"
+cd "$(dirname "$(readlink -f "$0")")"
 
 JAR="desktop/target/desktop-1.0-SNAPSHOT.jar"
 
