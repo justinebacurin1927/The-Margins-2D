@@ -38,17 +38,18 @@ public final class HazardSystem {
     }
 
     /** Story 3.3 (AC-3, Decisions 3/4): the generic night-risk overlay. While it is Night AND Klein
-     *  lacks a light — no torch burning, and no campfire light at his tile (a lit campfire's light
-     *  is stationary at the fire; walking away from it loses its protection, while a torch's light
-     *  is carried) — every step risks a stumble in the dark: a small HP cost + a log line, distinct
-     *  from any structure's authored hazard. STACKS with the structure hazard (a dark structure is
-     *  doubly dangerous). Light is the counter (Decision 4): a torch's 60-turn burn and its
-     *  Wood+Coal craft are the real cost — no free loop. Exactly one seeded rng draw per step where
-     *  the overlay is probabilistic (AD-5); lands only on the message log + HP — no new tile, no
-     *  persisted field, no noise, no extra clock tick. */
+     *  lacks a light — no torch burning, and not within his campfire's safe radius — every step
+     *  risks a stumble in the dark: a small HP cost + a log line, distinct from any structure's
+     *  authored hazard. STACKS with the structure hazard (a dark structure is doubly dangerous).
+     *  Light is the counter (Decision 4): a torch's 60-turn burn and its Wood+Coal craft are the
+     *  real cost — no free loop. The campfire suppression uses {@link RunState#isPlayerAtCampfireSafePoint()}
+     *  — the SAME radius {@code onForay()} uses (review fix), so "at camp" and "protected at night"
+     *  cover the same ground (a torch's light is carried, so it suppresses anywhere). Exactly one
+     *  seeded rng draw per step where the overlay is probabilistic (AD-5); lands only on the message
+     *  log + HP — no new tile, no persisted field, no noise, no extra clock tick. */
     private static void nightOverlay(RunState state, List<String> messages) {
         if (state.isDay()) return;                              // AC-3: night only
-        if (state.getTorchTurns() > 0 || state.isPlayerAtFire()) return; // under light — you can see the ground
+        if (state.getTorchTurns() > 0 || state.isPlayerAtCampfireSafePoint()) return; // under light / at camp
         if (state.rng().nextInt(100) < NIGHT_STUMBLE_CHANCE_PERCENT) {
             state.getPlayer().hurtRaw(NIGHT_STUMBLE_DAMAGE);
             messages.add(NIGHT_STUMBLE_MESSAGE);

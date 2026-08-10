@@ -4,7 +4,7 @@ baseline_commit: 4445594
 
 # Story 3.3: The foray loop, end to end
 
-Status: review
+Status: done
 
 ## Story
 
@@ -94,6 +94,14 @@ Story 3.3 **does not** build the foray loop from scratch. The `4445594` baseline
   - [x] AC-1 pin: Task 4's carry-back arc. AC-2 pin: the budget readout test (Task 2) — the four tracks + clock share one acted-turn budget (already structurally true; pinned). AC-3 pin: Task 3's night-overlay tests.
   - [x] Scope guard: assert the seam is genuinely a seam (3.4 can extend the night overlay per-location without reworking 3.3's trigger) — a review-visible marker, not speculative 3.4 content.
   - [x] No new persisted field, no new `RogueTile`, no noise emission from the overlay, no extra clock tick — each pinned by a test or by construction.
+
+### Review Findings
+
+_Adversarial code review 2026-08-10 (Blind Hunter + Edge Case Hunter + Acceptance Auditor, all Opus). Auditor verdict: all ACs met, no over-reach. 2 decisions, 1 patch, 7 dismissed-with-reasoning. Severities are the triage's final call (subagent severities disregarded per workflow)._
+
+- [x] [Review][Patch] Align campfire night-light protection to the safe-point radius (Medium) [`core/src/main/java/com/margins/rogue/system/HazardSystem.java`] — `onForay()` treats Klein as "at camp / not on a foray" within Manhattan ≤ `CAMPFIRE_SAFE_RADIUS` (5) of a built campfire, but the night-overlay only suppresses the stumble within `isPlayerAtFire()` = Manhattan ≤ 1 — so a player 2–5 tiles from their own campfire at night with no torch is "at a safe point" yet still takes night-stumble damage. Flagged by blind+edge independently. **Resolved (decision):** suppress the night stumble whenever the player is within `CAMPFIRE_SAFE_RADIUS` of the campfire, so "at camp" == "protected" (align the light-protection radius to the safety radius). Reuse the same safe-point notion `onForay()` uses; add a test pinning the 2–5 band is now suppressed.
+- [x] [Review][Decision] `onForay()` computed + tested but never surfaced in production — **Resolved (decision): leave as substrate.** The budget readout + day/night flip lines are sufficient communication for 3.3 (Tasks 1–2 and the ACs are satisfied as written); `onForay()` is the queryable substrate Story 3.4 (and any later HUD polish) will consume. Dismissed, no action.
+- [x] [Review][Patch] Add coverage: lethal night-stumble honors Last-Stand + a boundary-crossing MOVE pins the pre-tick night-risk semantics [`core/src/test/java/com/margins/rogue/ForayLoopTest.java`] — Two intended behaviors are correct-by-ordering but unpinned: (a) a night stumble that would drop Klein to 0 HP fires at `TurnEngine:76`, before `checkLastStand` at `:274`, so the reprieve is honored (the story emphasizes "lethal harm honors the reprieve, AD-5") — no test asserts it; (b) the night overlay reads the *pre-tick* phase (step resolves at `:76`, `tickClock` at `:254`), so a boundary-crossing MOVE at clock 99/169 is resolved in the turn's starting phase — no test crosses a boundary with a MOVE, leaving the intended semantics unlocked. Add both pins (Low severity, cheap, locks in behavior against future regressions).
 
 ## Dev Notes
 
@@ -187,3 +195,4 @@ Claude Opus 4.8 (1M context), the session's model.
 
 - 2026-08-10: Created Story 3.3 — The foray loop, end to end (FR-10). Status backlog → ready-for-dev. Sprint status updated.
 - 2026-08-10: Implemented via dev-story — Tasks 1-5 complete, 369 core tests green, desktop boot clean. Status ready-for-dev → review. Sprint status updated.
+- 2026-08-10: Code review (3-layer adversarial). Auditor: all ACs met, no over-reach. 2 decisions resolved (align campfire night-light to the safe radius; leave onForay as substrate) + 2 patches applied (radius alignment via shared `isPlayerAtCampfireSafePoint()`; +3 coverage pins — camp-radius suppression, lethal-stumble Last-Stand, pre-tick dusk boundary). 372 core tests green. Status review → done.

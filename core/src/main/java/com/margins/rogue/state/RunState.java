@@ -485,9 +485,20 @@ public class RunState {
     public boolean onForay() {
         WorldSpine spine = new WorldSpine(tileMap.getWidth(), tileMap.getHeight());
         if (spine.eastness(player.getTileX()) <= SAFE_TIER_EASTNESS) return false;
-        if (hasCampfire() && Math.abs(player.getTileX() - campfireX)
-                + Math.abs(player.getTileY() - campfireY) <= CAMPFIRE_SAFE_RADIUS) return false;
+        if (isPlayerAtCampfireSafePoint()) return false;
         return true;
+    }
+
+    /** Whether the player stands within a built campfire's safe radius (Manhattan ≤
+     *  {@link #CAMPFIRE_SAFE_RADIUS}) — the "at camp" test (Story 3.3, Decision 1). SHARED by
+     *  {@link #onForay()} (the safe-point framing) and {@code HazardSystem}'s night-overlay light
+     *  suppression (review fix): a single source of truth so the camp's safety radius and its
+     *  night-light protection radius can never diverge. Distinct from {@link #isPlayerAtFire()},
+     *  which is the tight cooking/boiling adjacency (≤ 1), not the camp's safe extent. */
+    public boolean isPlayerAtCampfireSafePoint() {
+        return hasCampfire()
+                && Math.abs(player.getTileX() - campfireX) + Math.abs(player.getTileY() - campfireY)
+                        <= CAMPFIRE_SAFE_RADIUS;
     }
 
     /** Turns remaining in the current Day phase (Story 3.3, AC-2): the foray budget — "make it home

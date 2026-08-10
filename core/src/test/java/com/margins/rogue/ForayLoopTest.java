@@ -381,6 +381,105 @@ class ForayLoopTest {
         assertEquals(dayBefore, loaded.dayNumber(), "the day count derives from the persisted clock");
     }
 
+    // --- Review follow-ups (code review 2026-08-10) ---
+
+    @Test
+    void aCampfireSuppressesTheNightStumbleAcrossItsFullSafeRadius() {
+        // Review patch (Decision 1): "at camp" (within CAMPFIRE_SAFE_RADIUS) now suppresses the
+        // night stumble, so the camp's safety radius and its night-light protection cover the same
+        // ground. Under the old code (isPlayerAtFire, Manhattan ≤ 1) a player 2–5 tiles from the
+        // fire would stumble; this pins that a campfire 3 tiles away protects the whole oscillation.
+        RunState s = clear(7L);
+        driveToNight(s);
+        int[] cell = wildernessCellAndNeighbor(s.getTileMap());
+        s.getPlayer().placeAt(cell[0], cell[1]);
+        s.getEnemies().clear();
+        s.getCompanions().clear();
+        // Fire 3 tiles east — beyond the ≤1 cooking range, inside the ≤5 safe radius. The player
+        // oscillates one tile, staying Manhattan 2–4 from the fire (all > 1, all ≤ 5).
+        s.setCampfire(cell[0] + 3, cell[1]);
+        assertTrue(s.isPlayerAtCampfireSafePoint(), "the player starts within the campfire's safe radius");
+        assertFalse(s.isPlayerAtFire(), "but beyond the tight cooking-adjacency range (the old suppression)");
+        TurnEngine engine = new TurnEngine();
+        for (int i = 0; i < 40; i++) {
+            int dx = (i % 2 == 0 ? cell[2] : -cell[2]);
+            int dy = (i % 2 == 0 ? cell[3] : -cell[3]);
+            int hp = s.getPlayer().getHp();
+            TurnResult r = engine.advance(s, PlayerAction.move(dx, dy, RoguePlayer.directionOf(dx, dy)));
+            assertEquals(hp, s.getPlayer().getHp(), "at camp (within the safe radius) the night stumble never fires");
+            assertFalse(r.messages.contains(HazardSystem.NIGHT_STUMBLE_MESSAGE));
+            assertTrue(s.isPlayerAtCampfireSafePoint(), "the oscillation stays within the safe radius");
+        }
+    }
+
+    @Test
+    void aLethalNightStumbleHonorsTheLastStandReprieve() {
+        // Review patch (Patch 2a): the night stumble fires inside HazardSystem.step (during the
+        // MOVE, TurnEngine:76), BEFORE checkLastStand (TurnEngine:274) — so a stumble that would
+        // drop Klein to 0 HP earns the one-per-run reprieve instead of killing him (AD-5, the
+        // story's "lethal harm honors the reprieve"). Correct by ordering, now pinned.
+        RunState s = clear(7L);
+        driveToNight(s);
+        int[] cell = wildernessCellAndNeighbor(s.getTileMap());
+        s.getPlayer().placeAt(cell[0], cell[1]);
+        s.getEnemies().clear();
+        s.getCompanions().clear();
+        s.getPlayer().hurtRaw(s.getPlayer().getHp() - 1); // to 1 HP, so the next stumble is lethal
+        assertEquals(1, s.getPlayer().getHp());
+        TurnEngine engine = new TurnEngine();
+        boolean reprieved = false;
+        for (int i = 0; i < 60 && !reprieved; i++) {
+            int dx = (i % 2 == 0 ? cell[2] : -cell[2]);
+            int dy = (i % 2 == 0 ? cell[3] : -cell[3]);
+            TurnResult r = engine.advance(s, PlayerAction.move(dx, dy, RoguePlayer.directionOf(dx, dy)));
+            if (s.isLastStandUsed()) {
+                reprieved = true;
+                assertEquals(1, s.getPlayer().getHp(), "the lethal night stumble revived Klein to 1 HP, not death");
+                assertTrue(r.messages.contains(HazardSystem.NIGHT_STUMBLE_MESSAGE),
+                        "the reprieve fired on a night-stumble turn: " + r.messages);
+                assertTrue(r.messages.contains("Last Stand!"), "the reprieve announces itself: " + r.messages);
+            }
+        }
+        assertTrue(reprieved, "a lethal night stumble fired and the Last-Stand reprieve caught it (seed 7)");
+    }
+
+    @Test
+    void theNightOverlayReadsThePreTickPhaseAtTheDuskBoundary() {
+        // Review patch (Patch 2b): the overlay resolves during the MOVE (TurnEngine:76), BEFORE
+        // tickClock (TurnEngine:254) — so it reads the turn's STARTING phase. A MOVE acted at clock
+        // 99 is a daylight step (the overlay early-returns on isDay()), even though the same turn
+        // ticks to 100/Night and emits "Dusk falls". This locks the intended pre-tick semantics: a
+        // future move of the overlay to a post-tick read would fail here (the step would be a Night
+        // step and could stumble). The dawn-side flip line is pinned symmetrically.
+        RunState s = clear(7L);
+        TurnEngine engine = new TurnEngine();
+        for (int i = 0; i < 99; i++) engine.advance(s, PlayerAction.wait(RoguePlayer.SOUTH));
+        assertEquals(99, s.getClockTurns());
+        assertTrue(s.isDay(), "clock 99 is the last Day turn");
+        int[] cell = wildernessCellAndNeighbor(s.getTileMap());
+        s.getPlayer().placeAt(cell[0], cell[1]);
+        s.getEnemies().clear();
+        s.getCompanions().clear();
+        int hp = s.getPlayer().getHp();
+        TurnResult r = engine.advance(s,
+                PlayerAction.move(cell[2], cell[3], RoguePlayer.directionOf(cell[2], cell[3])));
+        assertEquals(100, s.getClockTurns(), "the boundary MOVE ticked the clock to Night");
+        assertTrue(r.messages.contains(RunState.LINE_DUSK), "and announced the flip");
+        assertEquals(hp, s.getPlayer().getHp(), "but the step itself resolved in Day — no night stumble (pre-tick phase)");
+        assertFalse(r.messages.contains(HazardSystem.NIGHT_STUMBLE_MESSAGE),
+                "the pre-tick Day read means the overlay never rolled on the dusk-crossing step");
+
+        // Dawn side: a MOVE acted at clock 169 crosses to 170/Day and emits "Dawn breaks."
+        for (int i = 0; i < 69; i++) engine.advance(s, PlayerAction.wait(RoguePlayer.SOUTH));
+        assertEquals(169, s.getClockTurns());
+        s.getPlayer().placeAt(cell[0], cell[1]);
+        s.lightTorch(10); // hold a torch so the dawn-crossing step is deterministic (no stumble either way)
+        TurnResult dawn = engine.advance(s,
+                PlayerAction.move(cell[2], cell[3], RoguePlayer.directionOf(cell[2], cell[3])));
+        assertEquals(170, s.getClockTurns());
+        assertTrue(dawn.messages.contains(RunState.LINE_DAWN), "the night→day boundary MOVE announces dawn");
+    }
+
     // --- helpers ---
 
     /** Mirrors RunStatePersistenceTest.json() — the production serializer (AD-6). */
