@@ -34,6 +34,8 @@ public class PixelPack {
     private static final int WALK_COLS = 2, WALK_ROWS = 3;
     private static final int ATTACK_COLS = 3, ATTACK_ROWS = 3;
     private static final int ITEM_COLS = 8, ITEM_ROWS = 5;
+    private static final int JOURNAL_ITEM_COLS = 4, JOURNAL_ITEM_ROWS = 3;
+    private static final int JOURNAL_WEAPON_COLS = 5, JOURNAL_ENEMY_COLS = 5;
     private static final int STATUS_ICON_COLS = 3, STATUS_ICON_ROWS = 3;
     private static final int TERRAIN_COLS = 4, TERRAIN_ROWS = 4;
     private static final int GROUND_COLS = 4, GROUND_ROWS = 4;
@@ -57,6 +59,9 @@ public class PixelPack {
     private final Texture charactersWalkTex;
     private final Texture charactersAttackTex;
     private final Texture itemsTex;
+    private final Texture journalItemsTex;
+    private final Texture journalWeaponsTex;
+    private final Texture journalEnemiesTex;
     private final Texture statusIconsTex;
     private final Texture terrainTex;
     private final Texture groundTex;
@@ -85,6 +90,9 @@ public class PixelPack {
     private final TextureRegion[] charactersWalk;
     private final TextureRegion[] charactersAttack;
     private final TextureRegion[] items;
+    private final TextureRegion[] journalItems;
+    private final TextureRegion[] journalWeapons;
+    private final TextureRegion[] journalEnemies;
     private final TextureRegion[] statusIcons;
     private final TextureRegion[] terrain;
     private final TextureRegion[] ground;
@@ -115,6 +123,9 @@ public class PixelPack {
         charactersWalkTex = load("assets/characters-walk.png");
         charactersAttackTex = load("assets/characters-attack.png");
         itemsTex = load("assets/items.png");
+        journalItemsTex = load("assets/generated/journal-items-v3.png");
+        journalWeaponsTex = load("assets/generated/journal-weapons-v3.png");
+        journalEnemiesTex = load("assets/generated/journal-enemies-v3.png");
         statusIconsTex = load("assets/status-icons.png");
         terrainTex = load("assets/terrain-tiles.png");
         groundTex = load("assets/ground-materials.png");
@@ -143,6 +154,9 @@ public class PixelPack {
         charactersWalk = slice(charactersWalkTex, WALK_COLS, WALK_ROWS);
         charactersAttack = slice(charactersAttackTex, ATTACK_COLS, ATTACK_ROWS);
         items = slice(itemsTex, ITEM_COLS, ITEM_ROWS);
+        journalItems = slice(journalItemsTex, JOURNAL_ITEM_COLS, JOURNAL_ITEM_ROWS);
+        journalWeapons = slice(journalWeaponsTex, JOURNAL_WEAPON_COLS, 1);
+        journalEnemies = slice(journalEnemiesTex, JOURNAL_ENEMY_COLS, 1);
         statusIcons = slice(statusIconsTex, STATUS_ICON_COLS, STATUS_ICON_ROWS);
         terrain = slice(terrainTex, TERRAIN_COLS, TERRAIN_ROWS);
         ground = slice(groundTex, GROUND_COLS, GROUND_ROWS);
@@ -219,6 +233,19 @@ public class PixelPack {
     /** An item-icon cell (row-major, five rows of eight). */
     public TextureRegion item(int index) {
         return items[index];
+    }
+
+    /** One of the clearer generated survival-supply icons (four columns by three rows). */
+    public TextureRegion journalItem(int index) {
+        return journalItems[Math.max(0, Math.min(journalItems.length - 1, index))];
+    }
+
+    public TextureRegion journalWeapon(int index) {
+        return journalWeapons[Math.max(0, Math.min(journalWeapons.length - 1, index))];
+    }
+
+    public TextureRegion journalEnemy(int index) {
+        return journalEnemies[Math.max(0, Math.min(journalEnemies.length - 1, index))];
     }
 
     /** Tintable survival-status icon (3x3 atlas, row-major). */
@@ -325,6 +352,9 @@ public class PixelPack {
         charactersWalkTex.dispose();
         charactersAttackTex.dispose();
         itemsTex.dispose();
+        journalItemsTex.dispose();
+        journalWeaponsTex.dispose();
+        journalEnemiesTex.dispose();
         statusIconsTex.dispose();
         terrainTex.dispose();
         groundTex.dispose();

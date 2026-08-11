@@ -40,6 +40,7 @@ import com.margins.rogue.system.PlayerAction;
 import com.margins.rogue.system.TorchSystem;
 import com.margins.rogue.system.TurnEngine;
 import com.margins.rogue.system.TurnResult;
+import com.margins.rogue.world.StructureTable;
 import com.margins.rogue.world.WorldSpine;
 
 import java.util.ArrayList;
@@ -96,6 +97,15 @@ public class MarginScreen implements Screen {
     private static final Color UI_FOOD = new Color(0.73f, 0.67f, 0.36f, 1f);
     private static final Color UI_WATER = new Color(0.40f, 0.68f, 0.76f, 1f);
     private static final Color UI_WARNING = new Color(0.92f, 0.55f, 0.28f, 1f);
+    // Title-only palette: midnight plum and restrained crimson, inspired by the supplied menu.
+    // It stays separate from the forest HUD and leather inventory palettes.
+    private static final Color TITLE_PANEL = new Color(0.030f, 0.022f, 0.055f, 0.94f);
+    private static final Color TITLE_PANEL_SOFT = new Color(0.045f, 0.030f, 0.070f, 0.78f);
+    private static final Color TITLE_SELECTED = new Color(0.125f, 0.040f, 0.075f, 0.94f);
+    private static final Color TITLE_BORDER = new Color(0.30f, 0.235f, 0.42f, 1f);
+    private static final Color TITLE_ACCENT = new Color(0.86f, 0.18f, 0.29f, 1f);
+    private static final Color TITLE_TEXT = new Color(0.92f, 0.90f, 0.97f, 1f);
+    private static final Color TITLE_MUTED = new Color(0.54f, 0.50f, 0.66f, 1f);
     private static final Color EVENT_ROUTINE = new Color(0.96f, 0.97f, 0.92f, 1f);
     private static final Color EVENT_TIME = new Color(1f, 0.82f, 0.24f, 1f);
     private static final Color EVENT_DEFEAT = new Color(0.96f, 0.25f, 0.19f, 1f);
@@ -182,7 +192,14 @@ public class MarginScreen implements Screen {
      *  the quest log is a suspended text surface). Renders {@code journal.entries(state)} (AC-2). */
     private JournalController journal = new JournalController();
 
-    private enum MenuPage { ROOT, OPTIONS, HOW_TO_PLAY }
+    private enum MenuPage { ROOT, PLAY, OPTIONS, HOW_TO_PLAY, CREDITS, JOURNAL }
+    private enum CompendiumCategory {
+        ITEMS("ITEMS"), FOOD("FOOD"), WEAPONS("WEAPONS"),
+        CHARACTERS("CHARACTERS"), ENEMIES("ENEMIES"), STRUCTURES("STRUCTURES");
+
+        final String label;
+        CompendiumCategory(String label) { this.label = label; }
+    }
     /** Three suspended inventory surfaces, mirroring SPD's category pages without changing turns. */
     private enum InventoryPage { BACKPACK, BODY, CRAFT }
     /** Recipes already supported by the turn engine; the HUD is a real front-end, not a mock-up. */
@@ -200,6 +217,8 @@ public class MarginScreen implements Screen {
     private MenuPage menuPage = MenuPage.ROOT;
     private int menuSelection;
     private int startupSelection;
+    private CompendiumCategory compendiumCategory = CompendiumCategory.ITEMS;
+    private int compendiumEntry;
     /** Full backpack surface. Modal presentation state: while open, the turn loop is paused. */
     private boolean inventoryOpen = false;
     private InventoryPage inventoryPage = InventoryPage.BACKPACK;
@@ -212,6 +231,7 @@ public class MarginScreen implements Screen {
     private static final int LOG_LINES = 4; // Vision.png-style four-line lower-left message box
     /** Single source for the death line — the log seed and the overlay must never drift (review finding). */
     private static final String GAME_OVER_LINE = "You fell in the margins.   [R] begin again";
+    private static final String GAME_VERSION = "v1.0-SNAPSHOT";
 
     // Pixel Pack v2 character cells (row-major): 0 Klein, 1 Aldric, 6 Giliman foot soldier.
     private static final int PLAYER_CHARACTER = 0;
@@ -246,6 +266,31 @@ public class MarginScreen implements Screen {
         6,  // 21 BLOODVEIN_MUSHROOM -> spotted mushroom
         30, // 22 HERBAL_CURE      -> bandage
         31, // 23 TORN_PAGE        -> map fragment (a paper)
+    };
+    /** Main-menu compendium shelves. Together these contain every currently authored Supply. */
+    private static final Supply[] COMPENDIUM_ITEMS = {
+        Supply.WRAPPED_BUNDLE, Supply.SEALED_WATERSKIN, Supply.SMALL_TIN,
+        Supply.FOLDED_CLOTH, Supply.SEALED_LETTER, Supply.COAL, Supply.SALT,
+        Supply.WOOD, Supply.TORN_PAGE, Supply.ROPE, Supply.SMALL_TOOLS,
+        Supply.MAP_FRAGMENT
+    };
+    private static final Supply[] COMPENDIUM_FOOD = {
+        Supply.RAW_MEAT, Supply.HALF_ROTTEN_MEAT, Supply.SPOILED_MEAT,
+        Supply.COOKED_MEAT, Supply.WELL_WATER, Supply.POND_WATER,
+        Supply.RIVER_WATER, Supply.FILTERED_WATER, Supply.BOILED_WATER,
+        Supply.TOXIC_MUSHROOM, Supply.HONEYMOON_MUSHROOM, Supply.HONEY,
+        Supply.HONEYCOMB, Supply.BLOODVEIN_MUSHROOM, Supply.HERBAL_CURE,
+        Supply.PRESERVED_FOOD
+    };
+    private static final String[] COMPENDIUM_WEAPONS = {
+        "WOODEN CLUB", "SHORT SWORD", "SPEAR", "WORN SHIELD", "HUNTING BOW"
+    };
+    private static final String[] COMPENDIUM_CHARACTERS = {
+        "KLEIN", "ALDRIC"
+    };
+    private static final String[] COMPENDIUM_ENEMIES = {
+        "GILIMAN FOOT SOLDIER", "POACHER PATROL", "GRAVEYARD DEAD",
+        "WELL CREATURE", "HIVE SWARM"
     };
     /** Backpack-row icon size (px); the stack label sits to its right. */
     private static final int ITEM_ICON = 16;
@@ -495,7 +540,7 @@ public class MarginScreen implements Screen {
             startupSelection = moveMenuSelection(startupSelection, 1, labels.length);
         }
         int hovered = menuButtonAtPointer(startupButtonX(), startupFirstButtonY(),
-                230, 27, 7, labels.length);
+                148, 21, 5, labels.length);
         if (hovered >= 0) startupSelection = hovered;
         boolean clicked = hovered >= 0 && Gdx.input.isButtonJustPressed(Input.Buttons.LEFT);
         if (clicked || down(Input.Keys.ENTER) || down(Input.Keys.SPACE)) {
@@ -504,22 +549,23 @@ public class MarginScreen implements Screen {
     }
 
     private void activateStartupSelection(int selection) {
-        if (!hasContinue) {
-            switch (selection) {
-                case 0: startupMenuOpen = false; break;
-                case 1: menuPage = MenuPage.HOW_TO_PLAY; menuSelection = 0; break;
-                case 2: menuPage = MenuPage.OPTIONS; menuSelection = 0; break;
-                default: Gdx.app.exit(); break;
-            }
-            return;
-        }
         switch (selection) {
-            case 0: startupMenuOpen = false; break;
-            case 1: startNewJourney(); break;
+            case 0:
+                menuPage = MenuPage.PLAY;
+                menuSelection = hasContinue ? 0 : 1;
+                break;
+            case 1: openCompendium(); break;
             case 2: menuPage = MenuPage.HOW_TO_PLAY; menuSelection = 0; break;
             case 3: menuPage = MenuPage.OPTIONS; menuSelection = 0; break;
+            case 4: menuPage = MenuPage.CREDITS; menuSelection = 0; break;
             default: Gdx.app.exit(); break;
         }
+    }
+
+    private void openCompendium() {
+        menuPage = MenuPage.JOURNAL;
+        compendiumCategory = CompendiumCategory.ITEMS;
+        compendiumEntry = 0;
     }
 
     private void handlePauseMenuInput() {
@@ -532,11 +578,11 @@ public class MarginScreen implements Screen {
             return;
         }
         if (down(Input.Keys.W) || down(Input.Keys.UP)) {
-            menuSelection = moveMenuSelection(menuSelection, -1, 4);
+            menuSelection = moveMenuSelection(menuSelection, -1, 5);
         } else if (down(Input.Keys.S) || down(Input.Keys.DOWN)) {
-            menuSelection = moveMenuSelection(menuSelection, 1, 4);
+            menuSelection = moveMenuSelection(menuSelection, 1, 5);
         }
-        int hovered = menuButtonAtPointer(pauseButtonX(), pauseFirstButtonY(), 210, 32, 8, 4);
+        int hovered = menuButtonAtPointer(pauseButtonX(), pauseFirstButtonY(), 210, 32, 8, 5);
         if (hovered >= 0) menuSelection = hovered;
         boolean clicked = hovered >= 0 && Gdx.input.isButtonJustPressed(Input.Buttons.LEFT);
         if (clicked || down(Input.Keys.ENTER) || down(Input.Keys.SPACE)) {
@@ -545,10 +591,13 @@ public class MarginScreen implements Screen {
                     menuOpen = false;
                     break;
                 case 1:
+                    openCompendium();
+                    break;
+                case 2:
                     menuPage = MenuPage.OPTIONS;
                     menuSelection = 0;
                     break;
-                case 2:
+                case 3:
                     menuPage = MenuPage.HOW_TO_PLAY;
                     menuSelection = 0;
                     break;
@@ -564,6 +613,14 @@ public class MarginScreen implements Screen {
     }
 
     private void handleMenuSubpageInput(boolean fromStartup) {
+        if (menuPage == MenuPage.JOURNAL) {
+            handleCompendiumInput(fromStartup);
+            return;
+        }
+        if (menuPage == MenuPage.PLAY) {
+            handlePlayPageInput();
+            return;
+        }
         int count = menuPage == MenuPage.OPTIONS ? 2 : 1;
         if (down(Input.Keys.ESCAPE) || down(Input.Keys.M)) {
             menuPage = MenuPage.ROOT;
@@ -575,7 +632,8 @@ public class MarginScreen implements Screen {
         } else if (down(Input.Keys.S) || down(Input.Keys.DOWN)) {
             menuSelection = moveMenuSelection(menuSelection, 1, count);
         }
-        int firstY = menuPage == MenuPage.OPTIONS ? 159 : 42;
+        int firstY = menuPage == MenuPage.OPTIONS ? 159
+                : menuPage == MenuPage.CREDITS ? 77 : 42;
         int hovered = menuButtonAtPointer((hudWidth() - 210) / 2, firstY, 210, 30, 9, count);
         if (hovered >= 0) menuSelection = hovered;
         boolean clicked = hovered >= 0 && Gdx.input.isButtonJustPressed(Input.Buttons.LEFT);
@@ -588,6 +646,197 @@ public class MarginScreen implements Screen {
             menuSelection = 0;
             if (fromStartup) startupSelection = 0;
         }
+    }
+
+    private void handlePlayPageInput() {
+        if (down(Input.Keys.ESCAPE) || down(Input.Keys.M)) {
+            menuPage = MenuPage.ROOT;
+            menuSelection = 0;
+            startupSelection = 0;
+            return;
+        }
+        if (down(Input.Keys.W) || down(Input.Keys.UP)) {
+            menuSelection = moveMenuSelection(menuSelection, -1, 2);
+        } else if (down(Input.Keys.S) || down(Input.Keys.DOWN)) {
+            menuSelection = moveMenuSelection(menuSelection, 1, 2);
+        }
+        int hovered = menuButtonAtPointer((hudWidth() - 190) / 2, 154, 190, 26, 8, 2);
+        if (hovered >= 0) menuSelection = hovered;
+        boolean clicked = hovered >= 0 && Gdx.input.isButtonJustPressed(Input.Buttons.LEFT);
+        if (!clicked && !down(Input.Keys.ENTER) && !down(Input.Keys.SPACE)) return;
+
+        if (menuSelection == 0) {
+            if (hasContinue) {
+                startupMenuOpen = false;
+                menuPage = MenuPage.ROOT;
+            }
+        } else {
+            startNewJourney();
+        }
+    }
+
+    private void handleCompendiumInput(boolean fromStartup) {
+        if (down(Input.Keys.ESCAPE) || down(Input.Keys.M)) {
+            menuPage = MenuPage.ROOT;
+            menuSelection = 0;
+            if (fromStartup) startupSelection = 0;
+            return;
+        }
+
+        CompendiumCategory[] categories = CompendiumCategory.values();
+        if (down(Input.Keys.A) || down(Input.Keys.LEFT)) {
+            compendiumCategory = categories[Math.floorMod(compendiumCategory.ordinal() - 1, categories.length)];
+            compendiumEntry = 0;
+        } else if (down(Input.Keys.D) || down(Input.Keys.RIGHT)) {
+            compendiumCategory = categories[Math.floorMod(compendiumCategory.ordinal() + 1, categories.length)];
+            compendiumEntry = 0;
+        }
+
+        int categoryAtPointer = compendiumCategoryAtPointer();
+        if (categoryAtPointer >= 0 && Gdx.input.isButtonJustPressed(Input.Buttons.LEFT)) {
+            compendiumCategory = categories[categoryAtPointer];
+            compendiumEntry = 0;
+            return;
+        }
+
+        int count = compendiumEntryCount(compendiumCategory);
+        if (down(Input.Keys.W) || down(Input.Keys.UP)) {
+            compendiumEntry = moveMenuSelection(compendiumEntry, -1, count);
+        } else if (down(Input.Keys.S) || down(Input.Keys.DOWN)) {
+            compendiumEntry = moveMenuSelection(compendiumEntry, 1, count);
+        }
+        int entryAtPointer = compendiumEntryAtPointer(count);
+        if (entryAtPointer >= 0) compendiumEntry = entryAtPointer;
+        if (compendiumEntry >= count) compendiumEntry = Math.max(0, count - 1);
+    }
+
+    private int compendiumCategoryAtPointer() {
+        if (!updateHudPointer()) return -1;
+        int panelW = 448, panelH = 324;
+        int panelX = (hudWidth() - panelW) / 2, panelY = 18;
+        int x = panelX + 12, y = panelY + panelH - 68;
+        int width = 66, gap = 3;
+        if (pointerHud.y < y || pointerHud.y >= y + 22 || pointerHud.x < x) return -1;
+        int category = (int) ((pointerHud.x - x) / (width + gap));
+        if (category < 0 || category >= CompendiumCategory.values().length) return -1;
+        return pointerHud.x < x + category * (width + gap) + width ? category : -1;
+    }
+
+    private int compendiumEntryAtPointer(int count) {
+        if (!updateHudPointer()) return -1;
+        int panelW = 448, panelH = 324;
+        int panelX = (hudWidth() - panelW) / 2, panelY = 18;
+        int firstY = panelY + panelH - 99;
+        int visible = Math.min(8, count);
+        int start = compendiumScrollStart(count, visible);
+        if (pointerHud.x < panelX + 12 || pointerHud.x >= panelX + 164) return -1;
+        for (int row = 0; row < visible; row++) {
+            int y = firstY - row * 24;
+            if (pointerHud.y >= y && pointerHud.y < y + 21) return start + row;
+        }
+        return -1;
+    }
+
+    private int compendiumScrollStart(int count, int visible) {
+        if (count <= visible) return 0;
+        return Math.max(0, Math.min(compendiumEntry - visible / 2, count - visible));
+    }
+
+    private int compendiumEntryCount(CompendiumCategory category) {
+        return switch (category) {
+            case ITEMS -> COMPENDIUM_ITEMS.length;
+            case FOOD -> COMPENDIUM_FOOD.length;
+            case WEAPONS -> COMPENDIUM_WEAPONS.length;
+            case CHARACTERS -> COMPENDIUM_CHARACTERS.length;
+            case ENEMIES -> COMPENDIUM_ENEMIES.length;
+            case STRUCTURES -> StructureTable.all().length;
+        };
+    }
+
+    private String compendiumEntryName(CompendiumCategory category, int index) {
+        return switch (category) {
+            case ITEMS -> COMPENDIUM_ITEMS[index].displayName().toUpperCase();
+            case FOOD -> COMPENDIUM_FOOD[index].displayName().toUpperCase();
+            case WEAPONS -> COMPENDIUM_WEAPONS[index];
+            case CHARACTERS -> COMPENDIUM_CHARACTERS[index];
+            case ENEMIES -> COMPENDIUM_ENEMIES[index];
+            case STRUCTURES -> StructureTable.all()[index].displayName.toUpperCase();
+        };
+    }
+
+    private String compendiumEntrySubtitle(CompendiumCategory category, int index) {
+        return switch (category) {
+            case ITEMS -> inventoryCategory(COMPENDIUM_ITEMS[index].ordinal(), COMPENDIUM_ITEMS[index]);
+            case FOOD -> foodCompendiumCategory(COMPENDIUM_FOOD[index]);
+            case WEAPONS -> switch (index) {
+                case 0 -> "IMPROVISED · MELEE";
+                case 1 -> "MILITARY · MELEE";
+                case 2 -> "REACH · MELEE";
+                case 3 -> "DEFENCE · OFF-HAND";
+                default -> "HUNTING · RANGED";
+            };
+            case CHARACTERS -> switch (index) {
+                case 0 -> "NOVELBORNE SURVIVOR";
+                default -> "COMPANION · SWORDSMAN";
+            };
+            case ENEMIES -> switch (index) {
+                case 0 -> "KINGDOM PATROL";
+                case 1 -> "FOREST HUNTER";
+                case 2 -> "UNDEAD HAZARD";
+                case 3 -> "DEPTH CREATURE";
+                default -> "SWARM HAZARD";
+            };
+            case STRUCTURES -> {
+                StructureTable.Structure structure = StructureTable.all()[index];
+                yield "TIER " + structure.tier.value + " · "
+                        + structure.hazard.displayName().toUpperCase();
+            }
+        };
+    }
+
+    private String compendiumEntryDescription(CompendiumCategory category, int index) {
+        return switch (category) {
+            case ITEMS -> inventoryDescription(COMPENDIUM_ITEMS[index].ordinal(), COMPENDIUM_ITEMS[index]);
+            case FOOD -> inventoryDescription(COMPENDIUM_FOOD[index].ordinal(), COMPENDIUM_FOOD[index]);
+            case WEAPONS -> switch (index) {
+                case 0 -> "A heavy branch shaped into a crude striking weapon. Reliable, quiet, and easy to replace.";
+                case 1 -> "A border knight's close-range weapon. Fast enough for a committed strike and recovery.";
+                case 2 -> "A long haft keeps teeth and blades at distance, but needs room to bring its point around.";
+                case 3 -> "A battered shield that can turn a killing blow into a survivable one. Its rim is already split.";
+                default -> "A poacher's ranged weapon built for the forest. Deadly across open ground, awkward in tight rooms.";
+            };
+            case CHARACTERS -> switch (index) {
+                case 0 -> "A young Novelborne knight stranded beyond the Copper Road. Klein must survive the margins and uncover why Aldric was taken.";
+                default -> "Klein's loyal companion and an experienced sword fighter. Aldric teaches the forest's rules before the patrol closes in.";
+            };
+            case ENEMIES -> switch (index) {
+                case 0 -> "An armed Giliman soldier who patrols the border. Watch the health bar, break line of sight, and choose when to fight.";
+                case 1 -> "Poachers move through the dark around their camp. Their snares and patrol routes make retreat dangerous.";
+                case 2 -> "Restless dead that rise around the graveyard after nightfall. The grave-ground itself is unstable.";
+                case 3 -> "Something living below the Sunken Well. Darkness makes the slick descent far more dangerous.";
+                default -> "A mass of angry bees defending the grove. Honey is valuable, but lingering among the hives invites repeated stings.";
+            };
+            case STRUCTURES -> structureCompendiumDescription(StructureTable.all()[index]);
+        };
+    }
+
+    private static String foodCompendiumCategory(Supply supply) {
+        if (supply.isWater()) return "DRINK";
+        if (supply.isCure()) return "MEDICINE";
+        if (supply.toxin() != Supply.Toxin.NONE) return "DANGEROUS FOOD";
+        return "FOOD";
+    }
+
+    private static String structureCompendiumDescription(StructureTable.Structure structure) {
+        StringBuilder loot = new StringBuilder();
+        for (int i = 0; i < structure.loot.length; i++) {
+            if (i > 0) loot.append(i == structure.loot.length - 1 ? " and " : ", ");
+            loot.append(structure.loot[i].supply.displayName());
+        }
+        String risk = structure.hazard == StructureTable.Hazard.NONE
+                ? "No known immediate hazard."
+                : "Known danger: " + structure.hazard.displayName() + ".";
+        return risk + " Search its rooms for " + loot + ".";
     }
 
     private void toggleFullscreen() {
@@ -640,15 +889,13 @@ public class MarginScreen implements Screen {
     }
 
     private String[] startupMenuLabels() {
-        return hasContinue
-                ? new String[] {"CONTINUE JOURNEY", "NEW JOURNEY", "HOW TO PLAY", "OPTIONS", "EXIT"}
-                : new String[] {"ENTER THE MARGINS", "HOW TO PLAY", "OPTIONS", "EXIT"};
+        return new String[] {"PLAY", "JOURNAL", "HOW TO PLAY", "OPTIONS", "CREDITS", "EXIT"};
     }
 
-    private int startupButtonX() { return (hudWidth() - 230) / 2; }
-    private int startupFirstButtonY() { return 168; }
+    private int startupButtonX() { return 28; }
+    private int startupFirstButtonY() { return 190; }
     private int pauseButtonX() { return (hudWidth() - 210) / 2; }
-    private int pauseFirstButtonY() { return 224; }
+    private int pauseFirstButtonY() { return 230; }
 
     /** Submit from either world controls or the backpack without duplicating story observation. */
     private void submitPlayerAction(PlayerAction action) {
@@ -1264,13 +1511,10 @@ public class MarginScreen implements Screen {
         // Floor items (native 16px icons), enemies, companion, Klein.
         for (FloorItem it : state.getFloorItems()) {
             if (map.isVisible(it.x, it.y)) {
-                // Review H2: guard an unknown icon (a Supply appended without an ITEM_ICONS entry)
-                // so it never reaches pixels.item(-1); an icon-less item just isn't drawn.
-                int icon = iconFor(it.type);
-                if (icon >= 0) {
-                    batch.setColor(itemTintFor(it.type));
-                    drawSprite(pixels.item(icon), it.x * TILE, it.y * TILE, ITEM_ICON, ITEM_ICON);
-                    batch.setColor(Color.WHITE);
+                // Atlas-backed and code-native supply icons share the same centered footprint.
+                if (hasDrawableSupplyIcon(it.type)) {
+                    drawItemIcon(it.type, it.x * TILE + (TILE - ITEM_ICON) / 2f,
+                            it.y * TILE + (TILE - ITEM_ICON) / 2f, ITEM_ICON, ITEM_ICON);
                 }
             }
         }
@@ -2152,11 +2396,42 @@ public class MarginScreen implements Screen {
     }
 
     private void drawItemIcon(int type, float x, float y, float width, float height) {
+        int generated = generatedItemIconFor(type);
+        if (generated >= 0) {
+            batch.setColor(Color.WHITE);
+            batch.draw(pixels.journalItem(generated), x, y, width, height);
+            return;
+        }
         int icon = iconFor(type);
         if (icon < 0) return;
         batch.setColor(itemTintFor(type));
         batch.draw(pixels.item(icon), x, y, width, height);
         batch.setColor(Color.WHITE);
+    }
+
+    /** Mapping into generated/journal-items-v2-runtime.png, in its authored 4x3 order. */
+    private static int generatedItemIconFor(int type) {
+        Supply supply = Supply.byOrdinal(type);
+        if (supply == null) return -1;
+        return switch (supply) {
+            case WRAPPED_BUNDLE -> 0;
+            case SEALED_WATERSKIN -> 1;
+            case SMALL_TIN -> 2;
+            case FOLDED_CLOTH -> 3;
+            case SEALED_LETTER -> 4;
+            case SALT -> 5;
+            case ROPE -> 6;
+            case SMALL_TOOLS -> 7;
+            case MAP_FRAGMENT, TORN_PAGE -> 8;
+            case PRESERVED_FOOD -> 9;
+            case COAL -> 10;
+            case WOOD -> 11;
+            default -> -1;
+        };
+    }
+
+    private static boolean hasDrawableSupplyIcon(int type) {
+        return generatedItemIconFor(type) >= 0 || iconFor(type) >= 0;
     }
 
     private void renderHud() {
@@ -2939,7 +3214,11 @@ public class MarginScreen implements Screen {
     private void renderStartupMenu() {
         batch.setColor(Color.WHITE);
         batch.draw(pixels.mainMenuBackground(), 0, 0, hudWidth(), hudHeight());
-        fillRect(0, 0, hudWidth(), hudHeight(), new Color(0.005f, 0.009f, 0.007f, 0.30f));
+        fillRect(0, 0, hudWidth(), hudHeight(), new Color(0.005f, 0.009f, 0.007f, 0.38f));
+        if (menuPage == MenuPage.PLAY) {
+            renderPlayPage();
+            return;
+        }
         if (menuPage == MenuPage.OPTIONS) {
             renderOptionsPage();
             return;
@@ -2948,27 +3227,37 @@ public class MarginScreen implements Screen {
             renderHowToPlayPage();
             return;
         }
+        if (menuPage == MenuPage.JOURNAL) {
+            renderCompendiumPage();
+            return;
+        }
+        if (menuPage == MenuPage.CREDITS) {
+            renderCreditsPage();
+            return;
+        }
 
-        int logoSize = 100;
-        int logoX = (hudWidth() - logoSize) / 2;
-        int logoY = 203;
+        // Keep the key art visible: the title and a restrained crest occupy the upper-left,
+        // while the menu follows a single compact vertical rail beneath them.
+        int logoSize = 46;
+        int logoX = 26;
+        int logoY = hudHeight() - 69;
         batch.setColor(0f, 0f, 0f, 0.72f);
-        batch.draw(pixels.mainMenuLogo(), logoX + 3, logoY - 3, logoSize, logoSize);
+        batch.draw(pixels.mainMenuLogo(), logoX + 2, logoY - 2, logoSize, logoSize);
         batch.setColor(Color.WHITE);
         batch.draw(pixels.mainMenuLogo(), logoX, logoY, logoSize, logoSize);
 
-        drawLargeTitle("THE MARGINS", hudHeight() - 26);
-        font.setColor(UI_MUTED);
-        font.draw(batch, "SURVIVE WHAT THE FOREST GIVES", 0, hudHeight() - 46,
-                hudWidth(), Align.center, false);
+        drawLargeTitleAt("THE MARGINS", 80, hudHeight() - 31);
+        font.setColor(TITLE_MUTED);
+        font.draw(batch, "SURVIVE WHAT THE FOREST GIVES", 80, hudHeight() - 48);
 
         String[] labels = startupMenuLabels();
         int x = startupButtonX(), firstY = startupFirstButtonY();
         for (int i = 0; i < labels.length; i++) {
-            drawMenuButton(x, firstY - i * 34, 230, 27, labels[i], i == startupSelection,
-                    i == 0);
+            drawTitleMenuEntry(x, firstY - i * 26, 148, 21,
+                    labels[i], i == startupSelection);
         }
-        drawText("W/S SELECT   ENTER CONFIRM", 10, 10, UI_MUTED);
+        font.setColor(TITLE_MUTED);
+        font.draw(batch, GAME_VERSION, hudWidth() - 104, 12, 92, Align.right, false);
     }
 
     /** Pause root requested by the player; subpages replace it in the same modal surface. */
@@ -2982,14 +3271,18 @@ public class MarginScreen implements Screen {
             renderHowToPlayPage();
             return;
         }
+        if (menuPage == MenuPage.JOURNAL) {
+            renderCompendiumPage();
+            return;
+        }
 
-        int width = 270, height = 250;
-        int x = (hudWidth() - width) / 2, y = 54;
+        int width = 270, height = 280;
+        int x = (hudWidth() - width) / 2, y = 39;
         drawPanel(x, y, width, height, UI_PANEL_STRONG);
         drawHeadingCentered("PAUSED", y + height - 18, UI_ACCENT);
         fillRect(x + 14, y + height - 31, width - 28, 1, UI_BORDER);
 
-        String[] labels = {"RESUME", "OPTIONS", "HOW TO PLAY", "MAIN MENU"};
+        String[] labels = {"RESUME", "JOURNAL", "OPTIONS", "HOW TO PLAY", "MAIN MENU"};
         int buttonX = pauseButtonX(), firstY = pauseFirstButtonY();
         for (int i = 0; i < labels.length; i++) {
             drawMenuButton(buttonX, firstY - i * 40, 210, 32, labels[i],
@@ -2998,56 +3291,335 @@ public class MarginScreen implements Screen {
         drawText("ESC / M  RESUME", x + 14, y + 13, UI_MUTED);
     }
 
+    /** Main-menu encyclopedia: a persistent, spoiler-light catalogue of the game's authored world. */
+    private void renderCompendiumPage() {
+        int panelW = 448, panelH = 324;
+        int panelX = (hudWidth() - panelW) / 2, panelY = 18, top = panelY + panelH;
+        drawInventoryFrame(panelX, panelY, panelW, panelH);
+
+        batch.setColor(Color.WHITE);
+        batch.draw(pixels.mainMenuLogo(), panelX + 12, top - 34, 22, 22);
+        drawHeading("JOURNAL", panelX + 40, top - 16, INV_TEXT);
+        drawText("THE MARGINS COMPENDIUM", panelX + 40, top - 29, INV_MUTED);
+        String recordCount = compendiumEntryCount(compendiumCategory) + " RECORDS";
+        font.setColor(INV_MUTED);
+        font.draw(batch, recordCount, panelX + panelW - 126, top - 17, 112, Align.right, false);
+        fillRect(panelX + 12, top - 40, panelW - 24, 1, INV_TRIM);
+
+        // Header, divider, and tabs each own a separate vertical band; text must never intrude
+        // into the category hit targets at fullscreen scales.
+        int tabX = panelX + 12, tabY = top - 68, tabW = 66, tabGap = 3;
+        CompendiumCategory[] categories = CompendiumCategory.values();
+        for (int i = 0; i < categories.length; i++) {
+            boolean selected = categories[i] == compendiumCategory;
+            fillRect(tabX + i * (tabW + tabGap), tabY, tabW, 22,
+                    selected ? INV_SLOT_SELECTED : INV_SLOT);
+            strokeRect(tabX + i * (tabW + tabGap), tabY, tabW, 22,
+                    selected ? INV_GOLD : INV_TRIM);
+            font.setColor(selected ? INV_GOLD : INV_MUTED);
+            font.draw(batch, categories[i].label, tabX + i * (tabW + tabGap), tabY + 14,
+                    tabW, Align.center, false);
+        }
+
+        int count = compendiumEntryCount(compendiumCategory);
+        int visible = Math.min(8, count);
+        int start = compendiumScrollStart(count, visible);
+        int listX = panelX + 12, firstY = top - 99;
+        for (int row = 0; row < visible; row++) {
+            int index = start + row;
+            int rowY = firstY - row * 24;
+            boolean selected = index == compendiumEntry;
+            fillRect(listX, rowY, 152, 21, selected ? INV_SLOT_SELECTED : INV_SLOT);
+            strokeRect(listX, rowY, 152, 21, selected ? INV_GOLD : INV_TRIM);
+            drawCompendiumListMarker(compendiumCategory, index, listX + 5, rowY + 6,
+                    selected ? INV_GOLD : INV_MUTED);
+            drawText(fitText(compendiumEntryName(compendiumCategory, index), 126),
+                    listX + 20, rowY + 14, selected ? INV_GOLD : INV_TEXT);
+        }
+        if (start > 0) drawText("^", listX + 143, firstY + 15, INV_GOLD);
+        if (start + visible < count) drawText("v", listX + 143,
+                firstY - (visible - 1) * 24 + 3, INV_GOLD);
+
+        fillRect(panelX + 172, panelY + 32, 1, 226, INV_TRIM);
+        renderCompendiumDetails(panelX + 184, panelY, top, 250);
+
+        fillRect(panelX + 12, panelY + 22, panelW - 24, 1, INV_TRIM);
+        drawText("A/D CATEGORY    W/S ENTRY    ESC BACK", panelX + 14, panelY + 14, INV_MUTED);
+    }
+
+    private void renderCompendiumDetails(int x, int panelY, int top, int width) {
+        int count = compendiumEntryCount(compendiumCategory);
+        if (count <= 0) {
+            drawHeading("NO RECORDS", x, top - 85, INV_MUTED);
+            return;
+        }
+        compendiumEntry = Math.max(0, Math.min(compendiumEntry, count - 1));
+        drawCompendiumIcon(compendiumCategory, compendiumEntry, x, top - 159, 68);
+        drawHeading(fitText(compendiumEntryName(compendiumCategory, compendiumEntry), width - 76),
+                x + 76, top - 99, INV_GOLD);
+        drawText(compendiumEntrySubtitle(compendiumCategory, compendiumEntry),
+                x + 76, top - 115, INV_MUTED);
+        fillRect(x, top - 168, width, 1, INV_TRIM);
+
+        List<String> lines = wrapText(
+                compendiumEntryDescription(compendiumCategory, compendiumEntry), width);
+        int baseline = top - 184;
+        for (int i = 0; i < Math.min(6, lines.size()); i++) {
+            drawText(lines.get(i), x, baseline, INV_TEXT);
+            baseline -= UI_LINE;
+        }
+
+        String note = compendiumDetailNote(compendiumCategory, compendiumEntry);
+        if (note != null) {
+            fillRect(x, panelY + 69, width, 1, INV_TRIM);
+            drawHeading("FIELD NOTE", x, panelY + 57, INV_MUTED);
+            List<String> notes = wrapText(note, width);
+            int noteY = panelY + 47;
+            for (int i = 0; i < Math.min(2, notes.size()); i++) {
+                drawText(notes.get(i), x, noteY, INV_GOLD);
+                noteY -= UI_LINE;
+            }
+        }
+    }
+
+    private String compendiumDetailNote(CompendiumCategory category, int index) {
+        return switch (category) {
+            case ITEMS -> {
+                Supply supply = COMPENDIUM_ITEMS[index];
+                yield supply == Supply.COAL || supply == Supply.WOOD
+                        ? "Keep both Wood and Coal: together they craft a torch."
+                        : supply == Supply.TORN_PAGE || supply == Supply.MAP_FRAGMENT
+                        ? "Knowledge items can reveal routes and surviving orders."
+                        : "Supplies share the backpack's limited eight stacks.";
+            }
+            case FOOD -> {
+                Supply supply = COMPENDIUM_FOOD[index];
+                yield supply.drinkRisk() > 0
+                        ? "Contamination risk: " + supply.drinkRisk() + "%. Treat it first when possible."
+                        : supply.toxin() != Supply.Toxin.NONE
+                        ? "Known toxin: " + supply.toxin().name().replace('_', ' ') + "."
+                        : "No known contamination risk in its current state.";
+            }
+            case WEAPONS -> "Weapons reward timing. A missed attack still leaves Klein exposed.";
+            case CHARACTERS -> index == 0
+                    ? "The body page tracks Klein's STR, AG, GRIT and SKILL."
+                    : "Companions occupy the world and can block narrow passages.";
+            case ENEMIES -> "Treelines break sight. Use cover before an enemy closes the distance.";
+            case STRUCTURES -> {
+                StructureTable.Structure structure = StructureTable.all()[index];
+                yield structure.lockedLoot.length > 0
+                        ? "A locked area hides an additional cache."
+                        : "Search the complete footprint; loot may sit away from the entrance.";
+            }
+        };
+    }
+
+    private void drawCompendiumListMarker(CompendiumCategory category, int index,
+                                           float x, float y, Color color) {
+        if (category == CompendiumCategory.ITEMS || category == CompendiumCategory.FOOD) {
+            Supply supply = category == CompendiumCategory.ITEMS
+                    ? COMPENDIUM_ITEMS[index] : COMPENDIUM_FOOD[index];
+            if (hasDrawableSupplyIcon(supply.ordinal())) {
+                drawItemIcon(supply.ordinal(), x - 2, y - 3, 14, 14);
+                return;
+            }
+        }
+        fillRect(x, y, 8, 8, color);
+        fillRect(x + 2, y + 2, 4, 4, INV_PANEL);
+    }
+
+    private void drawCompendiumIcon(CompendiumCategory category, int index,
+                                     float x, float y, float size) {
+        fillRect(x, y, size, size, INV_SLOT);
+        strokeRect(x, y, size, size, INV_TRIM);
+        switch (category) {
+            case ITEMS, FOOD -> {
+                Supply supply = category == CompendiumCategory.ITEMS
+                        ? COMPENDIUM_ITEMS[index] : COMPENDIUM_FOOD[index];
+                if (hasDrawableSupplyIcon(supply.ordinal())) {
+                    drawItemIcon(supply.ordinal(), x + 6, y + 6, size - 12, size - 12);
+                } else {
+                    drawCompendiumCrateIcon(x + 8, y + 8, size - 16);
+                }
+            }
+            case WEAPONS -> {
+                batch.setColor(Color.WHITE);
+                batch.draw(pixels.journalWeapon(index), x + 5, y + 5, size - 10, size - 10);
+            }
+            case CHARACTERS -> {
+                int[] characters = {PLAYER_CHARACTER, COMPANION_CHARACTER};
+                batch.setColor(Color.WHITE);
+                batch.draw(pixels.character(characters[index]), x + 8, y + 5, size - 16, size - 10);
+            }
+            case ENEMIES -> {
+                batch.setColor(Color.WHITE);
+                if (index == 0) {
+                    // The Giliman record must use the same authored soldier sprite seen in play.
+                    // A generated substitute drifted into a goblin-like silhouette.
+                    batch.draw(pixels.character(ENEMY_CHARACTER),
+                            x + 8, y + 5, size - 16, size - 10);
+                } else {
+                    batch.draw(pixels.journalEnemy(index), x + 4, y + 4, size - 8, size - 8);
+                }
+            }
+            case STRUCTURES -> drawCompendiumStructureThumbnail(index, x + 3, y + 3,
+                    size - 6, size - 6);
+        }
+    }
+
+    private void drawCompendiumCrateIcon(float x, float y, float size) {
+        fillRect(x, y, size, size * 0.72f, new Color(0.34f, 0.19f, 0.08f, 1f));
+        strokeRect(x, y, size, size * 0.72f, INV_GOLD);
+        fillRect(x + size * 0.44f, y, 2, size * 0.72f, INV_TRIM);
+        fillRect(x, y + size * 0.32f, size, 2, INV_TRIM);
+    }
+
+    /** A genuine miniature of the selected authored structure, assembled from its runtime tiles. */
+    private void drawCompendiumStructureThumbnail(int structureIndex, float x, float y,
+                                                   float width, float height) {
+        int[] cols = {15, 11, 11, 9, 9, 9, 11, 9, 11, 13, 11};
+        int[] rows = {10, 9, 9, 9, 5, 9, 11, 9, 13, 11, 11};
+        int columnCount = cols[structureIndex], rowCount = rows[structureIndex];
+        float scale = Math.min(width / columnCount, height / rowCount);
+        float drawW = columnCount * scale, drawH = rowCount * scale;
+        float left = x + (width - drawW) / 2f, bottom = y + (height - drawH) / 2f;
+        batch.setColor(Color.WHITE);
+        for (int row = 0; row < rowCount; row++) {
+            for (int col = 0; col < columnCount; col++) {
+                int cell = row * columnCount + col;
+                batch.draw(compendiumStructureCell(structureIndex, cell),
+                        left + col * scale, bottom + (rowCount - 1 - row) * scale,
+                        scale, scale);
+            }
+        }
+    }
+
+    private TextureRegion compendiumStructureCell(int structureIndex, int cell) {
+        return switch (structureIndex) {
+            case 0 -> pixels.oldHouse(cell);
+            case 1 -> pixels.graveyard(cell);
+            case 2 -> pixels.deepCave(cell);
+            case 3 -> pixels.huntersBlind(cell);
+            case 4 -> pixels.fallenLogHollow(cell);
+            case 5 -> pixels.forestShrine(cell);
+            case 6 -> pixels.beehiveGrove(cell);
+            case 7 -> pixels.kitchenCamp(cell);
+            case 8 -> pixels.collapsedWatchtower(cell);
+            case 9 -> pixels.poachersCamp(cell);
+            default -> pixels.sunkenWell(cell);
+        };
+    }
+
+    /** Second-stage journey picker opened by the title screen's single PLAY action. */
+    private void renderPlayPage() {
+        int width = 238, height = 145;
+        int x = (hudWidth() - width) / 2, y = 105;
+        drawTitlePanel(x, y, width, height);
+        drawHeadingCentered("PLAY", y + height - 18, TITLE_TEXT);
+        fillRect(x + 14, y + height - 31, width - 28, 1, TITLE_BORDER);
+
+        int buttonX = (hudWidth() - 190) / 2;
+        if (hasContinue) {
+            drawTitlePopupButton(buttonX, 154, 190, 26, "CONTINUE JOURNEY",
+                    menuSelection == 0);
+        } else {
+            drawDisabledMenuButton(buttonX, 154, 190, 26, "NO JOURNEY TO CONTINUE");
+        }
+        drawTitlePopupButton(buttonX, 120, 190, 26, "NEW JOURNEY",
+                menuSelection == 1);
+    }
+
+    private void renderCreditsPage() {
+        int width = 300, height = 220;
+        int x = (hudWidth() - width) / 2, y = 69;
+        drawTitlePanel(x, y, width, height);
+        drawHeadingCentered("CREDITS", y + height - 18, TITLE_TEXT);
+        fillRect(x + 14, y + height - 31, width - 28, 1, TITLE_BORDER);
+
+        drawHeading("THE MARGINS", x + 20, y + height - 52, TITLE_TEXT);
+        drawText("CREATED BY JAYCEE BACURIN", x + 20, y + height - 70, TITLE_ACCENT);
+        drawText("ARKO DEV", x + 20, y + height - 86, TITLE_TEXT);
+        drawText("BUILT WITH LIBGDX", x + 20, y + height - 106, TITLE_MUTED);
+        drawText("INSPIRED BY CLASSIC PIXEL ROGUELIKES", x + 20, y + height - 122, TITLE_MUTED);
+        drawText("THANK YOU FOR PLAYING.", x + 20, y + height - 145, TITLE_TEXT);
+        drawText(GAME_VERSION, x + 20, y + height - 160, TITLE_MUTED);
+
+        drawTitlePopupButton((hudWidth() - 210) / 2, 77, 210, 30,
+                "BACK", menuSelection == 0);
+    }
+
     private void renderOptionsPage() {
         int width = 280, height = 210;
         int x = (hudWidth() - width) / 2, y = 72;
-        drawPanel(x, y, width, height, UI_PANEL_STRONG);
-        drawHeadingCentered("OPTIONS", y + height - 18, UI_ACCENT);
-        fillRect(x + 14, y + height - 31, width - 28, 1, UI_BORDER);
+        if (startupMenuOpen) drawTitlePanel(x, y, width, height);
+        else drawPanel(x, y, width, height, UI_PANEL_STRONG);
+        drawHeadingCentered("OPTIONS", y + height - 18,
+                startupMenuOpen ? TITLE_TEXT : UI_ACCENT);
+        fillRect(x + 14, y + height - 31, width - 28, 1,
+                startupMenuOpen ? TITLE_BORDER : UI_BORDER);
 
-        drawMenuButton((hudWidth() - 210) / 2, 159, 210, 30,
-                "FULLSCREEN: " + (Gdx.graphics.isFullscreen() ? "ON" : "OFF"),
-                menuSelection == 0, true);
-        drawMenuButton((hudWidth() - 210) / 2, 120, 210, 30,
-                "BACK", menuSelection == 1, false);
-        drawText("ENTER TO TOGGLE", x + 14, y + 18, UI_MUTED);
+        String fullscreen = "FULLSCREEN: " + (Gdx.graphics.isFullscreen() ? "ON" : "OFF");
+        if (startupMenuOpen) {
+            drawTitlePopupButton((hudWidth() - 210) / 2, 159, 210, 30,
+                    fullscreen, menuSelection == 0);
+            drawTitlePopupButton((hudWidth() - 210) / 2, 120, 210, 30,
+                    "BACK", menuSelection == 1);
+        } else {
+            drawMenuButton((hudWidth() - 210) / 2, 159, 210, 30,
+                    fullscreen, menuSelection == 0, true);
+            drawMenuButton((hudWidth() - 210) / 2, 120, 210, 30,
+                    "BACK", menuSelection == 1, false);
+        }
+        drawText("ENTER TO TOGGLE", x + 14, y + 18,
+                startupMenuOpen ? TITLE_MUTED : UI_MUTED);
     }
 
     private void renderHowToPlayPage() {
         int width = 360, height = 300;
         int x = (hudWidth() - width) / 2, y = 30;
-        drawPanel(x, y, width, height, UI_PANEL_STRONG);
-        drawHeadingCentered("HOW TO PLAY", y + height - 18, UI_ACCENT);
-        fillRect(x + 14, y + height - 31, width - 28, 1, UI_BORDER);
+        if (startupMenuOpen) drawTitlePanel(x, y, width, height);
+        else drawPanel(x, y, width, height, UI_PANEL_STRONG);
+        Color pageText = startupMenuOpen ? TITLE_TEXT : UI_TEXT;
+        Color pageMuted = startupMenuOpen ? TITLE_MUTED : UI_MUTED;
+        drawHeadingCentered("HOW TO PLAY", y + height - 18,
+                startupMenuOpen ? TITLE_TEXT : UI_ACCENT);
+        fillRect(x + 14, y + height - 31, width - 28, 1,
+                startupMenuOpen ? TITLE_BORDER : UI_BORDER);
 
         int left = x + 18, right = x + 190, top = y + height - 50;
-        drawHeading("EXPLORE", left, top, UI_MUTED);
-        drawText("WASD / ARROWS  Move", left, top - 17, UI_TEXT);
-        drawText("Q  Attack", left, top - 31, UI_TEXT);
-        drawText("H  Brace", left, top - 45, UI_TEXT); // Story 4.1 (FR-12): the combat action set
-        drawText("R  Dodge", left, top - 59, UI_TEXT);
-        drawText("X  Flee", left, top - 73, UI_TEXT);
-        drawText("G  Take item", left, top - 87, UI_TEXT);
-        drawText("SPACE  Wait", left, top - 101, UI_TEXT);
-        drawText("TAB  Backpack", left, top - 115, UI_TEXT);
-        drawText("J  Journal", left, top - 129, UI_TEXT);
+        drawHeading("EXPLORE", left, top, pageMuted);
+        drawText("WASD / ARROWS  Move", left, top - 17, pageText);
+        drawText("Q  Attack", left, top - 31, pageText);
+        drawText("H  Brace", left, top - 45, pageText); // Story 4.1 (FR-12): the combat action set
+        drawText("R  Dodge", left, top - 59, pageText);
+        drawText("X  Flee", left, top - 73, pageText);
+        drawText("G  Take item", left, top - 87, pageText);
+        drawText("SPACE  Wait", left, top - 101, pageText);
+        drawText("TAB  Backpack", left, top - 115, pageText);
+        drawText("J  Journal", left, top - 129, pageText);
 
-        drawHeading("SURVIVE", right, top, UI_MUTED);
-        drawText("C  Forage", right, top - 17, UI_TEXT);
-        drawText("B  Campfire", right, top - 31, UI_TEXT);
-        drawText("T  Craft torch", right, top - 45, UI_TEXT);
-        drawText("K  Cook", right, top - 59, UI_TEXT);
-        drawText("F  Filter water", right, top - 73, UI_TEXT);
-        drawText("V  Boil water", right, top - 87, UI_TEXT);
-        drawText("E  Use selected item", right, top - 101, UI_TEXT);
-        drawText("L  Lockpick", right, top - 115, UI_TEXT);
+        drawHeading("SURVIVE", right, top, pageMuted);
+        drawText("C  Forage", right, top - 17, pageText);
+        drawText("B  Campfire", right, top - 31, pageText);
+        drawText("T  Craft torch", right, top - 45, pageText);
+        drawText("K  Cook", right, top - 59, pageText);
+        drawText("F  Filter water", right, top - 73, pageText);
+        drawText("V  Boil water", right, top - 87, pageText);
+        drawText("E  Use selected item", right, top - 101, pageText);
+        drawText("L  Lockpick", right, top - 115, pageText);
 
-        fillRect(x + 14, y + 92, width - 28, 1, UI_BORDER);
-        drawText("Stay fed, hydrated, warm, and hidden.", x + 18, y + 76, UI_TEXT);
+        fillRect(x + 14, y + 92, width - 28, 1,
+                startupMenuOpen ? TITLE_BORDER : UI_BORDER);
+        drawText("Stay fed, hydrated, warm, and hidden.", x + 18, y + 76, pageText);
         drawText("Treelines block sight. Light helps you—and reveals you.",
-                x + 18, y + 62, UI_TEXT);
-        drawMenuButton((hudWidth() - 210) / 2, 42, 210, 30,
-                "BACK", menuSelection == 0, false);
+                x + 18, y + 62, pageText);
+        if (startupMenuOpen) {
+            drawTitlePopupButton((hudWidth() - 210) / 2, 42, 210, 30,
+                    "BACK", menuSelection == 0);
+        } else {
+            drawMenuButton((hudWidth() - 210) / 2, 42, 210, 30,
+                    "BACK", menuSelection == 0, false);
+        }
     }
 
     private void drawMenuButton(int x, int y, int width, int height, String label,
@@ -3064,6 +3636,45 @@ public class MarginScreen implements Screen {
         font.draw(batch, label, x, y + height / 2f + 4, width, Align.center, false);
     }
 
+    /** Slim title-screen rail inspired by classic pixel-horror menus, leaving the key art exposed. */
+    private void drawTitleMenuEntry(int x, int y, int width, int height,
+                                    String label, boolean selected) {
+        fillRect(x + 2, y - 2, width, height, new Color(0f, 0f, 0f, 0.45f));
+        fillRect(x, y, width, height,
+                selected ? TITLE_SELECTED : TITLE_PANEL_SOFT);
+        fillRect(x, y, width, 1, selected ? TITLE_ACCENT : TITLE_BORDER);
+        fillRect(x, y, selected ? 4 : 2, height,
+                selected ? TITLE_ACCENT : TITLE_BORDER);
+        font.setColor(selected ? TITLE_TEXT : TITLE_MUTED);
+        font.draw(batch, label, x + 13, y + height / 2f + 4);
+    }
+
+    private void drawTitlePanel(float x, float y, float width, float height) {
+        fillRect(x + 3, y - 3, width, height, new Color(0f, 0f, 0f, 0.58f));
+        fillRect(x, y, width, height, TITLE_PANEL);
+        strokeRect(x, y, width, height, TITLE_BORDER);
+        fillRect(x + 2, y + height - 3, width - 4, 1,
+                new Color(0.45f, 0.34f, 0.58f, 0.75f));
+    }
+
+    private void drawTitlePopupButton(int x, int y, int width, int height,
+                                      String label, boolean selected) {
+        fillRect(x + 2, y - 2, width, height, new Color(0f, 0f, 0f, 0.48f));
+        fillRect(x, y, width, height, selected ? TITLE_SELECTED : TITLE_PANEL_SOFT);
+        strokeRect(x, y, width, height, selected ? TITLE_ACCENT : TITLE_BORDER);
+        if (selected) fillRect(x, y, 4, height, TITLE_ACCENT);
+        font.setColor(selected ? TITLE_TEXT : TITLE_MUTED);
+        font.draw(batch, label, x, y + height / 2f + 4, width, Align.center, false);
+    }
+
+    private void drawDisabledMenuButton(int x, int y, int width, int height, String label) {
+        fillRect(x + 2, y - 2, width, height, new Color(0f, 0f, 0f, 0.55f));
+        fillRect(x, y, width, height, new Color(0.025f, 0.020f, 0.040f, 0.94f));
+        strokeRect(x, y, width, height, new Color(0.16f, 0.13f, 0.22f, 1f));
+        font.setColor(new Color(0.31f, 0.28f, 0.38f, 1f));
+        font.draw(batch, label, x, y + height / 2f + 4, width, Align.center, false);
+    }
+
     private void drawLargeTitle(String value, int baseline) {
         float oldX = headingFont.getData().scaleX;
         float oldY = headingFont.getData().scaleY;
@@ -3072,6 +3683,17 @@ public class MarginScreen implements Screen {
         headingFont.draw(batch, value, 2, baseline - 2, hudWidth(), Align.center, false);
         headingFont.setColor(UI_TEXT);
         headingFont.draw(batch, value, 0, baseline, hudWidth(), Align.center, false);
+        headingFont.getData().setScale(oldX, oldY);
+    }
+
+    private void drawLargeTitleAt(String value, float x, float baseline) {
+        float oldX = headingFont.getData().scaleX;
+        float oldY = headingFont.getData().scaleY;
+        headingFont.getData().setScale(2f);
+        headingFont.setColor(new Color(0.015f, 0.008f, 0.025f, 0.94f));
+        headingFont.draw(batch, value, x + 2, baseline - 2);
+        headingFont.setColor(TITLE_TEXT);
+        headingFont.draw(batch, value, x, baseline);
         headingFont.getData().setScale(oldX, oldY);
     }
 
