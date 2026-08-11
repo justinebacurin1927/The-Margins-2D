@@ -55,7 +55,7 @@
 #   item is now folded into new Story 1.1's acceptance criteria (AD-6).
 
 generated: 2026-08-06
-last_updated: 2026-08-10  # Story 4.1 created (ready-for-dev): AG as real 6th stat (D3 ag=7 player / 3 enemy), pipeline-preserving AG (D1), full five-action set (D2). Epic 4 in-progress.
+last_updated: 2026-08-10  # Story 4.1 in-progress: AG as real 6th stat (D3 ag=7 player / 3 enemy), pipeline-preserving AG (D1), full five-action set (D2). Epic 4 in-progress.
 project: The Margin
 project_key: NOKEY
 tracking_system: file-system
@@ -94,7 +94,7 @@ development_status:
 
   # Epic 4 — Combat & Its Costs
   epic-4: in-progress
-  4-1-combat-resolves-at-the-actors-point-via-combatsystem: ready-for-dev
+  4-1-combat-resolves-at-the-actors-point-via-combatsystem: in-progress
   4-2-combat-noise-draws-reinforcements: backlog
   4-3-occupation-escalation-thickens-per-act: backlog
   4-4-weapon-durability-and-gear-with-memory: backlog

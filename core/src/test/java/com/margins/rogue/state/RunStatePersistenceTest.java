@@ -436,4 +436,40 @@ class RunStatePersistenceTest {
         assertNotNull(fromOld.getIdentifyMap().identityOf(Supply.count() - 1),
                 "every ordinal through the new count is bound");
     }
+
+    @Test
+    void agStatsSurviveRoundTrip() {
+        // Story 4.1 (AC-3 / AD-6): AG is a real persisted stat on player AND enemy — a load keeps
+        // it (never re-rolls, never resets to the default).
+        RunState s = new RunState(42L);
+        s.getPlayer().setAg(10);
+        RogueEnemy e = s.getEnemies().get(0);
+        e.setAg(9);
+
+        RunState loaded = json().fromJson(RunState.class, json().toJson(s));
+        loaded.restoreAfterLoad();
+
+        assertEquals(10, loaded.getPlayer().getAg(), "player AG survives round-trip");
+        assertEquals(9, loaded.getEnemies().get(0).getAg(), "enemy AG survives round-trip");
+    }
+
+    @Test
+    void preAgSaveLoadsDeterministicDefaults() {
+        // AD-6 (Story 4.1, D3): a save predating the ag fields loads the deterministic defaults —
+        // player 7 (the evasion base), enemy 3 (the slow Giliman) — never a 0 inherited from the
+        // no-arg Json ctor. Field-initialized, so restoreAfterLoad needs no reconcile.
+        RunState withData = new RunState(7L);
+        JsonValue root = new JsonReader().parse(json().toJson(withData));
+        root.get("player").remove("ag");
+        JsonValue enemies = root.get("enemies");
+        for (int i = 0; i < enemies.size; i++) enemies.get(i).remove("ag");
+
+        RunState fromOld = json().fromJson(RunState.class, root.toJson(JsonWriter.OutputType.json));
+        fromOld.restoreAfterLoad();
+
+        assertEquals(7, fromOld.getPlayer().getAg(), "a pre-4.1 player loads the deterministic AG 7 (D3)");
+        for (RogueEnemy e : fromOld.getEnemies()) {
+            assertEquals(3, e.getAg(), "a pre-4.1 enemy loads the deterministic AG 3 (D3)");
+        }
+    }
 }

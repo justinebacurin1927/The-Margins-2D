@@ -63,6 +63,8 @@ public class PixelPack {
     private final Texture effectsTex;
     private final Texture effectsSmoothTex;
     private final Texture mainMenuBackgroundTex;
+    private final Texture mainMenuLogoTex;
+    private final Texture backpackIconTex;
     private final Texture fogTex;
     private final Texture forestTex;
     private final Texture envTex;
@@ -89,6 +91,8 @@ public class PixelPack {
     private final TextureRegion[] effects;
     private final TextureRegion[] effectsSmooth;
     private final TextureRegion mainMenuBackground;
+    private final TextureRegion mainMenuLogo;
+    private final TextureRegion backpackIcon;
     private final TextureRegion[] fog;
     private final TextureRegion[] forest;
     private final TextureRegion[] env;
@@ -117,6 +121,8 @@ public class PixelPack {
         effectsTex = load("assets/light-weather-effects.png");
         effectsSmoothTex = loadSmooth("assets/light-weather-effects.png");
         mainMenuBackgroundTex = loadSmooth("assets/main-menu-background.png");
+        mainMenuLogoTex = load("assets/icons/the-margin-256.png");
+        backpackIconTex = load("assets/ui/backpack-icon.png");
         fogTex = load("assets/fog-effects-v2.png");
         forestTex = load("assets/forest-autotiles.png");
         envTex = load("assets/environment-tiles.png");
@@ -143,6 +149,8 @@ public class PixelPack {
         effects = slice(effectsTex, EFFECT_COLS, EFFECT_ROWS);
         effectsSmooth = slice(effectsSmoothTex, EFFECT_COLS, EFFECT_ROWS);
         mainMenuBackground = new TextureRegion(mainMenuBackgroundTex);
+        mainMenuLogo = new TextureRegion(mainMenuLogoTex);
+        backpackIcon = new TextureRegion(backpackIconTex);
         fog = slice(fogTex, FOG_COLS, 1);
         forest = slice(forestTex, FOREST_COLS, FOREST_ROWS);
         env = slice(envTex, ENV_COLS, ENV_ROWS);
@@ -243,6 +251,16 @@ public class PixelPack {
         return mainMenuBackground;
     }
 
+    /** Transparent tree-and-sword project emblem used by the title screen. */
+    public TextureRegion mainMenuLogo() {
+        return mainMenuLogo;
+    }
+
+    /** Compact leather pouch used as the shared quickbar/full-inventory heading mark. */
+    public TextureRegion backpackIcon() {
+        return backpackIcon;
+    }
+
     /** One of four transparent, horizontally drifting pixel-mist frames. */
     public TextureRegion fog(int frame) {
         return fog[Math.floorMod(frame, fog.length)];
@@ -313,6 +331,8 @@ public class PixelPack {
         effectsTex.dispose();
         effectsSmoothTex.dispose();
         mainMenuBackgroundTex.dispose();
+        mainMenuLogoTex.dispose();
+        backpackIconTex.dispose();
         fogTex.dispose();
         forestTex.dispose();
         envTex.dispose();

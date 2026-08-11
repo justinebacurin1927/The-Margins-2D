@@ -8,6 +8,12 @@ public class DesktopLauncher {
     public static void main(String[] args) {
         Lwjgl3ApplicationConfiguration config = new Lwjgl3ApplicationConfiguration();
         config.setTitle("The Margins 2D");
+        config.setWindowIcon(
+            "assets/icons/the-margin-32.png",
+            "assets/icons/the-margin-64.png",
+            "assets/icons/the-margin-128.png",
+            "assets/icons/the-margin-256.png"
+        );
         config.setWindowedMode(960, 640);
         config.setMaximized(true);
         config.useVsync(true);

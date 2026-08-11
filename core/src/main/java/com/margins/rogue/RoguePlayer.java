@@ -148,8 +148,11 @@ public class RoguePlayer {
     private int grit;
     private int voice;
     private int skill; // FR-11 horizontal-growth axis: governs cooking/purification rolls (Story 1.5)
+    private int ag = 7; // Story 4.1 (FR-12, D3): AG — the evasion/initiative stat (dodge is ag×3, turn order).
+                        // Field-initialized (AD-6): a pre-4.1 save (no ag key) loads the deterministic 7.
 
     private boolean blocking;
+    private boolean evading; // Story 4.1 (FR-12): Dodge's one-turn evasion — cleared after the enemy phase (AD-4)
     private transient RogueTileMap map;
 
     private RoguePlayer() {} // for libGDX Json deserialization; map re-injected via setMap
@@ -168,8 +171,10 @@ public class RoguePlayer {
         this.grit = 5;
         this.voice = 3;
         this.skill = 5;
+        this.ag = 7;
 
         this.blocking = false;
+        this.evading = false;
     }
 
     public int getTileX() { return tileX; }
@@ -212,6 +217,9 @@ public class RoguePlayer {
     public int getSkill() { return skill; }
     /** Set SKILL (FR-11): the horizontal-growth axis. Growth-by-knowledge raises it in a later story. */
     public void setSkill(int value) { skill = value; }
+    public int getAg() { return ag; }
+    /** Set AG (Story 4.1, FR-12): the combat/evasion stat. Tests + enemy-variety set it; default 7 (D3). */
+    public void setAg(int value) { ag = value; }
 
     public boolean tryMove(int dx, int dy) {
         int nx = tileX + dx;
@@ -231,16 +239,29 @@ public class RoguePlayer {
     public boolean isBlocking() { return blocking; }
     public void setBlocking(boolean v) { blocking = v; }
 
+    public boolean isEvading() { return evading; }
+    /** Set the Dodge action's one-turn evasion (Story 4.1). Cleared by TurnEngine after the enemy phase. */
+    public void setEvading(boolean v) { evading = v; }
+
     public boolean tryDodge(Random rng) {
         return rng.nextInt(100) < dodgePercent();
     }
 
-    /** Effective dodge chance (instinct×3), after Trembling's -15% Agility penalty.
-     *  Trembling can come from Starving (hunger) or Parched (thirst); Delirium's Vertigo
-     *  adds a second -15% (multiplicative with Trembling, Story 1.7). The penalties are
-     *  applied once each, not stacked. Package-private for headless tests. */
+    /** Dodge roll with a percentage boost (Story 4.1 Dodge action): chance = min(90, dodgePercent ×
+     *  boost/100). The clamp keeps even a boosted dodge short of a guaranteed evasion. One seeded
+     *  draw, like the base roll (AD-5). */
+    public boolean tryDodge(Random rng, int boostPercent) {
+        int chance = Math.min(90, dodgePercent() * boostPercent / 100);
+        return rng.nextInt(100) < chance;
+    }
+
+    /** Effective dodge chance (ag×3), after Trembling's -15% Agility penalty — the real AG stat
+     *  (Story 4.1, D3: AG=7 reproduces the old instinct=7 value exactly, 21%). Trembling can come
+     *  from Starving (hunger) or Parched (thirst); Delirium's Vertigo adds a second -15%
+     *  (multiplicative with Trembling, Story 1.7). The penalties are applied once each, not
+     *  stacked. Package-private for headless tests. */
     int dodgePercent() {
-        int eff = instinct;
+        int eff = ag;
         if (isTrembling()) {
             eff = Math.round(eff * 0.85f);
         }

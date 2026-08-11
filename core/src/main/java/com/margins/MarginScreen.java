@@ -96,6 +96,19 @@ public class MarginScreen implements Screen {
     private static final Color UI_FOOD = new Color(0.73f, 0.67f, 0.36f, 1f);
     private static final Color UI_WATER = new Color(0.40f, 0.68f, 0.76f, 1f);
     private static final Color UI_WARNING = new Color(0.92f, 0.55f, 0.28f, 1f);
+    private static final Color EVENT_ROUTINE = new Color(0.96f, 0.97f, 0.92f, 1f);
+    private static final Color EVENT_TIME = new Color(1f, 0.82f, 0.24f, 1f);
+    private static final Color EVENT_DEFEAT = new Color(0.96f, 0.25f, 0.19f, 1f);
+    private static final Color EVENT_DIALOGUE = new Color(1f, 0.52f, 0.16f, 1f);
+    // The narrative surface is a dark, weathered parchment scroll rather than another HUD box.
+    private static final Color SCROLL_SHADOW = new Color(0.015f, 0.008f, 0.003f, 0.82f);
+    private static final Color SCROLL_OUTLINE = new Color(0.12f, 0.055f, 0.018f, 1f);
+    private static final Color SCROLL_EDGE = new Color(0.28f, 0.14f, 0.055f, 1f);
+    private static final Color SCROLL_ROLL = new Color(0.50f, 0.31f, 0.13f, 1f);
+    private static final Color SCROLL_PAPER = new Color(0.34f, 0.22f, 0.10f, 0.985f);
+    private static final Color SCROLL_INNER = new Color(0.29f, 0.18f, 0.078f, 0.98f);
+    private static final Color SCROLL_TEXT = new Color(0.96f, 0.88f, 0.68f, 1f);
+    private static final Color SCROLL_MUTED = new Color(0.74f, 0.62f, 0.40f, 1f);
     // Warm backpack palette: red-brown leather, copper trim, parchment text and gold selection.
     // Kept inventory-specific so the survival HUD retains its dark forest identity.
     private static final Color INV_OVERLAY = new Color(0.035f, 0.020f, 0.010f, 0.78f);
@@ -170,8 +183,14 @@ public class MarginScreen implements Screen {
     private JournalController journal = new JournalController();
 
     private enum MenuPage { ROOT, OPTIONS, HOW_TO_PLAY }
+    /** Three suspended inventory surfaces, mirroring SPD's category pages without changing turns. */
+    private enum InventoryPage { BACKPACK, BODY, CRAFT }
+    /** Recipes already supported by the turn engine; the HUD is a real front-end, not a mock-up. */
+    private enum CraftRecipe { TORCH, CAMPFIRE, COOK_MEAT, FILTER_WATER, BOIL_WATER }
 
     private boolean gameOver = false;
+    /** Frozen when true death is first observed so the event and death panel agree. */
+    private String deathCauseLine;
     /** Startup/title surface; the world remains its animated in-game backdrop. */
     private boolean startupMenuOpen = true;
     /** True when Continue points at either a loaded save or the current in-memory journey. */
@@ -183,6 +202,9 @@ public class MarginScreen implements Screen {
     private int startupSelection;
     /** Full backpack surface. Modal presentation state: while open, the turn loop is paused. */
     private boolean inventoryOpen = false;
+    private InventoryPage inventoryPage = InventoryPage.BACKPACK;
+    private int selectedRecipe;
+    private int selectedEquipmentSlot;
     /** Clicked condition card; hover temporarily takes precedence. Presentation-only, never a turn. */
     private String pinnedStatusKey;
     /** Selected backpack slot (0..7), -1 = none yet. Screen state only — reset on restart (Task 5). */
@@ -320,6 +342,7 @@ public class MarginScreen implements Screen {
     private static final int[] FOREST_TREE_PROPS = {24, 25, 26, 27}; // young/full/old/dead
     private static final int[] FOREST_BUSH_PROPS = {18, 19, 20};     // fern/bush/berry bush
     private static final int[] FOREST_ROCK_PROPS = {32, 33, 34};     // pebble/rock/boulder
+    private static final int DEATH_SKELETON_TILE = 59; // skull and bones, atlas row 7 col 3
     /** Explored-but-out-of-sight tiles draw dimmed (fog memory) — the sprite twin of the old
      *  colour multiplier. */
     private static final Color DIM_TILE = new Color(0.45f, 0.45f, 0.5f, 1f);
@@ -383,7 +406,8 @@ public class MarginScreen implements Screen {
             // the red overlay keeps it prominent. [R] restarts: fresh seeded log, selection cleared.
             if (!gameOver) {
                 gameOver = true;
-                state.appendMessages(List.of(GAME_OVER_LINE));
+                deathCauseLine = inferDeathCause(state);
+                state.appendMessages(List.of(deathCauseLine, GAME_OVER_LINE));
                 SaveService.deleteSave();
                 hasContinue = false;
             }
@@ -583,6 +607,7 @@ public class MarginScreen implements Screen {
         FovSystem.compute(state);
         clearAnimations();
         gameOver = false;
+        deathCauseLine = null;
         hasContinue = false;
         startupMenuOpen = false;
         menuOpen = false;
@@ -715,6 +740,7 @@ public class MarginScreen implements Screen {
         FovSystem.compute(state);
         clearAnimations();
         gameOver = false;
+        deathCauseLine = null;
         menuOpen = false;
         inventoryOpen = false;
         pinnedStatusKey = null;
@@ -727,6 +753,13 @@ public class MarginScreen implements Screen {
         // is HELD aims that tile (all 8 directions — diagonals included). Checked before the move
         // keys so a Q+W same-frame press reads as an aimed attack, not a move.
         if (down(Input.Keys.Q))     return PlayerAction.attack(attackDirection(facing));
+        // Story 4.1 (FR-12): the rest of the combat action set, grouped with the swing. H braces,
+        // R dodges (one turn of boosted evasion), X flees (break away from the nearest enemy).
+        // Each is a real combat action the player can press — no test-only-reachable feature
+        // (Epic 3 retro action item #1).
+        if (down(Input.Keys.H))     return PlayerAction.block(facing);
+        if (down(Input.Keys.R))     return PlayerAction.dodge(facing);
+        if (down(Input.Keys.X))     return PlayerAction.flee(facing);
         if (down(Input.Keys.W) || down(Input.Keys.UP))    return PlayerAction.move(0, 1, 1);
         if (down(Input.Keys.S) || down(Input.Keys.DOWN))  return PlayerAction.move(0, -1, 0);
         if (down(Input.Keys.A) || down(Input.Keys.LEFT))  return PlayerAction.move(-1, 0, 2);
@@ -815,6 +848,7 @@ public class MarginScreen implements Screen {
             selectedSlot = inv.nextOccupiedStack(-1);
         }
         if (selectedSlot < 0) selectedSlot = 0; // an empty pack still has a navigable first slot
+        inventoryPage = InventoryPage.BACKPACK;
         inventoryOpen = true;
         pinnedStatusKey = null;
     }
@@ -826,13 +860,41 @@ public class MarginScreen implements Screen {
         }
     }
 
-    /** Safe-pause backpack controls. An item action closes the panel before resolving its turn. */
+    /** Safe-pause inventory controls. Number keys, Q/R, or the footer tabs change category. */
     private void handleInventoryInput(RoguePlayer player) {
         if (down(Input.Keys.TAB) || down(Input.Keys.ESCAPE)) {
             closeInventory();
             return;
         }
 
+        if (down(Input.Keys.NUM_1)) { inventoryPage = InventoryPage.BACKPACK; return; }
+        if (down(Input.Keys.NUM_2)) { inventoryPage = InventoryPage.BODY; return; }
+        if (down(Input.Keys.NUM_3)) { inventoryPage = InventoryPage.CRAFT; return; }
+        if (down(Input.Keys.Q)) { cycleInventoryPage(-1); return; }
+        if (down(Input.Keys.R)) { cycleInventoryPage(1); return; }
+
+        if (Gdx.input.isButtonJustPressed(Input.Buttons.LEFT)) {
+            int tab = inventoryTabAtPointer();
+            if (tab >= 0) {
+                inventoryPage = InventoryPage.values()[tab];
+                return;
+            }
+        }
+
+        switch (inventoryPage) {
+            case BODY:
+                handleBodyInventoryInput();
+                return;
+            case CRAFT:
+                handleCraftInventoryInput(player);
+                return;
+            default:
+                handleBackpackInventoryInput(player);
+        }
+    }
+
+    /** Existing backpack navigation and actions, kept intact behind the PACK category. */
+    private void handleBackpackInventoryInput(RoguePlayer player) {
         if (Gdx.input.isButtonJustPressed(Input.Buttons.LEFT)) {
             int clicked = inventorySlotAtPointer();
             if (clicked >= 0) selectedSlot = clicked;
@@ -853,7 +915,16 @@ public class MarginScreen implements Screen {
         PlayerAction action = null;
         int type = selectedType();
         Supply supply = Supply.byOrdinal(type);
-        if (down(Input.Keys.T)) {
+        if (canReadyInLoadout(supply) && down(Input.Keys.Y)) {
+            if (state.getInventory().equip(type)) {
+                state.appendMessages(List.of("Readied " + supply.displayName() + "."));
+                if (state.getInventory().backpackType(selectedSlot) < 0) {
+                    int nextOccupied = state.getInventory().nextOccupiedStack(selectedSlot);
+                    selectedSlot = nextOccupied < 0 ? 0 : nextOccupied;
+                }
+            }
+            return;
+        } else if (down(Input.Keys.T)) {
             action = PlayerAction.craftTorch(player.getFacing());
         } else if (type >= 0 && down(Input.Keys.X)) {
             action = PlayerAction.drop(type, player.getFacing());
@@ -877,11 +948,112 @@ public class MarginScreen implements Screen {
         }
     }
 
+    /** Body/loadout page: the two real equipped slots can be inspected and returned to the pack. */
+    private void handleBodyInventoryInput() {
+        if (down(Input.Keys.W) || down(Input.Keys.UP) || down(Input.Keys.A) || down(Input.Keys.LEFT)) {
+            selectedEquipmentSlot = Math.floorMod(selectedEquipmentSlot - 1, Inventory.EQUIPPED_SLOTS);
+        } else if (down(Input.Keys.S) || down(Input.Keys.DOWN)
+                || down(Input.Keys.D) || down(Input.Keys.RIGHT)) {
+            selectedEquipmentSlot = Math.floorMod(selectedEquipmentSlot + 1, Inventory.EQUIPPED_SLOTS);
+        }
+        if (down(Input.Keys.X) || down(Input.Keys.E)) {
+            int type = state.getInventory().equippedType(selectedEquipmentSlot);
+            if (type >= 0 && state.getInventory().unequip(selectedEquipmentSlot)) {
+                Supply supply = Supply.byOrdinal(type);
+                String name = supply == null ? "item" : supply.displayName();
+                state.appendMessages(List.of("Returned " + name + " to the backpack."));
+            }
+        }
+    }
+
+    /** Recipe list navigation. A successful choice closes the HUD and resolves through TurnEngine. */
+    private void handleCraftInventoryInput(RoguePlayer player) {
+        int recipeCount = CraftRecipe.values().length;
+        if (Gdx.input.isButtonJustPressed(Input.Buttons.LEFT)) {
+            int clicked = craftRecipeAtPointer();
+            if (clicked >= 0) selectedRecipe = clicked;
+        }
+        if (down(Input.Keys.W) || down(Input.Keys.UP)) {
+            selectedRecipe = Math.floorMod(selectedRecipe - 1, recipeCount);
+        } else if (down(Input.Keys.S) || down(Input.Keys.DOWN)) {
+            selectedRecipe = Math.floorMod(selectedRecipe + 1, recipeCount);
+        }
+        if (!down(Input.Keys.ENTER) && !down(Input.Keys.SPACE)) return;
+
+        CraftRecipe recipe = CraftRecipe.values()[selectedRecipe];
+        PlayerAction action = craftAction(recipe, player.getFacing());
+        if (action == null || !craftRecipeReady(recipe)) return;
+        inventoryOpen = false;
+        submitPlayerAction(action);
+    }
+
+    private void cycleInventoryPage(int direction) {
+        InventoryPage[] pages = InventoryPage.values();
+        inventoryPage = pages[Math.floorMod(inventoryPage.ordinal() + direction, pages.length)];
+    }
+
+    private PlayerAction craftAction(CraftRecipe recipe, int facing) {
+        switch (recipe) {
+            case TORCH: return PlayerAction.craftTorch(facing);
+            case CAMPFIRE: return PlayerAction.buildCampfire(facing);
+            case COOK_MEAT: {
+                int source = firstHeld(Supply.RAW_MEAT, Supply.HALF_ROTTEN_MEAT);
+                return source < 0 ? null : PlayerAction.cook(source, facing);
+            }
+            case FILTER_WATER: {
+                int source = firstHeld(Supply.WELL_WATER, Supply.POND_WATER, Supply.RIVER_WATER);
+                return source < 0 ? null : PlayerAction.filter(source, facing);
+            }
+            case BOIL_WATER: {
+                int source = firstHeld(Supply.FILTERED_WATER, Supply.WELL_WATER,
+                        Supply.POND_WATER, Supply.RIVER_WATER);
+                return source < 0 ? null : PlayerAction.boil(source, facing);
+            }
+            default: return null;
+        }
+    }
+
+    private int firstHeld(Supply... choices) {
+        Inventory inv = state.getInventory();
+        for (Supply choice : choices) {
+            if (inv.count(choice.ordinal()) > 0) return choice.ordinal();
+        }
+        return -1;
+    }
+
+    private boolean craftRecipeReady(CraftRecipe recipe) {
+        Inventory inv = state.getInventory();
+        switch (recipe) {
+            case TORCH:
+                return state.getTorchTurns() <= 0
+                        && inv.count(Supply.WOOD.ordinal()) > 0
+                        && inv.count(Supply.COAL.ordinal()) > 0;
+            case CAMPFIRE:
+                return true;
+            case COOK_MEAT:
+                return state.isPlayerAtFire()
+                        && firstHeld(Supply.RAW_MEAT, Supply.HALF_ROTTEN_MEAT) >= 0;
+            case FILTER_WATER:
+                return firstHeld(Supply.WELL_WATER, Supply.POND_WATER, Supply.RIVER_WATER) >= 0;
+            case BOIL_WATER:
+                return state.isPlayerAtFire() && inv.count(Supply.COAL.ordinal()) > 0
+                        && firstHeld(Supply.FILTERED_WATER, Supply.WELL_WATER,
+                        Supply.POND_WATER, Supply.RIVER_WATER) >= 0;
+            default:
+                return false;
+        }
+    }
+
     /** Mystery consumables, provisions and the read-narration notes (Torn Page, Map Fragment) all
      *  have a meaningful E action. */
     static boolean canUseFromInventory(Supply supply) {
         return supply != null && (supply.isProvision() || supply.isConsumedOnUse()
                 || supply == Supply.TORN_PAGE || supply == Supply.MAP_FRAGMENT);
+    }
+
+    /** Existing utility materials that make sense in the two persisted ready slots. */
+    static boolean canReadyInLoadout(Supply supply) {
+        return supply == Supply.FOLDED_CLOTH || supply == Supply.ROPE || supply == Supply.SMALL_TOOLS;
     }
 
     /** Four-by-two cursor movement with SPD-like edge wrapping. Row zero is the visual top row. */
@@ -928,6 +1100,36 @@ public class MarginScreen implements Screen {
             int sy = gridY + (1 - row) * (INVENTORY_CELL + INVENTORY_GAP);
             if (pointerHud.x >= sx && pointerHud.x < sx + INVENTORY_CELL
                     && pointerHud.y >= sy && pointerHud.y < sy + INVENTORY_CELL) return slot;
+        }
+        return -1;
+    }
+
+    private int inventoryTabAtPointer() {
+        if (!updateHudPointer()) return -1;
+        int panelX = (hudWidth() - INVENTORY_PANEL_W) / 2;
+        int panelY = (hudHeight() - INVENTORY_PANEL_H) / 2;
+        int tabX = panelX + 12;
+        int tabY = panelY + 7;
+        int tabWidth = 72;
+        int gap = 4;
+        if (pointerHud.y < tabY || pointerHud.y >= tabY + 21 || pointerHud.x < tabX) return -1;
+        int tab = (int) ((pointerHud.x - tabX) / (tabWidth + gap));
+        if (tab < 0 || tab >= InventoryPage.values().length) return -1;
+        return pointerHud.x < tabX + tab * (tabWidth + gap) + tabWidth ? tab : -1;
+    }
+
+    private int craftRecipeAtPointer() {
+        if (!updateHudPointer()) return -1;
+        int panelX = (hudWidth() - INVENTORY_PANEL_W) / 2;
+        int panelY = (hudHeight() - INVENTORY_PANEL_H) / 2;
+        int top = panelY + INVENTORY_PANEL_H;
+        int listX = panelX + 14;
+        int firstY = top - 66;
+        int rowHeight = 29;
+        if (pointerHud.x < listX || pointerHud.x >= listX + 177) return -1;
+        for (int recipe = 0; recipe < CraftRecipe.values().length; recipe++) {
+            int y = firstY - recipe * rowHeight;
+            if (pointerHud.y >= y && pointerHud.y < y + 25) return recipe;
         }
         return -1;
     }
@@ -1093,8 +1295,15 @@ public class MarginScreen implements Screen {
         }
         float playerX = animatedPixelX(playerMotion, px);
         float playerY = animatedPixelY(playerMotion, py);
-        drawAnimatedActor(PLAYER_CHARACTER, playerMotion, playerAttack, playerX, playerY,
-                structureGrounding(map, playerMotion, px, py));
+        if (state.getPlayer().isAlive()) {
+            drawAnimatedActor(PLAYER_CHARACTER, playerMotion, playerAttack, playerX, playerY,
+                    structureGrounding(map, playerMotion, px, py));
+        } else {
+            // True death leaves readable remains in the world instead of an upright living sprite.
+            batch.setColor(new Color(0.78f, 0.74f, 0.62f, 0.92f));
+            drawSprite(pixels.tile(DEATH_SKELETON_TILE), playerX, playerY, 20, 20);
+            batch.setColor(Color.WHITE);
+        }
 
         // The south wall has a tall inward-facing stone lip. Redraw only that transparent strip
         // above actors so characters immediately inside the house disappear naturally behind the
@@ -1971,9 +2180,9 @@ public class MarginScreen implements Screen {
         // window resumes when the page closes. The intro plays first (app start), so it takes
         // precedence. The log is core-owned (AD-1); never built here.
         if (intro.isActive()) {
-            renderTextPage(intro.getCurrent(), "[SPACE] continue   [ESC] skip");
+            renderTextPage(intro.getCurrent(), "");
         } else if (dialog.isActive()) {
-            renderTextPage(dialog.getCurrent(), "[SPACE] continue");
+            renderTextPage(dialog.getCurrent(), "");
         } else if (journal.isActive()) {
             renderJournalPage();
         } else {
@@ -1997,11 +2206,11 @@ public class MarginScreen implements Screen {
         String weather = state.getWeather() == Weather.COLD_SNAP
                 ? "COLD" : state.getWeather().label().toUpperCase();
         if (state.isDay()) {
-            String phase = "D" + state.dayNumber() + " " + (torchLit ? "D" : "DAY ")
-                    + state.getClockTurns() + " N-" + state.turnsUntilNightfall();
-            return torchLit ? phase + " " + weather : phase + "  " + weather;
+            String phase = (torchLit ? "D" : "DAY ") + state.dayNumber()
+                    + " " + state.turnsUntilNightfall() + "T";
+            return phase + " " + weather;
         }
-        return (torchLit ? "N" : "NIGHT ") + state.getClockTurns() + "  " + weather;
+        return (torchLit ? "N " : "NIGHT ") + state.getClockTurns() + " " + weather;
     }
 
     /** Compact top-left survival panel: condition names live in hover/click cards, not the bar. */
@@ -2256,16 +2465,19 @@ public class MarginScreen implements Screen {
 
         Inventory inv = state.getInventory();
         fillRect(x + 3, y + 37, PACK_PANEL_W - 6, 21, INV_HEADER);
-        drawHeading("BACKPACK", x + 7, y + 53, INV_TEXT);
+        batch.setColor(Color.WHITE);
+        batch.draw(pixels.backpackIcon(), x + 7, y + 39, 17, 17);
+        drawHeading("BACKPACK", x + 27, y + 53, INV_TEXT);
         drawText(inv.backpackStackCount() + "/" + Inventory.BACKPACK_STACKS,
                 x + PACK_PANEL_W - 27, y + 53, inv.isBackpackFull() ? INV_WARNING : INV_MUTED);
-        String selected = "[TAB] OPEN   [ / ] QUICK SELECT";
+        String selected = "";
         if (selectedSlot >= 0 && inv.backpackType(selectedSlot) >= 0) {
             int type = inv.backpackType(selectedSlot);
             selected = state.getIdentifyMap().displayNameFor(type) + " x" + inv.backpackCount(selectedSlot);
         }
-        drawText(fitText(selected, PACK_PANEL_W - 12), x + 7, y + 42,
-                selectedSlot >= 0 ? INV_GOLD : INV_MUTED);
+        if (!selected.isEmpty()) {
+            drawText(fitText(selected, PACK_PANEL_W - 12), x + 7, y + 42, INV_GOLD);
+        }
 
         int slotSize = 22;
         int gap = 2;
@@ -2286,7 +2498,7 @@ public class MarginScreen implements Screen {
         }
     }
 
-    /** Full SPD-style backpack: large grid left, selected-item knowledge and actions right. */
+    /** SPD-style inventory shell with backpack, body/loadout, and real crafting categories. */
     private void renderInventoryPanel() {
         fillRect(0, 0, hudWidth(), hudHeight(), INV_OVERLAY);
 
@@ -2297,13 +2509,44 @@ public class MarginScreen implements Screen {
         fillRect(x + 4, top - 29, INVENTORY_PANEL_W - 8, 24, INV_HEADER);
         strokeRect(x + 4, top - 29, INVENTORY_PANEL_W - 8, 24, INV_TRIM);
 
-        drawHeading("BACKPACK", x + 14, top - 14, INV_TEXT);
-        Inventory inv = state.getInventory();
-        String capacity = inv.backpackStackCount() + " / " + Inventory.BACKPACK_STACKS + " STACKS";
-        drawText(capacity, x + INVENTORY_PANEL_W - 12 - new GlyphLayout(font, capacity).width,
-                top - 14, inv.isBackpackFull() ? INV_WARNING : INV_MUTED);
+        batch.setColor(Color.WHITE);
+        String heading;
+        String meta;
+        Color metaColor = INV_MUTED;
+        switch (inventoryPage) {
+            case BODY:
+                batch.draw(pixels.character(PLAYER_CHARACTER), x + 12, top - 27, 20, 20);
+                heading = "BODY & LOADOUT";
+                meta = "KLEIN";
+                break;
+            case CRAFT:
+                batch.draw(pixels.item(21), x + 12, top - 27, 20, 20);
+                heading = "CRAFTING";
+                meta = (selectedRecipe + 1) + " / " + CraftRecipe.values().length + " RECIPES";
+                break;
+            default:
+                batch.draw(pixels.backpackIcon(), x + 12, top - 27, 20, 20);
+                heading = "BACKPACK";
+                Inventory inv = state.getInventory();
+                meta = inv.backpackStackCount() + " / " + Inventory.BACKPACK_STACKS + " STACKS";
+                if (inv.isBackpackFull()) metaColor = INV_WARNING;
+                break;
+        }
+        drawHeading(heading, x + 37, top - 14, INV_TEXT);
+        drawText(meta, x + INVENTORY_PANEL_W - 12 - new GlyphLayout(font, meta).width,
+                top - 14, metaColor);
         fillRect(x + 12, top - 31, INVENTORY_PANEL_W - 24, 1, INV_HIGHLIGHT);
 
+        switch (inventoryPage) {
+            case BODY: renderBodyInventoryPage(x, y, top); break;
+            case CRAFT: renderCraftInventoryPage(x, y, top); break;
+            default: renderBackpackInventoryPage(x, y, top); break;
+        }
+        renderInventoryTabs(x, y);
+    }
+
+    private void renderBackpackInventoryPage(int x, int y, int top) {
+        Inventory inv = state.getInventory();
         int gridX = x + 14;
         int gridY = y + 99;
         for (int slot = 0; slot < Inventory.BACKPACK_STACKS; slot++) {
@@ -2329,11 +2572,218 @@ public class MarginScreen implements Screen {
         fillRect(dividerX, y + 44, 1, INVENTORY_PANEL_H - 82, INV_TRIM);
         renderInventoryDetails(dividerX + 12, y, top,
                 INVENTORY_PANEL_W - (dividerX - x) - 24);
+    }
 
-        fillRect(x + 12, y + 36, INVENTORY_PANEL_W - 24, 1, INV_TRIM);
-        font.setColor(INV_GOLD);
-        font.draw(batch, "WASD SELECT   E ACT   X DROP   TAB / ESC CLOSE",
-                x, y + 17, INVENTORY_PANEL_W, Align.center, false);
+    private void renderBodyInventoryPage(int x, int y, int top) {
+        RoguePlayer player = state.getPlayer();
+        Inventory inv = state.getInventory();
+        int slot = 42;
+        int left = x + 18;
+        int right = x + INVENTORY_PANEL_W - 18 - slot;
+        int rowA = top - 80;
+        int rowB = top - 130;
+        int rowC = top - 180;
+
+        // Klein's worn starter clothing is part of his character art; the READY slots below are
+        // the two actual persisted Inventory.equipped entries.
+        drawBodyGearSlot(left, rowA, slot, "HEAD", -1, false, true);
+        drawBodyGearSlot(left, rowB, slot, "BODY", -1, false, true);
+        drawBodyGearSlot(left, rowC, slot, "BOOTS", -1, false, true);
+        drawBodyGearSlot(right, rowA, slot, "HAND", -1, false, true);
+        drawBodyGearSlot(right, rowB, slot, "OFFHAND", inv.equippedType(0),
+                selectedEquipmentSlot == 0, false);
+        drawBodyGearSlot(right, rowC, slot, "CHARM", inv.equippedType(1),
+                selectedEquipmentSlot == 1, false);
+
+        fillRect(x + 149, top - 170, 112, 88, INV_OUTLINE);
+        fillRect(x + 151, top - 168, 108, 84, INV_SLOT);
+        fillRect(x + 154, top - 165, 102, 78, new Color(0.055f, 0.032f, 0.018f, 1f));
+        fillRect(x + 180, top - 103, 50, 3, new Color(0.015f, 0.008f, 0.004f, 0.55f));
+        batch.setColor(Color.WHITE);
+        batch.draw(pixels.character(PLAYER_CHARACTER), x + 176, top - 163, 58, 72);
+
+        drawHeading("KLEIN", x + 186, top - 175, INV_GOLD);
+        drawBar(x + 149, top - 187, 112, 5,
+                player.getHp() / (float) Math.max(1, player.getMaxHp()), UI_HEALTH);
+        String hp = "HP " + player.getHp() + "/" + player.getMaxHp();
+        font.setColor(INV_TEXT);
+        font.draw(batch, hp, x + 138, top - 196, 134, Align.center, false);
+        String stats = "STR " + player.getStr() + "   AG " + player.getAg()
+                + "   GRIT " + player.getGrit() + "   SKILL " + player.getSkill();
+        font.setColor(INV_MUTED);
+        font.draw(batch, stats, x + 108, top - 208, 194, Align.center, false);
+    }
+
+    private void drawBodyGearSlot(int x, int y, int size, String label,
+                                  int supplyType, boolean selected, boolean starterGear) {
+        drawInventorySlot(x, y, size, size, selected);
+        if (supplyType >= 0) {
+            drawItemIcon(supplyType, x + 9, y + 6, 25, 25);
+        } else if (starterGear) {
+            drawBodyGearSymbol(label, x + 9, y + 6);
+        }
+    }
+
+    /** Tiny purpose-built equipment silhouettes; avoids pretending unrelated supply atlas cells are armor. */
+    private void drawBodyGearSymbol(String slot, int x, int y) {
+        Color metal = new Color(0.72f, 0.68f, 0.57f, 1f);
+        Color cloth = new Color(0.25f, 0.39f, 0.48f, 1f);
+        Color leather = new Color(0.42f, 0.25f, 0.12f, 1f);
+        Color dark = new Color(0.10f, 0.065f, 0.035f, 1f);
+        switch (slot) {
+            case "HEAD":
+                fillRect(x + 5, y + 7, 15, 3, dark);
+                fillRect(x + 3, y + 10, 19, 8, metal);
+                fillRect(x + 6, y + 18, 13, 5, metal);
+                fillRect(x + 7, y + 10, 2, 7, cloth);
+                fillRect(x + 16, y + 10, 2, 7, cloth);
+                break;
+            case "BODY":
+                fillRect(x + 6, y + 5, 13, 15, cloth);
+                fillRect(x + 3, y + 8, 4, 10, cloth);
+                fillRect(x + 18, y + 8, 4, 10, cloth);
+                fillRect(x + 6, y + 10, 13, 3, leather);
+                fillRect(x + 9, y + 20, 7, 4, metal);
+                break;
+            case "BOOTS":
+                fillRect(x + 5, y + 12, 6, 11, leather);
+                fillRect(x + 14, y + 12, 6, 11, leather);
+                fillRect(x + 2, y + 7, 9, 5, dark);
+                fillRect(x + 14, y + 7, 9, 5, dark);
+                fillRect(x + 6, y + 15, 4, 2, metal);
+                fillRect(x + 15, y + 15, 4, 2, metal);
+                break;
+            case "HAND":
+                for (int i = 0; i < 14; i++) fillRect(x + 5 + i, y + 5 + i, 2, 3, metal);
+                fillRect(x + 3, y + 5, 8, 3, leather);
+                fillRect(x + 4, y + 2, 3, 5, leather);
+                break;
+            default:
+                break;
+        }
+    }
+
+    private void renderCraftInventoryPage(int x, int y, int top) {
+        CraftRecipe[] recipes = CraftRecipe.values();
+        int listX = x + 14;
+        int firstY = top - 66;
+        for (int i = 0; i < recipes.length; i++) {
+            CraftRecipe recipe = recipes[i];
+            int rowY = firstY - i * 29;
+            boolean selected = i == selectedRecipe;
+            fillRect(listX, rowY, 177, 25, selected ? INV_SLOT_SELECTED : INV_SLOT);
+            strokeRect(listX, rowY, 177, 25, selected ? INV_GOLD : INV_TRIM);
+            drawCraftRecipeIcon(recipe, listX + 4, rowY + 3, 19);
+            drawText(craftRecipeName(recipe), listX + 28, rowY + 17,
+                    selected ? INV_GOLD : INV_TEXT);
+            String stateLabel = craftRecipeReady(recipe) ? "READY" : "MISSING";
+            drawText(stateLabel, listX + 173 - new GlyphLayout(font, stateLabel).width,
+                    rowY + 9, craftRecipeReady(recipe) ? INV_GOLD : INV_WARNING);
+        }
+
+        int divider = x + 202;
+        fillRect(divider, y + 39, 1, INVENTORY_PANEL_H - 75, INV_TRIM);
+        int detailX = divider + 13;
+        CraftRecipe recipe = recipes[selectedRecipe];
+        drawCraftRecipeIcon(recipe, detailX, top - 80, 32);
+        drawHeading(craftRecipeName(recipe), detailX + 40, top - 52, INV_GOLD);
+        drawText(craftRecipeReady(recipe) ? "READY TO MAKE" : "REQUIREMENTS MISSING",
+                detailX + 40, top - 67, craftRecipeReady(recipe) ? INV_GOLD : INV_WARNING);
+        fillRect(detailX, top - 91, 180, 1, INV_TRIM);
+
+        List<String> description = wrapText(craftRecipeDescription(recipe), 180);
+        int textY = top - 103;
+        for (int i = 0; i < Math.min(3, description.size()); i++) {
+            drawText(description.get(i), detailX, textY, INV_TEXT);
+            textY -= UI_LINE;
+        }
+        drawHeading("NEEDS", detailX, textY - 3, INV_MUTED);
+        textY -= 18;
+        for (String requirement : craftRecipeRequirements(recipe)) {
+            drawText(requirement, detailX, textY, INV_TEXT);
+            textY -= 12;
+        }
+        drawText(craftRecipeReady(recipe) ? "ENTER  CRAFT" : "GATHER SUPPLIES FIRST",
+                detailX, Math.max(y + 43, textY - 4),
+                craftRecipeReady(recipe) ? INV_GOLD : INV_MUTED);
+    }
+
+    private void drawCraftRecipeIcon(CraftRecipe recipe, int x, int y, int size) {
+        batch.setColor(Color.WHITE);
+        switch (recipe) {
+            case TORCH: batch.draw(pixels.item(21), x, y, size, size); break;
+            case CAMPFIRE: batch.draw(pixels.tile(CAMPFIRE_ENV_TILE), x, y, size, size); break;
+            case COOK_MEAT: drawItemIcon(Supply.COOKED_MEAT.ordinal(), x, y, size, size); break;
+            case FILTER_WATER: drawItemIcon(Supply.FILTERED_WATER.ordinal(), x, y, size, size); break;
+            case BOIL_WATER: drawItemIcon(Supply.BOILED_WATER.ordinal(), x, y, size, size); break;
+            default: break;
+        }
+        batch.setColor(Color.WHITE);
+    }
+
+    private static String craftRecipeName(CraftRecipe recipe) {
+        switch (recipe) {
+            case TORCH: return "TORCH";
+            case CAMPFIRE: return "CAMPFIRE";
+            case COOK_MEAT: return "COOK MEAT";
+            case FILTER_WATER: return "FILTER WATER";
+            case BOIL_WATER: return "BOIL WATER";
+            default: return "RECIPE";
+        }
+    }
+
+    private static String craftRecipeDescription(CraftRecipe recipe) {
+        switch (recipe) {
+            case TORCH: return "Bind dry wood and coal into a carried light for dangerous nights.";
+            case CAMPFIRE: return "Build a stationary fire at your feet for warmth, cooking and boiling.";
+            case COOK_MEAT: return "Prepare raw meat at a nearby campfire. Skill affects the result.";
+            case FILTER_WATER: return "Reduce a raw water source's contamination risk using survival skill.";
+            case BOIL_WATER: return "Use coal and a nearby campfire to make carried water completely safe.";
+            default: return "";
+        }
+    }
+
+    private List<String> craftRecipeRequirements(CraftRecipe recipe) {
+        Inventory inv = state.getInventory();
+        switch (recipe) {
+            case TORCH:
+                return List.of("WOOD " + inv.count(Supply.WOOD.ordinal()) + "/1",
+                        "COAL " + inv.count(Supply.COAL.ordinal()) + "/1",
+                        state.getTorchTurns() > 0 ? "TORCH ALREADY LIT" : "NO ACTIVE TORCH");
+            case CAMPFIRE:
+                return List.of("A CLEAR TILE", "ONE TURN");
+            case COOK_MEAT:
+                return List.of("RAW MEAT " + (firstHeld(Supply.RAW_MEAT, Supply.HALF_ROTTEN_MEAT) >= 0 ? "1/1" : "0/1"),
+                        state.isPlayerAtFire() ? "CAMPFIRE NEARBY" : "NO CAMPFIRE NEARBY");
+            case FILTER_WATER:
+                return List.of("RAW WATER " + (firstHeld(Supply.WELL_WATER, Supply.POND_WATER,
+                        Supply.RIVER_WATER) >= 0 ? "1/1" : "0/1"), "SURVIVAL SKILL ROLL");
+            case BOIL_WATER:
+                return List.of("WATER " + (firstHeld(Supply.FILTERED_WATER, Supply.WELL_WATER,
+                                Supply.POND_WATER, Supply.RIVER_WATER) >= 0 ? "1/1" : "0/1"),
+                        "COAL " + inv.count(Supply.COAL.ordinal()) + "/1",
+                        state.isPlayerAtFire() ? "CAMPFIRE NEARBY" : "NO CAMPFIRE NEARBY");
+            default:
+                return List.of();
+        }
+    }
+
+    private void renderInventoryTabs(int x, int y) {
+        fillRect(x + 12, y + 35, INVENTORY_PANEL_W - 24, 1, INV_TRIM);
+        String[] labels = {"1  PACK", "2  BODY", "3  CRAFT"};
+        int tabX = x + 12;
+        for (int i = 0; i < labels.length; i++) {
+            boolean selected = inventoryPage.ordinal() == i;
+            int tx = tabX + i * 76;
+            fillRect(tx, y + 7, 72, 21, selected ? INV_SLOT_SELECTED : INV_SLOT);
+            strokeRect(tx, y + 7, 72, 21, selected ? INV_GOLD : INV_TRIM);
+            font.setColor(selected ? INV_GOLD : INV_MUTED);
+            font.draw(batch, labels[i], tx, y + 21, 72, Align.center, false);
+        }
+        String action = inventoryPage == InventoryPage.BODY ? "E RETURN"
+                : inventoryPage == InventoryPage.CRAFT ? "ENTER MAKE" : "E ACT";
+        drawText(action, x + 249, y + 21, inventoryPage == InventoryPage.CRAFT ? INV_GOLD : INV_MUTED);
+        drawText("ESC CLOSE", x + 329, y + 21, INV_MUTED);
     }
 
     private void renderInventoryDetails(int detailX, int panelY, int panelTop, int detailWidth) {
@@ -2376,6 +2826,12 @@ public class MarginScreen implements Screen {
         String process = inventoryProcessAction(supply);
         if (process != null) {
             drawText(process, detailX, actionY, INV_TEXT);
+            actionY -= 14;
+        }
+        if (canReadyInLoadout(supply)) {
+            drawText("Y  READY IN LOADOUT", detailX, actionY,
+                    state.getInventory().equippedType(0) < 0
+                            || state.getInventory().equippedType(1) < 0 ? INV_GOLD : INV_MUTED);
             actionY -= 14;
         }
         if (supply == Supply.COAL || supply == Supply.WOOD) {
@@ -2460,10 +2916,10 @@ public class MarginScreen implements Screen {
         int x = HUD_MARGIN;
         renderBurgerButton();
 
-        List<String> lines = recentLogLines(LOG_PANEL_W - 16, LOG_LINES);
+        List<LogVisualLine> lines = recentLogLines(LOG_PANEL_W - 16, LOG_LINES);
         int baseline = LOG_PANEL_Y + LOG_PANEL_H - 8;
-        for (String line : lines) {
-            drawLogText(line, x + 8, baseline);
+        for (LogVisualLine line : lines) {
+            drawLogText(line.text(), x + 8, baseline, line.color());
             baseline -= UI_LINE;
         }
 
@@ -2493,9 +2949,17 @@ public class MarginScreen implements Screen {
             return;
         }
 
-        drawLargeTitle("THE MARGINS", hudHeight() - 58);
+        int logoSize = 100;
+        int logoX = (hudWidth() - logoSize) / 2;
+        int logoY = 203;
+        batch.setColor(0f, 0f, 0f, 0.72f);
+        batch.draw(pixels.mainMenuLogo(), logoX + 3, logoY - 3, logoSize, logoSize);
+        batch.setColor(Color.WHITE);
+        batch.draw(pixels.mainMenuLogo(), logoX, logoY, logoSize, logoSize);
+
+        drawLargeTitle("THE MARGINS", hudHeight() - 26);
         font.setColor(UI_MUTED);
-        font.draw(batch, "SURVIVE WHAT THE FOREST GIVES", 0, hudHeight() - 80,
+        font.draw(batch, "SURVIVE WHAT THE FOREST GIVES", 0, hudHeight() - 46,
                 hudWidth(), Align.center, false);
 
         String[] labels = startupMenuLabels();
@@ -2560,10 +3024,13 @@ public class MarginScreen implements Screen {
         drawHeading("EXPLORE", left, top, UI_MUTED);
         drawText("WASD / ARROWS  Move", left, top - 17, UI_TEXT);
         drawText("Q  Attack", left, top - 31, UI_TEXT);
-        drawText("G  Take item", left, top - 45, UI_TEXT);
-        drawText("SPACE  Wait", left, top - 59, UI_TEXT);
-        drawText("TAB  Backpack", left, top - 73, UI_TEXT);
-        drawText("J  Journal", left, top - 87, UI_TEXT);
+        drawText("H  Brace", left, top - 45, UI_TEXT); // Story 4.1 (FR-12): the combat action set
+        drawText("R  Dodge", left, top - 59, UI_TEXT);
+        drawText("X  Flee", left, top - 73, UI_TEXT);
+        drawText("G  Take item", left, top - 87, UI_TEXT);
+        drawText("SPACE  Wait", left, top - 101, UI_TEXT);
+        drawText("TAB  Backpack", left, top - 115, UI_TEXT);
+        drawText("J  Journal", left, top - 129, UI_TEXT);
 
         drawHeading("SURVIVE", right, top, UI_MUTED);
         drawText("C  Forage", right, top - 17, UI_TEXT);
@@ -2613,11 +3080,19 @@ public class MarginScreen implements Screen {
         headingFont.draw(batch, value, 0, baseline, hudWidth(), Align.center, false);
     }
 
-    private List<String> recentLogLines(int maxWidth, int maxLines) {
-        List<String> visual = new ArrayList<>();
+    private record LogVisualLine(String text, Color color) {}
+
+    private List<LogVisualLine> recentLogLines(int maxWidth, int maxLines) {
+        List<LogVisualLine> visual = new ArrayList<>();
         List<String> log = state.getMessageLog();
         int first = Math.max(0, log.size() - 10);
-        for (int i = first; i < log.size(); i++) visual.addAll(wrapText(log.get(i), maxWidth));
+        for (int i = first; i < log.size(); i++) {
+            String event = log.get(i);
+            Color color = eventColorFor(event);
+            for (String wrapped : wrapText(event, maxWidth)) {
+                visual.add(new LogVisualLine(wrapped, color));
+            }
+        }
         int start = Math.max(0, visual.size() - maxLines);
         return new ArrayList<>(visual.subList(start, visual.size()));
     }
@@ -2631,16 +3106,7 @@ public class MarginScreen implements Screen {
     private void renderTextPage(DialogNode node, String footer) {
         if (node == null) return;
 
-        fillRect(0, 0, hudWidth(), hudHeight(), new Color(0.01f, 0.015f, 0.012f, 0.58f));
-        int panelW = WW - 36, panelH = 210;
-        int panelX = (hudWidth() - panelW) / 2, panelY = 58;
-        drawPanel(panelX, panelY, panelW, panelH, UI_PANEL_STRONG);
-
-        String heading = node.speaker != null ? node.speaker : "NARRATION";
-        drawHeading(heading, panelX + 10, panelY + panelH - 10,
-                node.speaker != null ? new Color(0.64f, 0.82f, 0.67f, 1f) : UI_MUTED);
-        fillRect(panelX + 10, panelY + panelH - 17, panelW - 20, 1, UI_BORDER);
-
+        int panelW = WW - 36;
         List<String> choiceLines = new ArrayList<>();
         for (int i = 0; i < node.options.length; i++) {
             String label = node.options[i].label != null ? node.options[i].label : "(...)";
@@ -2649,28 +3115,48 @@ public class MarginScreen implements Screen {
                 choiceLines.add(line == 0 ? wrapped.get(line) : "   " + wrapped.get(line));
             }
         }
+        String text = node.text != null ? node.text : "";
+        List<String> bodyLines = wrapText(text, panelW - 20);
+        int panelH = narrativePanelHeight(bodyLines.size(), choiceLines.size());
+        int panelX = (hudWidth() - panelW) / 2;
+        int panelY = (hudHeight() - panelH) / 2;
+
+        fillRect(0, 0, hudWidth(), hudHeight(), new Color(0.01f, 0.015f, 0.012f, 0.58f));
+        drawScrollPanel(panelX, panelY, panelW, panelH);
+
+        String heading = node.speaker != null ? node.speaker : "NARRATION";
+        drawHeading(heading, panelX + 10, panelY + panelH - 10,
+                node.speaker != null ? EVENT_DIALOGUE : SCROLL_MUTED);
+        fillRect(panelX + 10, panelY + panelH - 17, panelW - 20, 1, SCROLL_EDGE);
 
         int choiceTop = panelY + 28 + Math.max(0, choiceLines.size() - 1) * UI_LINE;
         int bodyBottom = choiceLines.isEmpty() ? panelY + 28 : choiceTop + 14;
         int bodyY = panelY + panelH - 27;
-        String text = node.text != null ? node.text : "";
-        for (String line : wrapText(text, panelW - 20)) {
+        for (String line : bodyLines) {
             if (bodyY < bodyBottom) break;
-            drawText(line, panelX + 10, bodyY, new Color(0.91f, 0.86f, 0.69f, 1f));
+            drawText(line, panelX + 10, bodyY, SCROLL_TEXT);
             bodyY -= UI_LINE;
         }
 
         int cy = choiceTop;
         for (String line : choiceLines) {
-            drawText(line, panelX + 10, cy, UI_TEXT);
+            drawText(line, panelX + 10, cy, SCROLL_TEXT);
             cy -= UI_LINE;
         }
 
-        if (node.options.length == 0) {
-            font.setColor(UI_MUTED);
+        if (node.options.length == 0 && footer != null && !footer.isBlank()) {
+            font.setColor(SCROLL_MUTED);
             font.draw(batch, footer.toUpperCase(), panelX + 10, panelY + 10,
                     panelW - 20, Align.right, false);
         }
+    }
+
+    /** Content-sized scroll: short narration no longer sits inside a mostly empty fixed box. */
+    static int narrativePanelHeight(int bodyLines, int choiceLines) {
+        int body = Math.max(1, bodyLines);
+        int choices = Math.max(0, choiceLines);
+        int requested = 62 + body * UI_LINE + choices * UI_LINE + (choices > 0 ? 18 : 0);
+        return Math.max(96, Math.min(252, requested));
     }
 
     /** Story 2.5 (AC-2): the passive Journal page — the quest list DERIVED from FlagStore
@@ -2726,13 +3212,27 @@ public class MarginScreen implements Screen {
 
     private void renderGameOverPanel() {
         fillRect(0, 0, hudWidth(), hudHeight(), new Color(0.01f, 0.01f, 0.008f, 0.66f));
-        int w = 300, h = 72;
-        int x = (hudWidth() - w) / 2, y = 143;
+        int w = 330, h = 96;
+        int x = (hudWidth() - w) / 2, y = (hudHeight() - h) / 2;
         drawPanel(x, y, w, h, UI_PANEL_STRONG);
+        fillRect(x + 1, y + h - 3, w - 2, 2, EVENT_DEFEAT);
+
+        float bonePulse = 0.78f + 0.12f * (float) Math.sin(lightingClock * 4f);
+        batch.setColor(0.82f, 0.78f, 0.65f, bonePulse);
+        batch.draw(pixels.tile(DEATH_SKELETON_TILE), x + 14, y + 23, 48, 48);
+        batch.setColor(Color.WHITE);
+
+        int textX = x + 60, textW = w - 70;
         headingFont.setColor(UI_HEALTH);
-        headingFont.draw(batch, "YOU FELL IN THE MARGINS", x, y + 48, w, Align.center, false);
+        headingFont.draw(batch, "YOU FELL IN THE MARGINS", textX, y + 70,
+                textW, Align.center, false);
+        String summary = deathCauseLine != null
+                ? deathCauseLine.replace("Cause of death: ", "")
+                : "the margins claimed you.";
+        font.setColor(EVENT_DEFEAT);
+        font.draw(batch, summary, textX, y + 48, textW, Align.center, false);
         font.setColor(UI_TEXT);
-        font.draw(batch, "[R] BEGIN AGAIN", x, y + 27, w, Align.center, false);
+        font.draw(batch, "[R] BEGIN AGAIN", textX, y + 24, textW, Align.center, false);
     }
 
     private void drawText(String value, float x, float y, Color color) {
@@ -2741,13 +3241,95 @@ public class MarginScreen implements Screen {
     }
 
     /** Hard one-pixel outline plus a two-pixel cast shadow keeps floating log text terrain-safe. */
-    private void drawLogText(String value, float x, float y) {
+    private void drawLogText(String value, float x, float y, Color color) {
         drawText(value, x + 2, y - 2, UI_LOG_SHADOW);
         drawText(value, x - 1, y, UI_LOG_SHADOW);
         drawText(value, x + 1, y, UI_LOG_SHADOW);
         drawText(value, x, y - 1, UI_LOG_SHADOW);
         drawText(value, x, y + 1, UI_LOG_SHADOW);
-        drawText(value, x, y, UI_TEXT);
+        drawText(value, x, y, color);
+    }
+
+    enum EventTone { ROUTINE, TIME, DEFEAT, DIALOGUE }
+
+    static EventTone eventToneFor(String value) {
+        if (value == null) return EventTone.ROUTINE;
+        int colon = value.indexOf(':');
+        if (colon > 0 && colon < 20 && value.indexOf('"', colon) > colon) {
+            return EventTone.DIALOGUE;
+        }
+        if (value.equals(RunState.LINE_DAWN) || value.equals(RunState.LINE_DUSK)) {
+            return EventTone.TIME;
+        }
+        for (Weather weather : Weather.values()) {
+            if (value.equals(weather.onsetLine())) return EventTone.TIME;
+        }
+        String lower = value.toLowerCase();
+        if (lower.startsWith("cause of death:")
+                || lower.contains("enemy defeated") || lower.contains("enemy slain")
+                || lower.contains("enemy killed") || lower.endsWith(" falls!")
+                || value.equals(GAME_OVER_LINE)) {
+            return EventTone.DEFEAT;
+        }
+        return EventTone.ROUTINE;
+    }
+
+    private static Color eventColorFor(String value) {
+        return switch (eventToneFor(value)) {
+            case TIME -> EVENT_TIME;
+            case DEFEAT -> EVENT_DEFEAT;
+            case DIALOGUE -> EVENT_DIALOGUE;
+            default -> EVENT_ROUTINE;
+        };
+    }
+
+    /** Derive a stable, player-facing fatal cause from the final turn's emitted observations. */
+    static String inferDeathCause(RunState run) {
+        if (run == null || run.getPlayer() == null) {
+            return "Cause of death: lost to the margins.";
+        }
+        List<String> log = run.getMessageLog();
+        int first = Math.max(0, log.size() - 12);
+        for (int i = log.size() - 1; i >= first; i--) {
+            String lower = log.get(i).toLowerCase();
+            if (lower.startsWith("hit for "))
+                return "Cause of death: slain by a Giliman soldier.";
+            if (lower.contains("floor groans") || lower.contains("section collapses"))
+                return "Cause of death: crushed by a collapsing floor.";
+            if (lower.contains("masonry falls") || lower.contains("stone shifts overhead")
+                    || lower.contains("loose stone topples"))
+                return "Cause of death: crushed by falling masonry.";
+            if (lower.contains("stumble in the dark"))
+                return "Cause of death: a fatal fall in the darkness.";
+            if (lower.contains("dead stir") || lower.contains("cold hand claws"))
+                return "Cause of death: dragged down by the graveyard dead.";
+            if (lower.contains("well lunges"))
+                return "Cause of death: taken by the creature in the well.";
+            if (lower.contains("poacher's patrol"))
+                return "Cause of death: cut down by a poacher patrol.";
+            if (lower.contains("grove swarms") || lower.contains("bees"))
+                return "Cause of death: overwhelmed by the hive swarm.";
+            if (lower.contains("hot ash scorches"))
+                return "Cause of death: burned by lingering hot ash.";
+            if (lower.contains("snare snaps"))
+                return "Cause of death: caught in a poacher's snare.";
+            if (lower.contains("stones are slick") || lower.contains("you slip"))
+                return "Cause of death: a fatal fall at the sunken well.";
+            if (lower.startsWith("consumed ") && (lower.contains("spoiled")
+                    || lower.contains("raw") || lower.contains("mushroom")))
+                return "Cause of death: poisoned provisions.";
+        }
+
+        RoguePlayer player = run.getPlayer();
+        if (player.getTempBand() == RoguePlayer.TempBand.FROZEN)
+            return "Cause of death: frozen by exposure.";
+        if (player.getTempBand() == RoguePlayer.TempBand.OVERHEATED)
+            return "Cause of death: overcome by extreme heat.";
+        if (player.getThirstStatus() == RoguePlayer.ThirstStatus.PARCHED)
+            return "Cause of death: dehydration.";
+        if (player.getStatus() == RoguePlayer.HungerStatus.STARVING)
+            return "Cause of death: starvation.";
+        return "Cause of death: wounds sustained in the margins.";
     }
 
     private void drawHeading(String value, float x, float y, Color color) {
@@ -2758,6 +3340,25 @@ public class MarginScreen implements Screen {
     private void drawPanel(float x, float y, float width, float height, Color fill) {
         fillRect(x, y, width, height, fill);
         strokeRect(x, y, width, height, UI_BORDER);
+    }
+
+    /** Rolled parchment silhouette with recessed body and chunky pixel corners. */
+    private void drawScrollPanel(float x, float y, float width, float height) {
+        fillRect(x + 4, y - 4, width, height, SCROLL_SHADOW);
+        fillRect(x, y, width, height, SCROLL_OUTLINE);
+        fillRect(x + 2, y + 2, width - 4, height - 4, SCROLL_PAPER);
+        fillRect(x + 6, y + 9, width - 12, height - 18, SCROLL_INNER);
+        strokeRect(x + 7, y + 10, width - 14, height - 20, SCROLL_EDGE);
+
+        // Top and bottom rolls extend beyond the page body, making the silhouette read as a scroll.
+        fillRect(x - 5, y + height - 8, width + 10, 9, SCROLL_OUTLINE);
+        fillRect(x - 3, y + height - 6, width + 6, 5, SCROLL_ROLL);
+        fillRect(x - 5, y - 1, width + 10, 9, SCROLL_OUTLINE);
+        fillRect(x - 3, y + 1, width + 6, 5, SCROLL_ROLL);
+        fillRect(x - 7, y + height - 7, 5, 7, SCROLL_EDGE);
+        fillRect(x + width + 2, y + height - 7, 5, 7, SCROLL_EDGE);
+        fillRect(x - 7, y, 5, 7, SCROLL_EDGE);
+        fillRect(x + width + 2, y, 5, 7, SCROLL_EDGE);
     }
 
     /** Layered leather/copper frame used by both the quickbar and full backpack. */

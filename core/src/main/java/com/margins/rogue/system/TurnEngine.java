@@ -86,6 +86,20 @@ public class TurnEngine {
                 result.messages.add("Brace!");
                 acted = true;
                 break;
+            case DODGE:
+                // Story 4.1 (FR-12): the Dodge action — one turn of boosted evasion. Evading is
+                // cleared after the enemy phase below, so it is always false entering a turn (no
+                // persistence, AD-6). An acted branch exactly like ATTACK/BLOCK (AD-4).
+                player.setEvading(true);
+                result.messages.add("You sidestep, ready.");
+                acted = true;
+                break;
+            case FLEE:
+                // Story 4.1 (FR-12): break away from the nearest enemy. A refusal ("No way out!")
+                // spends no turn — the inert-USE precedent; CombatSystem.flee resolves in the acted
+                // step so the enemy phase still pursues after a successful flee (AD-4).
+                acted = CombatSystem.flee(state, result.messages);
+                break;
             case WAIT:
                 acted = true;
                 break;
@@ -281,6 +295,7 @@ public class TurnEngine {
             DetectionSystem.update(state, result.messages); // advance awareness before enemies move (AD-4)
             CompanionSystem.follow(state, result.messages); // the ally fights/follows in the Companion+Enemy-AI phase (AD-4, AD-10)
             CombatSystem.enemyPhase(state, result.messages);
+            player.setEvading(false); // Dodge's evasion is a one-turn effect — cleared before the next step (Story 4.1)
             TorchSystem.tick(state); // burn the torch (if lit) before its light/noise step (AD-4, Story 1.6)
             LightSystem.emitNoise(state); // a lit camp/torch is audible (AD-18): enqueue before resolve
             NoiseSystem.resolve(state); // Noise resolve step (AD-4)

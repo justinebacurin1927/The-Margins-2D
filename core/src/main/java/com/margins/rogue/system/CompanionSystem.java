@@ -53,6 +53,7 @@ public final class CompanionSystem {
             if (c.isAdjacentTo(threat.getTileX(), threat.getTileY())) {
                 threat.takeDamage(c.getDamage());
                 messages.add("Aldric strikes for " + c.getDamage() + "!");
+                if (!threat.isAlive()) messages.add("Enemy defeated.");
             } else {
                 stepToward(state, c, threat.getTileX(), threat.getTileY(), player);
             }

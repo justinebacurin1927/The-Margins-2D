@@ -8,7 +8,7 @@ package com.margins.rogue.system;
  */
 public class PlayerAction {
     public enum Kind {
-        MOVE, ATTACK, BLOCK, WAIT, USE, DROP, PICKUP, DISTRACT,
+        MOVE, ATTACK, BLOCK, DODGE, FLEE, WAIT, USE, DROP, PICKUP, DISTRACT,
         // Story 1.5 (FR-6): survival crafting actions. COLLECT/BUILD_CAMPFIRE take no itemType;
         // COOK/FILTER/BOIL act on the given backpack itemType (the raw meat / raw water stack).
         COLLECT, BUILD_CAMPFIRE, COOK, FILTER, BOIL,
@@ -43,6 +43,17 @@ public class PlayerAction {
 
     public static PlayerAction block(int dir) {
         return new PlayerAction(Kind.BLOCK, 0, 0, dir, -1);
+    }
+
+    // Story 4.1 (FR-12): the Dodge (one-turn boosted evasion) and Flee (break away from the nearest
+    // enemy) combat actions. Both are acted branches resolved in TurnEngine — never inside the
+    // enemy phase (AD-4).
+    public static PlayerAction dodge(int dir) {
+        return new PlayerAction(Kind.DODGE, 0, 0, dir, -1);
+    }
+
+    public static PlayerAction flee(int dir) {
+        return new PlayerAction(Kind.FLEE, 0, 0, dir, -1);
     }
 
     public static PlayerAction wait(int dir) {

@@ -6,6 +6,9 @@ public class RogueEnemy {
     private int tileX, tileY;
     private int hp, maxHp;
     private int damage;
+    private int ag = 3; // Story 4.1 (FR-12, D3): the enemy-phase turn-order key (highest AG acts first).
+                        // Field-initialized (AD-6): the no-arg Json ctor sets no stats, so a pre-4.1
+                        // save (no ag key) loads the deterministic slow-Giliman 3.
     private boolean alive;
     private boolean justArrived;
     private Detection detection = Detection.UNAWARE;
@@ -27,6 +30,7 @@ public class RogueEnemy {
         this.hp = 8;
         this.maxHp = 8;
         this.damage = 3;
+        this.ag = 3;
         this.alive = true;
         this.justArrived = false;
     }
@@ -36,6 +40,9 @@ public class RogueEnemy {
     public int getHp() { return hp; }
     public int getMaxHp() { return maxHp; }
     public int getDamage() { return damage; }
+    public int getAg() { return ag; }
+    /** Set AG (Story 4.1): the enemy-phase order key; tests + enemy-variety set it (default 3, D3). */
+    public void setAg(int value) { ag = value; }
     public boolean isAlive() { return alive; }
     public boolean hasJustArrived() { return justArrived; }
     public void setJustArrived(boolean v) { justArrived = v; }
