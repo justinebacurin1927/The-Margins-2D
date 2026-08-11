@@ -194,7 +194,7 @@ public class MarginScreen implements Screen {
 
     private enum MenuPage { ROOT, PLAY, OPTIONS, HOW_TO_PLAY, CREDITS, JOURNAL }
     private enum CompendiumCategory {
-        ITEMS("ITEMS"), FOOD("FOOD"), WEAPONS("WEAPONS"),
+        ITEMS("ITEMS"), STORAGE("STORAGE"), FOOD("FOOD"), WEAPONS("WEAPONS"),
         CHARACTERS("CHARACTERS"), ENEMIES("ENEMIES"), STRUCTURES("STRUCTURES");
 
         final String label;
@@ -291,6 +291,46 @@ public class MarginScreen implements Screen {
     private static final String[] COMPENDIUM_ENEMIES = {
         "GILIMAN FOOT SOLDIER", "POACHER PATROL", "GRAVEYARD DEAD",
         "WELL CREATURE", "HIVE SWARM"
+    };
+    private record StorageRecord(String name, String subtitle, String description, String note) {}
+    /** Inventory System storage roster. Order is shared with journal-storage-v1.png. */
+    private static final StorageRecord[] COMPENDIUM_STORAGE = {
+        new StorageRecord("WOVEN POUCH", "T1 · +10 SLOTS",
+                "Crafted from rope and cloth. Durability 35. Carry-weight relief +5.",
+                "Dart-type traps damage the pouch; ordinary combat hits do not."),
+        new StorageRecord("HUNTER'S SATCHEL", "T1 · +15 SLOTS",
+                "Found at the Hunter's Blind or crafted. Durability 70. Carry-weight relief +7.",
+                "Dart-type traps damage the satchel; ordinary combat hits do not."),
+        new StorageRecord("MERCENARY'S RUCKSACK", "T2 · +25 SLOTS",
+                "Recovered from a Watchtower or Kitchen Camp. Durability 150. Carry-weight relief +12.",
+                "Its reinforced canvas still remains vulnerable to dart-type traps."),
+        new StorageRecord("POACHER'S GAME BAG", "T2 · +20 FOOD SLOTS",
+                "A food-only bag from the Poacher's Camp. Durability 100. Carry-weight relief +10.",
+                "Food spoils 25% slower inside it. Dart-type traps damage the bag."),
+        new StorageRecord("FAMILY'S TRUNK", "T2 · +15 SLOTS",
+                "A battered heirloom kept in the Old House. Durability 75. Carry-weight relief +10.",
+                "The trunk expands the shared pool, but dart-type traps can still break it."),
+        new StorageRecord("TRAVELER'S PACK", "T3 · +50 SLOTS",
+                "Bartered from the Wanderer. Durability 200. Carry-weight relief +20, plus three vial and three scroll slots.",
+                "Food spoils 15% slower inside it. Dart-type traps damage the pack."),
+        new StorageRecord("REINFORCED BACKPACK", "T3 · +50 SLOTS",
+                "Black Market Trader stock. Durability 200. Carry-weight relief +30.",
+                "Reduces Gear, Weapon and Tool weight. Dart-type traps damage the frame."),
+        new StorageRecord("EXPEDITION PACK", "T3 · +50 SLOTS",
+                "A VIP-exclusive field pack. Durability 200. Carry-weight relief +40.",
+                "Food spoils 20% slower inside it. Dart-type traps damage the pack."),
+        new StorageRecord("POTION BANDOLIER", "T3 · +15 LIQUID SLOTS",
+                "A dedicated liquid carrier with per-vial durability. Its source remains unknown.",
+                "Freeze traps destroy one stored vial per hit instead of damaging a bag shell."),
+        new StorageRecord("SCROLL HOLDER", "T3 · +20 SCROLL SLOTS",
+                "A dedicated parchment carrier with per-scroll durability. Its source remains unknown.",
+                "Fire traps destroy one stored scroll per hit instead of damaging a holder shell."),
+        new StorageRecord("VIEN'S DIMENSIONAL POCKET", "T5 · +75 SLOTS",
+                "A legendary, invincible pocket with infinite carry-weight relief.",
+                "Its sealed dimension prevents spoilage completely."),
+        new StorageRecord("FAAHARD'S OBLIVION BLADE", "T5 · +60 SLOTS",
+                "A legendary weapon-inventory. Durability 200 with infinite carry-weight relief.",
+                "Mending restores 20 durability per stored loot; whether loot survives remains unknown.")
     };
     /** Backpack-row icon size (px); the stack label sits to its right. */
     private static final int ITEM_ICON = 16;
@@ -715,7 +755,7 @@ public class MarginScreen implements Screen {
         int panelW = 448, panelH = 324;
         int panelX = (hudWidth() - panelW) / 2, panelY = 18;
         int x = panelX + 12, y = panelY + panelH - 68;
-        int width = 66, gap = 3;
+        int width = 59, gap = 1;
         if (pointerHud.y < y || pointerHud.y >= y + 22 || pointerHud.x < x) return -1;
         int category = (int) ((pointerHud.x - x) / (width + gap));
         if (category < 0 || category >= CompendiumCategory.values().length) return -1;
@@ -745,6 +785,7 @@ public class MarginScreen implements Screen {
     private int compendiumEntryCount(CompendiumCategory category) {
         return switch (category) {
             case ITEMS -> COMPENDIUM_ITEMS.length;
+            case STORAGE -> COMPENDIUM_STORAGE.length;
             case FOOD -> COMPENDIUM_FOOD.length;
             case WEAPONS -> COMPENDIUM_WEAPONS.length;
             case CHARACTERS -> COMPENDIUM_CHARACTERS.length;
@@ -756,6 +797,7 @@ public class MarginScreen implements Screen {
     private String compendiumEntryName(CompendiumCategory category, int index) {
         return switch (category) {
             case ITEMS -> COMPENDIUM_ITEMS[index].displayName().toUpperCase();
+            case STORAGE -> COMPENDIUM_STORAGE[index].name();
             case FOOD -> COMPENDIUM_FOOD[index].displayName().toUpperCase();
             case WEAPONS -> COMPENDIUM_WEAPONS[index];
             case CHARACTERS -> COMPENDIUM_CHARACTERS[index];
@@ -767,6 +809,7 @@ public class MarginScreen implements Screen {
     private String compendiumEntrySubtitle(CompendiumCategory category, int index) {
         return switch (category) {
             case ITEMS -> inventoryCategory(COMPENDIUM_ITEMS[index].ordinal(), COMPENDIUM_ITEMS[index]);
+            case STORAGE -> COMPENDIUM_STORAGE[index].subtitle();
             case FOOD -> foodCompendiumCategory(COMPENDIUM_FOOD[index]);
             case WEAPONS -> switch (index) {
                 case 0 -> "IMPROVISED · MELEE";
@@ -797,6 +840,7 @@ public class MarginScreen implements Screen {
     private String compendiumEntryDescription(CompendiumCategory category, int index) {
         return switch (category) {
             case ITEMS -> inventoryDescription(COMPENDIUM_ITEMS[index].ordinal(), COMPENDIUM_ITEMS[index]);
+            case STORAGE -> COMPENDIUM_STORAGE[index].description();
             case FOOD -> inventoryDescription(COMPENDIUM_FOOD[index].ordinal(), COMPENDIUM_FOOD[index]);
             case WEAPONS -> switch (index) {
                 case 0 -> "A heavy branch shaped into a crude striking weapon. Reliable, quiet, and easy to replace.";
@@ -3308,8 +3352,10 @@ public class MarginScreen implements Screen {
 
         // Header, divider, and tabs each own a separate vertical band; text must never intrude
         // into the category hit targets at fullscreen scales.
-        int tabX = panelX + 12, tabY = top - 68, tabW = 66, tabGap = 3;
+        int tabX = panelX + 12, tabY = top - 68, tabW = 59, tabGap = 1;
         CompendiumCategory[] categories = CompendiumCategory.values();
+        float oldFontX = font.getData().scaleX, oldFontY = font.getData().scaleY;
+        font.getData().setScale(oldFontX * 0.82f, oldFontY * 0.82f);
         for (int i = 0; i < categories.length; i++) {
             boolean selected = categories[i] == compendiumCategory;
             fillRect(tabX + i * (tabW + tabGap), tabY, tabW, 22,
@@ -3320,6 +3366,7 @@ public class MarginScreen implements Screen {
             font.draw(batch, categories[i].label, tabX + i * (tabW + tabGap), tabY + 14,
                     tabW, Align.center, false);
         }
+        font.getData().setScale(oldFontX, oldFontY);
 
         int count = compendiumEntryCount(compendiumCategory);
         int visible = Math.min(8, count);
@@ -3333,8 +3380,8 @@ public class MarginScreen implements Screen {
             strokeRect(listX, rowY, 152, 21, selected ? INV_GOLD : INV_TRIM);
             drawCompendiumListMarker(compendiumCategory, index, listX + 5, rowY + 6,
                     selected ? INV_GOLD : INV_MUTED);
-            drawText(fitText(compendiumEntryName(compendiumCategory, index), 126),
-                    listX + 20, rowY + 14, selected ? INV_GOLD : INV_TEXT);
+            drawFittedText(compendiumEntryName(compendiumCategory, index),
+                    listX + 20, rowY + 14, 126, selected ? INV_GOLD : INV_TEXT);
         }
         if (start > 0) drawText("^", listX + 143, firstY + 15, INV_GOLD);
         if (start + visible < count) drawText("v", listX + 143,
@@ -3355,8 +3402,8 @@ public class MarginScreen implements Screen {
         }
         compendiumEntry = Math.max(0, Math.min(compendiumEntry, count - 1));
         drawCompendiumIcon(compendiumCategory, compendiumEntry, x, top - 159, 68);
-        drawHeading(fitText(compendiumEntryName(compendiumCategory, compendiumEntry), width - 76),
-                x + 76, top - 99, INV_GOLD);
+        drawFittedHeading(compendiumEntryName(compendiumCategory, compendiumEntry),
+                x + 76, top - 99, width - 76, INV_GOLD);
         drawText(compendiumEntrySubtitle(compendiumCategory, compendiumEntry),
                 x + 76, top - 115, INV_MUTED);
         fillRect(x, top - 168, width, 1, INV_TRIM);
@@ -3392,6 +3439,7 @@ public class MarginScreen implements Screen {
                         ? "Knowledge items can reveal routes and surviving orders."
                         : "Supplies share the backpack's limited eight stacks.";
             }
+            case STORAGE -> COMPENDIUM_STORAGE[index].note();
             case FOOD -> {
                 Supply supply = COMPENDIUM_FOOD[index];
                 yield supply.drinkRisk() > 0
@@ -3416,6 +3464,11 @@ public class MarginScreen implements Screen {
 
     private void drawCompendiumListMarker(CompendiumCategory category, int index,
                                            float x, float y, Color color) {
+        if (category == CompendiumCategory.STORAGE) {
+            batch.setColor(Color.WHITE);
+            batch.draw(pixels.journalStorage(index), x - 2, y - 3, 14, 14);
+            return;
+        }
         if (category == CompendiumCategory.ITEMS || category == CompendiumCategory.FOOD) {
             Supply supply = category == CompendiumCategory.ITEMS
                     ? COMPENDIUM_ITEMS[index] : COMPENDIUM_FOOD[index];
@@ -3441,6 +3494,10 @@ public class MarginScreen implements Screen {
                 } else {
                     drawCompendiumCrateIcon(x + 8, y + 8, size - 16);
                 }
+            }
+            case STORAGE -> {
+                batch.setColor(Color.WHITE);
+                batch.draw(pixels.journalStorage(index), x + 6, y + 6, size - 12, size - 12);
             }
             case WEAPONS -> {
                 batch.setColor(Color.WHITE);
@@ -3957,6 +4014,34 @@ public class MarginScreen implements Screen {
     private void drawHeading(String value, float x, float y, Color color) {
         headingFont.setColor(color);
         headingFont.draw(batch, value, x, y);
+    }
+
+    /** Keep long compendium labels complete by scaling only the affected line. */
+    private void drawFittedText(String value, float x, float y, float maxWidth, Color color) {
+        value = fontSafe(value);
+        float oldX = font.getData().scaleX;
+        float oldY = font.getData().scaleY;
+        float measured = new GlyphLayout(font, value).width;
+        if (measured > maxWidth && measured > 0f) {
+            float scale = maxWidth / measured;
+            font.getData().setScale(oldX * scale, oldY * scale);
+        }
+        drawText(value, x, y, color);
+        font.getData().setScale(oldX, oldY);
+    }
+
+    /** Heading text must be measured with headingFont, not the smaller body font. */
+    private void drawFittedHeading(String value, float x, float y, float maxWidth, Color color) {
+        value = fontSafe(value);
+        float oldX = headingFont.getData().scaleX;
+        float oldY = headingFont.getData().scaleY;
+        float measured = new GlyphLayout(headingFont, value).width;
+        if (measured > maxWidth && measured > 0f) {
+            float scale = maxWidth / measured;
+            headingFont.getData().setScale(oldX * scale, oldY * scale);
+        }
+        drawHeading(value, x, y, color);
+        headingFont.getData().setScale(oldX, oldY);
     }
 
     private void drawPanel(float x, float y, float width, float height, Color fill) {

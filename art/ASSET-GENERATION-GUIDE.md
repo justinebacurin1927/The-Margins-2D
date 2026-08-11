@@ -1,5 +1,9 @@
 # The Margin — Asset Generation Guide
 
+> **Required companion guide:** Read [`SPD-PIXEL-STYLE-PROMPT-GUIDE.md`](./SPD-PIXEL-STYLE-PROMPT-GUIDE.md)
+> before generating or revising raster art. It is the canonical reference for current pixel
+> density, rendering simplicity, reusable prompts, and the approved storage-atlas style target.
+
 Production pipeline for the art assets of **The Margin** (a dark medieval forest survival
 roguelike; grid-based, top-down, **24px tiles**). This document is the master plan and the
 handoff instruction for any image-generation AI model. It tells you **what to make, in what
