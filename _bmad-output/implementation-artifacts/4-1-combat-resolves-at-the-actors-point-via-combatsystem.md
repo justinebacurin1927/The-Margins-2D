@@ -4,7 +4,7 @@ baseline_commit: 619edc1
 
 # Story 4.1: Combat resolves at the actor's point via CombatSystem
 
-Status: ready-for-dev
+Status: review
 
 ## Story
 
@@ -164,10 +164,31 @@ Claude Opus 4.8 (1M context) — create-story 2026-08-10.
 
 ### Debug Log References
 
+- `mvn -o clean install` — BUILD SUCCESS, full suite green (416 tests, 0 failures) with both modules installed.
+- Two ordering-test failures on first run (`higherAgEnemyActsFirst`, `equalAgPreservesInsertionOrder`): the companion was engaging/stepping to the nearest player-threat during `CompanionSystem.follow`, so the second enemy struck no one and the "both enemies acted" assertion failed. Fixed by repositioning the companion adjacent to a player-adjacent enemy so it strikes and holds, letting the second enemy strike Aldric in the enemy phase — re-ran green.
+
 ### Completion Notes List
 
+- **AC-1 turn order + five actions.** `CombatSystem.enemyPhase` sorts living enemies descending AG (`Comparator.comparingInt(RogueEnemy::getAg).reversed()`) before the loop; stable TimSort keeps equal-AG insertion order (D1/D3), so no existing multi-enemy behavior changes and the sort is AD-5-safe (ordering is not an rng draw). Full FR-12 action set is real and keyboard-reachable: Attack (Q), Block (H), Dodge (R), Use Item (E), Flee (X).
+- **AC-2 CombatSystem authority + dead-before-act.** All combat damage routes through `CombatSystem`; `combatDamageRoutesOnlyThroughCombatSystem` reflection-guards `TurnEngine` against HP mutation, and `deadEnemyNeverActsLaterThatTurn` pins AD-4 (the AG sort can't make a corpse act — dead enemies are still skipped in the loop).
+- **AC-3 AG as a real 6th stat.** Value-preserving refactor: `RoguePlayer.dodgePercent()` now reads `ag` instead of `instinct`; player `ag = 7` reproduces the old instinct=7 dodge exactly (21%), pinned by `dodgeIsDerivedFromTheRealAgStat` (AG7→21%, AG10→30%). AD-5-safe (no new/changed rng draw at the same seed up to the dodge roll).
+- **AD-6 migration.** `RogueEnemy.ag` is FIELD-INITIALIZED (`private int ag = 3;`) because the no-arg Json ctor sets no stats — a pre-4.1 save would otherwise load ag=0. `preAgSaveLoadsDeterministicDefaults` strips the `ag` keys from the JSON and asserts player→7 / enemies→3; `agStatsSurviveRoundTrip` pins the round-trip.
+- **Dodge action** is a one-turn evasion: `PlayerAction.dodge` sets `evading`, the enemy phase rolls the boosted chance (min(90, dodgePercent×2), `DODGE_BOOST_PERCENT = 200`), and `TurnEngine` clears `evading` after the enemy phase. **Flee** moves to the walkable cardinal neighbor strictly maximizing distance to the nearest living enemy (first-dir tie-break); boxed-in refuses with no turn (inert-USE precedent, AD-5).
+- **AC-4 / retro action item #1 (reachability gate).** All five actions are bound to keys in `MarginScreen.readAction` and documented in the How-to-Play page — no test-only-reachable feature.
+- **Note on landing:** implementation was committed as part of `57976cb` (another contributor's presentation/inventory overhaul swept the working tree) rather than a dedicated per-story commit; code and all 13 new tests are on `main` and green.
+
 ### File List
+
+- `core/src/main/java/com/margins/rogue/RoguePlayer.java`
+- `core/src/main/java/com/margins/rogue/RogueEnemy.java`
+- `core/src/main/java/com/margins/rogue/system/CombatSystem.java`
+- `core/src/main/java/com/margins/rogue/system/PlayerAction.java`
+- `core/src/main/java/com/margins/rogue/system/TurnEngine.java`
+- `core/src/main/java/com/margins/MarginScreen.java`
+- `core/src/test/java/com/margins/rogue/CombatActionsTest.java` (new)
+- `core/src/test/java/com/margins/rogue/state/RunStatePersistenceTest.java`
 
 ## Change Log
 
 - 2026-08-10 — created by create-story (epic-3 retro action items #1/#2/#5 carried in; Project Lead scope decisions D1/D2/D3).
+- 2026-08-12 — dev-story: implemented AG as a real 6th stat (value-preserving, AD-6 field-init), AG turn-order sort, the full five-action combat set (Attack/Block/Dodge/Use Item/Flee), CombatSystem authority + dead-before-act pins, screen wiring + reachability gate. Full suite green (416 tests). Status → review.

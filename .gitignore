@@ -64,6 +64,10 @@ node_modules/
 # BMAD installed skill library (regenerable via `bmad install`; large tooling)
 .claude/
 
+# Obsidian per-user workspace state (never committed)
+**/.obsidian/workspace.json
+**/.obsidian/workspace-mobile.json
+
 # Misc
 *.bak
 *.orig
