@@ -14,6 +14,7 @@ import com.margins.rogue.world.WorldSpine;
 import com.margins.rogue.item.FloorItem;
 import com.margins.rogue.item.Inventory;
 import com.margins.rogue.item.Supply;
+import com.margins.rogue.item.Weapon;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -67,6 +68,11 @@ public class RunState {
     // Run-scoped narrative state (AD-7): flags + Galleon's Bond. Field-initialized
     // so a pre-4.3 save (no flagStore key) loads empty-but-non-null (AD-6), like inventory.
     private FlagStore flagStore = new FlagStore();
+    // Story 4.4 (FR-13, AD-13): Klein's weapons as first-class instances (per-item durability),
+    // and the index of the wielded one (-1 = unarmed). Field-initialized so a pre-4.4 save (no
+    // weapons key) loads empty + unarmed — the AD-6 default that preserves base-STR combat (AC-3).
+    private List<Weapon> weapons = new ArrayList<>();
+    private int wieldedIndex = -1;
     // Save-format stamp (AD-6). Field-initialized, so a fresh run and a fresh load both
     // report the current version — which is why the pre-AD-8 reject in SaveService can't gate
     // on this int (fromJson runs initializers): it gates on the *raw JSON* lacking the
@@ -145,6 +151,7 @@ public class RunState {
         this.identifyMap = IdentifyMap.build(rng); // bind supply identities at run start (FR-11, AD-12)
         generateFloor();
         spawnStartingCompanion();
+        seedStartingWeapons(); // Story 4.4: the authored starter set (unwielded — see the helper)
         rollWeather(); // cycle 0's weather, drawn LAST so layout/identity draws stay on the pre-1.3 stream
         seedMessageLog(); // the opening line, so the surface is never empty at first render
     }
@@ -407,6 +414,7 @@ public class RunState {
         this.torchTurns = 0; // and no torch lit (Story 1.6)
         generateFloor();
         spawnStartingCompanion();
+        seedStartingWeapons(); // a new run gets a fresh starter set (Story 4.4)
         rollWeather(); // and rolls its own weather
         seedMessageLog(); // a new run clears the old log and re-opens with the opening line
     }
@@ -420,6 +428,20 @@ public class RunState {
         companions.clear();
         int[] spot = companionSpotNear(player.getTileX(), player.getTileY());
         companions.add(new Companion(spot[0], spot[1], tileMap, "galleon"));
+    }
+
+    /**
+     * Story 4.4 (D2): seed the authored minimal weapon set. Left UNWIELDED ({@code wieldedIndex = -1})
+     * so a new run still deals base-STR damage until Klein readies a weapon (the WIELD action) — this
+     * keeps every existing combat test green (AC-3). The set is authored, not rolled, so it never
+     * touches the seeded RNG (AD-5). Cleared first so restart never accumulates.
+     */
+    private void seedStartingWeapons() {
+        weapons.clear();
+        wieldedIndex = -1;
+        weapons.add(Weapon.spearT1());
+        weapons.add(Weapon.bladeT3());
+        weapons.add(Weapon.bowT5());
     }
 
     /** Walkable tile near (x,y): starts a couple tiles out (his rear-guard station distance), then
@@ -440,6 +462,41 @@ public class RunState {
     public RogueTileMap getTileMap() { return tileMap; }
     public RoguePlayer getPlayer() { return player; }
     public List<RogueEnemy> getEnemies() { return enemies; }
+
+    // --- Story 4.4 (FR-13): weapons + the wielded reference ---
+    public List<Weapon> getWeapons() { return weapons; }
+    public int getWieldedIndex() { return wieldedIndex; }
+
+    /** Wield the weapon at {@code index} (or -1 to go unarmed). Out-of-range or broken → unarmed. */
+    public void setWieldedIndex(int index) {
+        wieldedIndex = (index >= 0 && index < weapons.size() && !weapons.get(index).isBroken()) ? index : -1;
+    }
+
+    /** The currently wielded weapon, or null when Klein is unarmed (nothing wielded, or it broke).
+     *  Combat reads this: a null here means base-STR damage (AC-3). */
+    public Weapon getWieldedWeapon() {
+        if (wieldedIndex < 0 || wieldedIndex >= weapons.size()) return null;
+        Weapon w = weapons.get(wieldedIndex);
+        return w.isBroken() ? null : w;
+    }
+
+    /** Revert to unarmed — called when the wielded weapon breaks (Story 4.4, AC-1). */
+    public void breakWielded() { wieldedIndex = -1; }
+
+    /** Story 4.4 (AC-1): ready the next usable weapon, cycling from the current one and skipping broken
+     *  gear. Returns the newly wielded weapon, or null when there is nothing usable to ready (empty
+     *  list, or every weapon broken) — the caller refuses without spending a turn. */
+    public Weapon wieldNext() {
+        int n = weapons.size();
+        for (int step = 1; step <= n; step++) {
+            int idx = ((wieldedIndex < 0 ? -1 : wieldedIndex) + step) % n;
+            if (!weapons.get(idx).isBroken()) {
+                wieldedIndex = idx;
+                return weapons.get(idx);
+            }
+        }
+        return null;
+    }
 
     /** Whether a LIVING enemy stands on (x,y) — the player-move occupancy gate (combat fix #2):
      *  a tile held by an enemy is not a valid destination, so nobody shares a tile. Enemies only

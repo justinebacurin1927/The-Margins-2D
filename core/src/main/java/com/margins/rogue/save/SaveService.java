@@ -9,6 +9,7 @@ import com.badlogic.gdx.utils.JsonWriter;
 import com.margins.rogue.Companion;
 import com.margins.rogue.RogueEnemy;
 import com.margins.rogue.item.FloorItem;
+import com.margins.rogue.item.Weapon;
 import com.margins.rogue.state.FlagStore;
 import com.margins.rogue.state.RunState;
 
@@ -33,6 +34,7 @@ public final class SaveService {
         json.setElementType(RunState.class, "enemies", RogueEnemy.class);
         json.setElementType(RunState.class, "floorItems", FloorItem.class);
         json.setElementType(RunState.class, "companions", Companion.class);
+        json.setElementType(RunState.class, "weapons", Weapon.class); // Story 4.4: per-item durability round-trips
         // For a map field, setElementType registers the value type — FlagStore.flags
         // deserializes as Integer, not Double/String (AD-6).
         json.setElementType(FlagStore.class, "flags", Integer.class);

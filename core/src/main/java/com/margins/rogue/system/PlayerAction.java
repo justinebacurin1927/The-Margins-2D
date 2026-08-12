@@ -16,7 +16,10 @@ public class PlayerAction {
         CRAFT_TORCH,
         // Story 3.5 (FR-11): SKILL-governed lockpicking — opens the Old House's locked cellar.
         // No itemType (the COLLECT/BUILD_CAMPFIRE precedent); the tool is checked by LockpickSystem.
-        LOCKPICK
+        LOCKPICK,
+        // Story 4.4 (FR-13): ready (cycle) the wielded weapon from RunState's weapon list. No itemType
+        // (weapons aren't backpack ordinals — they're first-class instances, AD-13).
+        WIELD
     }
 
     public final Kind kind;
@@ -102,5 +105,9 @@ public class PlayerAction {
 
     public static PlayerAction lockpick(int dir) {
         return new PlayerAction(Kind.LOCKPICK, 0, 0, dir, -1);
+    }
+
+    public static PlayerAction wield(int dir) {
+        return new PlayerAction(Kind.WIELD, 0, 0, dir, -1);
     }
 }

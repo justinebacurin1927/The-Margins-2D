@@ -4,6 +4,7 @@ import com.margins.rogue.Companion;
 import com.margins.rogue.Detection;
 import com.margins.rogue.RogueEnemy;
 import com.margins.rogue.RoguePlayer;
+import com.margins.rogue.item.Weapon;
 import com.margins.rogue.state.RunState;
 
 import java.util.ArrayList;
@@ -26,13 +27,34 @@ public final class CombatSystem {
         int ty = player.getTileY() + RoguePlayer.directionY(dir);
         RogueEnemy target = enemyAt(state, tx, ty);
         if (target != null) {
-            target.takeDamage(player.getStr());
+            target.takeDamage(attackDamage(state)); // Story 4.4: base STR + the wielded weapon's tier bonus
             messages.add("Hit! " + target.getHp() + "/" + target.getMaxHp());
             if (!target.isAlive()) messages.add("Enemy defeated.");
         } else {
             messages.add("Nothing there");
         }
         state.emitNoise(player.getTileX(), player.getTileY(), ATTACK_NOISE_RADIUS); // the swing is loud (FR-5)
+        decayWielded(state, messages); // Story 4.4 (AC-1): the swing wears the weapon, hit or miss
+    }
+
+    /** Klein's melee damage (Story 4.4, D3): base STR plus the wielded weapon's tier bonus — 0 when
+     *  unarmed or when the wielded weapon is broken, so a broken weapon deals exactly base STR. */
+    public static int attackDamage(RunState state) {
+        Weapon w = state.getWieldedWeapon();
+        return state.getPlayer().getStr() + (w != null ? w.damageBonus() : 0);
+    }
+
+    /** Story 4.4 (AC-1): spend one action's durability on the wielded weapon. A break reverts Klein to
+     *  unarmed (base STR from the next swing) and is observed once. Shared by ATTACK and BLOCK; a no-op
+     *  when unarmed. Detection/HP authorities are untouched — this only wears the weapon. */
+    public static void decayWielded(RunState state, List<String> messages) {
+        Weapon w = state.getWieldedWeapon();
+        if (w == null) return;
+        w.decay(Weapon.DECAY_PER_ACTION);
+        if (w.isBroken()) {
+            state.breakWielded();
+            messages.add("Your " + w.displayName() + " breaks.");
+        }
     }
 
     private static final int ATTACK_NOISE_RADIUS = 4;

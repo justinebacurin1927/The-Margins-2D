@@ -1064,6 +1064,7 @@ public class MarginScreen implements Screen {
         if (down(Input.Keys.H))     return PlayerAction.block(facing);
         if (down(Input.Keys.R))     return PlayerAction.dodge(facing);
         if (down(Input.Keys.X))     return PlayerAction.flee(facing);
+        if (down(Input.Keys.Z))     return PlayerAction.wield(facing); // Story 4.4: ready/cycle the wielded weapon
         if (down(Input.Keys.W) || down(Input.Keys.UP))    return PlayerAction.move(0, 1, 1);
         if (down(Input.Keys.S) || down(Input.Keys.DOWN))  return PlayerAction.move(0, -1, 0);
         if (down(Input.Keys.A) || down(Input.Keys.LEFT))  return PlayerAction.move(-1, 0, 2);
@@ -3663,11 +3664,12 @@ public class MarginScreen implements Screen {
         drawText("H  Brace", left, top - 45, pageText); // Story 4.1 (FR-12): the combat action set
         drawText("R  Dodge", left, top - 59, pageText);
         drawText("X  Flee", left, top - 73, pageText);
-        drawText("P  Parley", left, top - 87, pageText); // Story 4.2 (AC-2): VOICE talk-down of a wary patrol
-        drawText("G  Take item", left, top - 101, pageText);
-        drawText("SPACE  Wait", left, top - 115, pageText);
-        drawText("TAB  Backpack", left, top - 129, pageText);
-        drawText("J  Journal", left, top - 143, pageText);
+        drawText("Z  Wield weapon", left, top - 87, pageText); // Story 4.4 (FR-13): ready/cycle the wielded weapon
+        drawText("P  Parley", left, top - 101, pageText); // Story 4.2 (AC-2): VOICE talk-down of a wary patrol
+        drawText("G  Take item", left, top - 115, pageText);
+        drawText("SPACE  Wait", left, top - 129, pageText);
+        drawText("TAB  Backpack", left, top - 143, pageText);
+        drawText("J  Journal", left, top - 157, pageText);
 
         drawHeading("SURVIVE", right, top, pageMuted);
         drawText("C  Forage", right, top - 17, pageText);

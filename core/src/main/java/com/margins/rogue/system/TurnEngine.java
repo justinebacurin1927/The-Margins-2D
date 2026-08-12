@@ -8,6 +8,7 @@ import com.margins.rogue.item.FloorItem;
 import com.margins.rogue.item.Inventory;
 import com.margins.rogue.item.Supply;
 import com.margins.rogue.item.TrueIdentity;
+import com.margins.rogue.item.Weapon;
 import com.margins.rogue.narrative.JournalController;
 import com.margins.rogue.state.FlagStore;
 import com.margins.rogue.state.RunState;
@@ -84,6 +85,7 @@ public class TurnEngine {
             case BLOCK:
                 player.setBlocking(true);
                 CombatSystem.blockNoise(state); // Story 4.2 (AC-1): a brace is as loud as a swing (AD-9)
+                CombatSystem.decayWielded(state, result.messages); // Story 4.4 (AC-1): a block wears the weapon too
                 result.messages.add("Brace!");
                 acted = true;
                 break;
@@ -262,6 +264,21 @@ public class TurnEngine {
                 // turn through the acted pipeline.
                 acted = LockpickSystem.lockpick(state, result.messages);
                 break;
+            case WIELD: {
+                // Story 4.4 (FR-13): ready the next usable weapon (cycles, skips broken). Readying a
+                // weapon is a turn's action (the enemy phase follows); nothing to ready refuses and
+                // commits no turn (the inert-USE precedent).
+                Weapon w = state.wieldNext();
+                if (w != null) {
+                    result.messages.add("You ready the " + w.displayName() + ".");
+                    acted = true;
+                } else {
+                    result.messages.add(state.getWeapons().isEmpty()
+                            ? "You have nothing to wield."
+                            : "Only broken gear to hand.");
+                }
+                break;
+            }
         }
 
         if (acted) {
