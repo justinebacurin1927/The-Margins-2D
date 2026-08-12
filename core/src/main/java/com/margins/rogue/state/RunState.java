@@ -289,9 +289,10 @@ public class RunState {
         return maxX < 0 ? null : new int[]{minX, minY, maxX, maxY};
     }
 
-    /** The 0.2f safe-tier boundary and the NW-cordon corner both key off this fraction (Story 4.3). */
-    private static final float SAFE_TIER = 0.2f;
-    private static final float CORDON_NY = 0.8f; // far-north: the NW border cordon's y-band (WorldSpine BORDER_Y = 0.9f)
+    // The NW-cordon's far-north cut. WorldSpine puts the border landmark at BORDER_Y = 0.9f; 0.8f is a
+    // deliberately generous over-approximation (0.8 < 0.9 → the excluded box reaches further SOUTH than
+    // the landmark, so it fully CONTAINS the cordon rather than tracking it tile-for-tile). Review 4.3.
+    private static final float CORDON_NY = 0.8f;
 
     /** Enemy count per region: 0 in the safe west (near Corneo), rising to 3 in the eastern
      *  interior — the invasion's gradient (AC-2). The safe tier includes the 0.2f boundary line
@@ -303,9 +304,13 @@ public class RunState {
      *  interior regions — additive, monotonic, no compounding. Still a pure, rng-free decision
      *  (AD-5): {@code act} is a flag read once, {@code ny} is geometry; only the per-enemy position
      *  draws touch the seeded stream. At {@code act == 1} this is bit-identical to the pre-4.3 bands
-     *  (no existing seed's layout changes). The NW border cordon is excluded (AC-2 / {@link
-     *  #inCordon}) so channel (a) can never harden AD-12's win gate — that thinning is channel (b),
-     *  owned by Epic 5. */
+     *  (no existing seed's layout changes). NOTE (review 4.3): the "layout unchanged" guarantee holds
+     *  only at Act 1. At act &gt; 1 the interior places more enemies, so more position draws precede the
+     *  supply/structure scatter on the SAME seeded stream — a given seed's loot layout also shifts once
+     *  the act advances. Still fully deterministic per {@code (seed, act)}; Epic 5 (which flips the act)
+     *  must expect loot to move with density, not just enemies. The NW border cordon is excluded
+     *  (AC-2 / {@link #inCordon}) so channel (a) can never harden AD-12's win gate — that thinning is
+     *  channel (b), owned by Epic 5. */
     static int enemyCountFor(float eastness, int act, float ny) { // package-private: unit-tested (OccupationEscalationTest)
         int base = baseEnemyCountFor(eastness);
         if (act > 1 && base > 0 && !inCordon(eastness, ny)) {
@@ -314,8 +319,11 @@ public class RunState {
         return base;
     }
 
+    /** The pre-4.3 base step: 0 in the safe west (eastness ≤ {@link #SAFE_TIER_EASTNESS}), rising
+     *  1 → 2 → 3 across the {@code <0.45 / <0.7 / else} bands into the eastern interior. Pure and
+     *  act-independent — {@link #enemyCountFor} layers the per-act ramp on top of this. */
     static int baseEnemyCountFor(float eastness) {
-        if (eastness <= SAFE_TIER) return 0;
+        if (eastness <= SAFE_TIER_EASTNESS) return 0;
         if (eastness < 0.45f) return 1;
         if (eastness < 0.7f) return 2;
         return 3;
@@ -327,7 +335,7 @@ public class RunState {
      *  zeroes that far-west corner (base 0 → never bumped), but naming the cordon makes AC-2 a pinned
      *  invariant, not an emergent accident, and documents the two-channel split at the site. */
     static boolean inCordon(float eastness, float ny) { // package-private: unit-tested (OccupationEscalationTest)
-        return eastness < SAFE_TIER && ny > CORDON_NY;
+        return eastness < SAFE_TIER_EASTNESS && ny > CORDON_NY;
     }
 
     /** Supply count per region: 0 in the safe west, 1 mid-map, 2 in the east — loot rises east

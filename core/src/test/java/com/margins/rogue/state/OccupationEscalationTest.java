@@ -80,6 +80,12 @@ class OccupationEscalationTest {
             act1Total += totalEnemies(regenAtAct(seed, 1));
             act3Total += totalEnemies(regenAtAct(seed, 3));
         }
+        // Non-vacuity guard (review 4.3): if the sampled seeds placed no interior enemies at Act 1,
+        // "Act 3 > Act 1" could pass trivially (0 < something) and hide a broken ramp. Pin that the
+        // baseline is real. (We assert the AGGREGATE, not per-seed: post-walkability placement isn't
+        // strictly monotonic per seed — act 3 draws more positions, so a specific seed can reject a few
+        // that act 1 kept. The intended per-region monotonicity is pinned by the unit tests above.)
+        assertTrue(act1Total > 0, "sanity: the sampled seeds field interior enemies at Act 1 (test not vacuous)");
         assertTrue(act3Total > act1Total,
                 "Act 3 fields more enemies than Act 1 across the same seeds (" + act3Total + " vs " + act1Total + ")");
     }

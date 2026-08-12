@@ -4,7 +4,7 @@ baseline_commit: 1827359
 
 # Story 4.3: Occupation escalation thickens per act
 
-Status: review
+Status: done
 
 ## Story
 
@@ -69,6 +69,20 @@ so that fighting gets more punishing over a run (FR-12, AD-11 channel a).
   - [x] 4.4 AC-1 end-to-end: `aHigherActRegeneratesADenserInterior` — regen both sides from the same seed (identical base map), Act 3 aggregate strictly > Act 1 across 10 seeds. AD-5: `sameSeedAndActRegeneratesAnIdenticalLayout` — same seed+act reproduces the exact enemy positions.
   - [x] 4.5 Full suite green via `docs/BUILD.md` (`mvn -o clean install`): **438 tests, 0 failures** (+11 over the 427 baseline), both modules installed. BUILD SUCCESS.
 
+### Review Findings
+
+Code review 2026-08-13 (Blind Hunter + Edge-Case Hunter + Acceptance Auditor, focused diff `fba5b59`..`54ed29c`). Acceptance Auditor: **all three ACs SATISFIED, D1–D4 met, D4 inert scope honestly reflected.** No high/medium correctness defects. 5 low-severity patches applied, 5 findings dismissed (unreachable or by-design).
+
+- [x] [Review][Patch] Cordon comment overstated derivation — `CORDON_NY=0.8f` is presented as "WorldSpine BORDER_Y=0.9f" but isn't equal to it. **FIXED: reworded to state 0.8 is a deliberate generous over-approximation that fully *contains* the true BORDER_Y=0.9 cordon (0.8 < 0.9 → the box extends further south than the landmark), and referenced BORDER_X/BORDER_Y explicitly.** Guard kept (create-story "explicit box" decision). [RunState.java inCordon]
+- [x] [Review][Patch] Duplicate safe-tier constant — added `SAFE_TIER=0.2f` when `SAFE_TIER_EASTNESS=0.2f` already exists (RunState.java:48). **FIXED: reuse `SAFE_TIER_EASTNESS` in `baseEnemyCountFor`/`inCordon`; deleted the duplicate.** [RunState.java:293]
+- [x] [Review][Patch] AD-5 "no existing seed's layout changes" claim overscoped — true only at Act 1; at act>1 the extra enemy draws precede the supply/structure scatter on the shared seeded stream, so loot layout shifts too. **FIXED: scoped the claim to Act 1 in the code comment + completion notes, flagged the act>1 loot-shift for Epic 5 (still deterministic per (seed,act)).** [RunState.java placeFloorActors]
+- [x] [Review][Patch] E2E ramp test asserted only an aggregate inequality — could pass vacuously (0 < n) if the sampled seeds placed no interior enemies. **FIXED: added a non-vacuity guard (`act1Total > 0`) so a broken baseline can't hide, kept the strict aggregate increase. Did NOT add per-seed `act3 ≥ act1`: post-walkability placement is not strictly monotonic per seed (act 3 draws more positions, so a seed can reject a few act 1 kept) — that would introduce flakiness. The per-region monotonicity is already pinned deterministically by the unit tests.** [OccupationEscalationTest.aHigherActRegeneratesADenserInterior]
+- [x] [Review][Patch] `baseEnemyCountFor` lacked Javadoc while its siblings had it. **FIXED: added a one-line Javadoc.** [RunState.java baseEnemyCountFor]
+
+**Dismissed (5):** height==1 → NaN `ny` (unreachable — `MAP_H=48` is a fixed constant; `ny` is only computed in `placeFloorActors`); act int-overflow via `base += (act-1)` (unreachable — acts are 1–3, no path approaches `MAX_VALUE`); `ny` out-of-range / negative act from non-getAct callers (room centers are always in-bounds, and the `act > 1` guard already no-ops act ≤ 1 including negatives); "feature ships dead / no production writer of the act flag" (that IS D4 — the documented Epic 5 seam, not a defect); `getAct` double-clamp "masks corruption" (clamping a difficulty flag to the Act-1 baseline is a safe AD-6 default, not a bug).
+
+**Review patches applied 2026-08-13:** all 5 above; full suite green (438 tests, unchanged count — patches are comments + a constant dedup + a strengthened assertion in an existing test).
+
 ## Dev Notes
 
 ### Current state (what exists, to preserve)
@@ -123,7 +137,7 @@ Claude Opus 4.8 (1M context) — create-story 2026-08-13.
 - **AC-3 — AD-6-safe, Act-1-default, no regression.** `FlagStore.getAct()` maps the unset/0 sentinel (and any stray negative) to Act 1, so every existing save reads Act 1 with no new persisted field and no `restoreAfterLoad` change. Act-1 output is bit-identical to the pre-4.3 bands (`actOneIsBitIdenticalToTheBaseBands`), so no existing seed's layout moved — RunStatePersistenceTest (22) and HybridMapTest still green.
 - **D4 seam is intentional and inert (READ for review).** The map + all enemies generate once per run at Act 1 (`generateFloor` at ctor + death-restart; no respawn path), so in shipped play the ramp changes nothing yet — it is a tested mechanism awaiting a live trigger. The end-to-end test drives that trigger with an explicit `setAct(n); generateFloor()`. The live trigger (regenerate-unexplored / reinforcement spawn on act-flip) is Epic 5 (marked with a greppable `// Epic 5 seam:` comment in `placeFloorActors`). This mirrors 4.1's inert AG-sort and 4.2's mechanism-now/content-later parley — flagged up front so the Acceptance Auditor scores "mechanism correct + pinned," not "observable live."
 - **Deviation (test seam):** `enemyCountFor`, `baseEnemyCountFor`, and `inCordon` are **package-private** (not `private`) so `OccupationEscalationTest` can pin the pure function deterministically, rather than relying on flaky seed-aggregate sampling through `getEnemies()`. Minimal, in-package widening; `supplyCountFor` stays private (untouched).
-- **AD-5:** the count decision reads only the act flag + geometry — no rng. Same seed + same act reproduces the exact layout (`sameSeedAndActRegeneratesAnIdenticalLayout`).
+- **AD-5:** the count decision reads only the act flag + geometry — no rng. Same seed + same act reproduces the exact layout (`sameSeedAndActRegeneratesAnIdenticalLayout`). **Review note for Epic 5:** the "layout unchanged" guarantee holds only at Act 1. At act > 1 the interior places more enemies, and those extra position draws precede the supply/structure scatter on the *same* seeded stream — so a given seed's LOOT layout also shifts once the act advances (still deterministic per `(seed, act)`). Epic 5's live act-flip trigger must expect loot to move with density, not just enemy count.
 
 ### File List
 
@@ -136,3 +150,4 @@ Claude Opus 4.8 (1M context) — create-story 2026-08-13.
 
 - 2026-08-13 — created by create-story. Scope decisions confirmed with Justine: D1 (act from a `FlagStore` key `act.current`, default Act 1 — AD-11 story-flag trigger), D2 (additive `(act−1)` bump east of the safe tier, not multiplicative), D3 (explicit far-west/far-north `inCordon` exclusion so channel (a) never touches the win-gate cordon), D4 (**mechanism only** — the map/enemies generate once at Act 1 with no respawn path, so the ramp is a tested-but-inert function until Epic 5 wires a live act-flip trigger; matches 4.1 AG / 4.2 parley scoping). Substrate audit: `enemyCountFor` is already a pure rng-free step; `FlagStore` already serializes AD-6-safe; the work is the act accessor + widening the count + wiring placement, all determinism-preserving. Status → ready-for-dev.
 - 2026-08-13 — dev-story: implemented the `FlagStore` act flag (`KEY_ACT`/`getAct`/`setAct`, AD-6 default Act 1), the per-act cordon-aware density function (`enemyCountFor(eastness, act, ny)` + extracted `baseEnemyCountFor` + `inCordon`), and the `placeFloorActors` wiring (act read once, `// Epic 5 seam` marked; per-enemy draws untouched). +11 tests (`FlagStoreTest` ×4 act tests; new `OccupationEscalationTest` ×7 covering Act-1 parity, additive ramp, west/cordon exclusion, regen end-to-end, AD-5 determinism); full suite green (438, +11). One deviation: the three count helpers are package-private (deliberate test seam) for deterministic pinning. Status → review.
+- 2026-08-13 — code review (Blind Hunter + Edge-Case Hunter + Acceptance Auditor, focused diff `fba5b59`..`54ed29c`): all three ACs SATISFIED, D1–D4 met, D4 inert scope honestly reflected; no high/medium correctness defects. 5 low-severity patches applied (cordon-comment honesty + WorldSpine reference; deduped the `SAFE_TIER` constant to reuse `SAFE_TIER_EASTNESS`; scoped the AD-5 "layout unchanged" claim to Act 1 + flagged the act>1 loot-shift for Epic 5; non-vacuity guard on the E2E ramp test; `baseEnemyCountFor` Javadoc). 5 findings dismissed (unreachable NaN/overflow, already-guarded act≤1, by-design D4 dead-feature, acceptable AD-6 clamp floor). Full suite green (438). Status → done.
