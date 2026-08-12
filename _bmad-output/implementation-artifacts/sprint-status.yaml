@@ -55,7 +55,7 @@
 #   item is now folded into new Story 1.1's acceptance criteria (AD-6).
 
 generated: 2026-08-06
-last_updated: 2026-08-12  # Story 4.2 → done: code review passed (all ACs verified); 3 patches applied (break-contact reword + tests, two-metric doc, calmTurns reset), 2 design decisions resolved (break-contact tool, radius-4 earshot), 1 low finding deferred; suite green (427 tests). Story 4.1 done. Epic 4 in-progress.
+last_updated: 2026-08-13  # Story 4.3 → ready-for-dev: create-story done. Scope confirmed with Justine — act from a FlagStore key (act.current, default Act 1; AD-11 story-flag trigger), additive (act-1) interior bump, explicit NW-cordon exclusion (channel a ≠ channel b), MECHANISM ONLY (map/enemies generate once at Act 1 with no respawn path, so the ramp is tested-but-inert until Epic 5 wires a live act-flip trigger — matches 4.1 AG / 4.2 parley scoping). Story 4.2 done, 4.1 done. Epic 4 in-progress.
 project: The Margin
 project_key: NOKEY
 tracking_system: file-system
@@ -96,7 +96,7 @@ development_status:
   epic-4: in-progress
   4-1-combat-resolves-at-the-actors-point-via-combatsystem: done
   4-2-combat-noise-draws-reinforcements: done
-  4-3-occupation-escalation-thickens-per-act: backlog
+  4-3-occupation-escalation-thickens-per-act: ready-for-dev
   4-4-weapon-durability-and-gear-with-memory: backlog
   4-5-scavenge-on-break-and-skill-based-repair: backlog
   4-6-permadeath-and-last-stand: backlog
