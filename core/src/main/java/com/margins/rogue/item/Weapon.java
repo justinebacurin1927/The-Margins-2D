@@ -75,6 +75,9 @@ public class Weapon {
 
     /** Build a weapon of the given category at a tier (1..5), pulling its ceiling/bonus from the tier table. */
     public static Weapon ofTier(Category category, int tier) {
+        if (tier < 1 || tier > TIER_MAX.length) {
+            throw new IllegalArgumentException("tier must be 1.." + TIER_MAX.length + ", got " + tier);
+        }
         int i = tier - 1;
         return new Weapon(category, tier, TIER_BONUS[i], TIER_MAX[i]);
     }
@@ -106,6 +109,9 @@ public class Weapon {
      * beyond repair (the 6th repair). On success the max drops to the curve's percentage of the
      * ORIGINAL ceiling (not the current one — the curve is anchored to fresh), durability refills to
      * the new max, and the repair count advances.
+     *
+     * <p>Story 4.4 ships this as a pure model method with NO gameplay entry point — the reachable
+     * repair action and its material cost arrive in Story 4.5 (D4). Do not wire a caller before then.
      */
     public boolean repair(int skill) {
         if (!isRepairable()) return false; // 6th+ beyond repair

@@ -88,6 +88,26 @@ class WeaponTest {
     }
 
     @Test
+    void repairRoundingUsesHalfUpOnRealTierData() {
+        // bowT5's originalMax is 70, so the Low curve lands on .5 cells (45.5 → 46, 24.5 → 25) — this
+        // pins the half-up Math.round policy for SHIPPED weapons (the originalMax=100 tests above never
+        // exercise rounding, since every cell is a whole number there).
+        int[] low = {63, 55, 46, 35, 25}; // 70×{90,78,65,50,35}/100 with half-up rounding
+        Weapon w = Weapon.bowT5();
+        for (int i = 0; i < low.length; i++) {
+            assertTrue(w.repair(1), "Low-skill repair #" + (i + 1));
+            assertEquals(low[i], w.getMaxDurability(), "bowT5 Low max after repair #" + (i + 1));
+        }
+        assertFalse(w.repair(1), "the 6th repair is beyond repair");
+    }
+
+    @Test
+    void ofTierRejectsAnOutOfRangeTier() {
+        assertThrows(IllegalArgumentException.class, () -> Weapon.ofTier(Weapon.Category.BLADE, 0));
+        assertThrows(IllegalArgumentException.class, () -> Weapon.ofTier(Weapon.Category.BLADE, 6));
+    }
+
+    @Test
     void tierFactoriesCarryTierData() {
         assertEquals(Weapon.Category.SPEAR, Weapon.spearT1().getCategory());
         assertEquals(1, Weapon.spearT1().getTier());

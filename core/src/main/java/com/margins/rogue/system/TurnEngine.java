@@ -272,6 +272,8 @@ public class TurnEngine {
                 if (w != null) {
                     result.messages.add("You ready the " + w.displayName() + ".");
                     acted = true;
+                } else if (state.getWieldedWeapon() != null) {
+                    result.messages.add("Already at the ready."); // only the wielded weapon is usable — no turn wasted
                 } else {
                     result.messages.add(state.getWeapons().isEmpty()
                             ? "You have nothing to wield."

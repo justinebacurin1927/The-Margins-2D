@@ -55,7 +55,7 @@
 #   item is now folded into new Story 1.1's acceptance criteria (AD-6).
 
 generated: 2026-08-06
-last_updated: 2026-08-13  # Story 4.4 → review: dev-story done. Weapon model (durability/break + AD-13 SKILL-curve repair, 6th beyond repair) + RunState weapons list/wieldedIndex (AD-6-safe, SaveService registered) + combat wiring (STR+tier bonus, ATTACK/BLOCK decay, break→unarmed) + reachable Z-bound WIELD action. Minimal set Spear T1/Blade T3/Bow T5; repair materials/scavenge = 4.5 (D4). +17 tests (WeaponTest ×7, WeaponDurabilityTest ×10); full suite green (455). One benign migration wart documented (pre-4.4 save inherits ctor starter set, unwielded). Story 4.3 done, 4.2 done, 4.1 done. Epic 4 in-progress (3/6 done).
+last_updated: 2026-08-13  # Story 4.4 → done: code review passed (AC-1/AC-2 satisfied, AD-13 curve verified digit-for-digit; AC-3 no-regression + round-trip met; D1-D4 held). 6 patches applied (wieldNext no-wasted-turn re-wield, wieldedIndex load-normalization, ofTier bounds guard, half-up rounding test on bowT5, doc tightening, AC-3 wording fix), rest dismissed (unreachable/cosmetic); suite green (457). Weapon model + durability/break + AD-13 repair curve + RunState weapons/wieldedIndex (AD-6-safe) + combat wiring + Z-bound WIELD. Repair materials/scavenge = 4.5. Story 4.3/4.2/4.1 done. Epic 4 in-progress (4/6 done).
 project: The Margin
 project_key: NOKEY
 tracking_system: file-system
@@ -97,7 +97,7 @@ development_status:
   4-1-combat-resolves-at-the-actors-point-via-combatsystem: done
   4-2-combat-noise-draws-reinforcements: done
   4-3-occupation-escalation-thickens-per-act: done
-  4-4-weapon-durability-and-gear-with-memory: review
+  4-4-weapon-durability-and-gear-with-memory: done
   4-5-scavenge-on-break-and-skill-based-repair: backlog
   4-6-permadeath-and-last-stand: backlog
   epic-4-retrospective: optional

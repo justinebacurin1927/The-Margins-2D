@@ -4,7 +4,7 @@ baseline_commit: 07641f5
 
 # Story 4.4: Weapon durability and gear-with-memory
 
-Status: review
+Status: done
 
 ## Story
 
@@ -21,7 +21,7 @@ so that gear is precious and fighting spends a finite, non-renewable resource (F
 **Given** a weapon and a repair **When** `repair(skill)` is applied **Then** durability is restored to the new maximum, but that maximum is **permanently lowered** on the AD-13 decay curve keyed to the repair count and the SKILL band — Fresh 100% → 1st `90/93/96` → 2nd `78/84/91` → 3rd `65/74/85` → 4th `50/63/78` → 5th `35/51/70` (Low/Mid/High SKILL) → 6th+ **beyond repair** (a further repair is refused). This is the model mechanism; the *reachable* repair action and its material cost are Story 4.5 (see D4).
 
 **AC-3 — A weapon is run-scoped persistent state, AD-6-safe, with no regression.**
-**Given** the new weapon model **When** a run saves/loads **Then** each weapon's durability/max/repair-count round-trips (AD-6); a pre-4.4 save with no weapon field loads as **unarmed** (empty weapon list, nothing wielded) — the deterministic default, so no existing combat behavior changes. **And** with nothing wielded, attack damage stays exactly base STR (no regression in existing combat tests).
+**Given** the new weapon model **When** a run saves/loads **Then** each weapon's durability/max/repair-count round-trips (AD-6); a pre-4.4 save with no weapon field loads **unarmed** (nothing wielded, `wieldedIndex = -1`) — so no existing combat behavior changes. (The weapons *list* on such a load inherits the constructor's deterministic starter set, not an empty list — the documented "field-absent inherits ctor state" wart, benign because the run is unwielded.) **And** with nothing wielded, attack damage stays exactly base STR (no regression in existing combat tests).
 
 ## Scope decisions (confirmed with Justine, 2026-08-13)
 
@@ -91,6 +91,21 @@ so that gear is precious and fighting spends a finite, non-renewable resource (F
   - [x] 7.4 AC-3: serialization round-trip (durability/max/repairCount/wieldedIndex) and the AD-6 field-absent default (a save without the weapon field → empty list, `-1`, unarmed, base-STR damage).
   - [x] 7.5 WIELD gate: wields a non-broken weapon, refuses a broken one, no-op when the list is empty; key-bound + in the legend.
   - [x] 7.6 Full suite green via `docs/BUILD.md` (`mvn -o clean install`), no regressions (currently 438 tests). **Verify:** all green, boot clean.
+
+### Review Findings
+
+Code review 2026-08-13 (Blind Hunter + Edge-Case Hunter + Acceptance Auditor, focused diff `ae330bf`..`c244dcf`). Acceptance Auditor: **AC-1 SATISFIED, AC-2 SATISFIED (AD-13 curve verified digit-for-digit vs spec + ARCHITECTURE-SPINE.md), AC-3 the no-regression + round-trip guarantees fully met** (the literal "empty list" sub-clause was a spec overstatement — see patch 6). No high defects. 6 patches applied (2 med, 4 low), rest dismissed as unreachable/cosmetic.
+
+- [x] [Review][Patch] `wieldNext` spent a full turn re-wielding the only/same usable weapon (lands back on the current index). **FIXED: `wieldNext` now skips the current index (cycles to a DIFFERENT usable weapon); the WIELD case refuses with "Already at the ready." and spends no turn when only the wielded weapon is usable.** [RunState.wieldNext, TurnEngine WIELD]
+- [x] [Review][Patch] `wieldedIndex` was not validated on load — an edited/migrated save could point it past the list or at a broken weapon (combat stayed safe via the read guard, but the invariant was violated and it seeded `wieldNext`'s cycle). **FIXED: `restoreAfterLoad` normalizes via `setWieldedIndex(wieldedIndex)`, clamping a stale/broken index to −1. This also wires the previously-dead `setWieldedIndex` (Blind #3).** [RunState.restoreAfterLoad, setWieldedIndex]
+- [x] [Review][Patch] `Weapon.ofTier` had no bounds check — a future full-table caller with tier 0/6 would throw a context-free AIOOBE. **FIXED: validates `tier` is 1..5, throws `IllegalArgumentException` with the offending value.** [Weapon.ofTier]
+- [x] [Review][Patch] The repair curve was pinned only against an originalMax=100 weapon (every cell a whole number), so the half-up `Math.round` at `.5` was untested for shipped tiers. **FIXED: added `repairRoundingUsesHalfUpOnRealTierData` on `bowT5` (originalMax 70), which exercises 45.5→46 and 24.5→25.** [WeaponTest]
+- [x] [Review][Patch] Doc: the `wieldedIndex` field comment implied a stronger invariant than the code maintains (it can transiently point at a broken weapon between the break and the next wield). **FIXED: tightened the field comment (getWieldedWeapon is the authority) and noted on `repair` that it has no gameplay entry point until Story 4.5 (D4).** [RunState field, Weapon.repair]
+- [x] [Review][Patch] AC-3's text said a pre-4.4 save "loads as unarmed (empty weapon list)", but the code inherits the ctor's starter set (the documented field-absent wart) — the wording overstated the guarantee. **FIXED: reworded AC-3 to match the code (unarmed → base STR; the list inherits the deterministic starter set, not empty).** [story AC-3]
+
+**Dismissed (unreachable/cosmetic):** negative `decay` amount / negative `originalMax` / `repair` with originalMax 0 (weapons are only built via the tier factory with maxima 20–70); null-category `displayName` (only called on factory-built weapons at break/wield); `int*int` product overflow in `repair` (max 70×96, never near overflow); `repair` being callable with no cost gate (intended D4 staging — noted in the doc, not a defect); naming drifts (`tierBonus()` vs the implemented `damageBonus()`, `WeaponRepairCurveTest` vs the curve tests living in `WeaponTest`) — behaviorally identical, no impact.
+
+**Review patches applied 2026-08-13:** all 6 above; full suite green (457 tests, +2 for the rounding pin and the `ofTier` bounds guard).
 
 ## Dev Notes
 
@@ -171,3 +186,4 @@ Claude Opus 4.8 (1M context) — create-story 2026-08-13.
 
 - 2026-08-13 — created by create-story. Scope confirmed with Justine: D1 (first-class `Weapon` instances in a `RunState` list + `wieldedIndex` — the flyweight int-ordinal inventory can't carry per-item durability), D2 (minimal representative set Spear T1 / Blade T3 / Bow T5; the ~30-weapon 5×5 table is deferred content), D3 (a wielded weapon adds a tier damage bonus, broken = unarmed at base STR — makes breaking cost something; unwielded default preserves the STR-only combat tests), D4 (4.4 ships the AD-13 repair *curve* as a model method + tests; the reachable repair action + weapon-specific materials + scavenge-on-break are Story 4.5). Defaults recorded: durability decays on ATTACK+BLOCK only (CHOP/THROW aren't real actions), O7/O8 equip fixes ride 4.5's equip UI, weapon loot placement is deferred content (the minimal set is seeded into a new run so the mechanism is reachable via a new key-bound WIELD action). Substrate audit: no `Weapon`/durability exists today (combat is flat STR); SKILL is already a real stat for the curve; the Inventory equip slots are int-ordinal and unsuited to per-item state. Status → ready-for-dev.
 - 2026-08-13 — dev-story: implemented the `Weapon` model (durability/break, tier data, and the AD-13 repair curve across Low/Mid/High SKILL bands with the 6th beyond repair), `RunState` weapons list + `wieldedIndex` (+ `getWieldedWeapon`/`wieldNext`/`breakWielded`, AD-6-safe, `SaveService` element-type registered), combat wiring (STR + tier bonus; ATTACK & BLOCK decay; break→unarmed + one log line), and a reachable **Z**-bound `WIELD` action + legend. Minimal set Spear T1 / Blade T3 / Bow T5. +17 tests (`WeaponTest` ×7 model/curve, `WeaponDurabilityTest` ×10 combat/wield/persistence); full suite green (455). One migration wart documented (a pre-4.4 field-absent save inherits the ctor's starter set, unwielded — benign, no combat regression). Status → review.
+- 2026-08-13 — code review (Blind Hunter + Edge-Case Hunter + Acceptance Auditor, focused diff `ae330bf`..`c244dcf`): AC-1/AC-2 SATISFIED (AD-13 curve verified digit-for-digit), AC-3 no-regression + round-trip met; D1–D4 held, D4 boundary honestly clean. 6 patches applied — wieldNext no-wasted-turn re-wield (med), wieldedIndex load-normalization via the now-wired setWieldedIndex (med), ofTier bounds guard, a half-up rounding test on real tier data (bowT5), doc tightening (wieldedIndex invariant + repair-no-entry-until-4.5), and an AC-3 wording fix (drop the overstated "empty list"). Rest dismissed (unreachable negative/zero inputs, cosmetic naming drift). Full suite green (457, +2). Status → done.

@@ -70,7 +70,10 @@ public class RunState {
     private FlagStore flagStore = new FlagStore();
     // Story 4.4 (FR-13, AD-13): Klein's weapons as first-class instances (per-item durability),
     // and the index of the wielded one (-1 = unarmed). Field-initialized so a pre-4.4 save (no
-    // weapons key) loads empty + unarmed — the AD-6 default that preserves base-STR combat (AC-3).
+    // weapons key) loads unarmed — the AD-6 default that preserves base-STR combat (AC-3).
+    // wieldedIndex may transiently point at a weapon that just broke (until the next wield);
+    // getWieldedWeapon() is the authority (it returns null for a broken/out-of-range index), and
+    // restoreAfterLoad() re-normalizes a stale index from an edited/migrated save.
     private List<Weapon> weapons = new ArrayList<>();
     private int wieldedIndex = -1;
     // Save-format stamp (AD-6). Field-initialized, so a fresh run and a fresh load both
@@ -397,6 +400,9 @@ public class RunState {
         for (Companion c : companions) {
             c.setMap(tileMap);
         }
+        // Story 4.4 (review): clamp a stale/broken wielded index from an edited or migrated save back
+        // to a valid weapon or unarmed, so the "wieldedIndex is valid or -1" invariant is total.
+        setWieldedIndex(wieldedIndex);
     }
 
     /** Restart a fresh run (same seeded RNG stream continues). */
@@ -490,12 +496,13 @@ public class RunState {
         int n = weapons.size();
         for (int step = 1; step <= n; step++) {
             int idx = ((wieldedIndex < 0 ? -1 : wieldedIndex) + step) % n;
+            if (idx == wieldedIndex) continue; // don't re-ready the weapon already in hand (would waste a turn)
             if (!weapons.get(idx).isBroken()) {
                 wieldedIndex = idx;
                 return weapons.get(idx);
             }
         }
-        return null;
+        return null; // nothing ELSE usable to switch to (empty, all broken, or only the wielded one is usable)
     }
 
     /** Whether a LIVING enemy stands on (x,y) — the player-move occupancy gate (combat fix #2):
