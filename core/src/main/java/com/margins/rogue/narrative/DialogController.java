@@ -4,9 +4,11 @@ import com.margins.dialog.DialogEffect;
 import com.margins.dialog.DialogNode;
 import com.margins.dialog.DialogNode.DialogOption;
 import com.margins.dialog.GateStat;
+import com.margins.rogue.RoguePlayer;
 import com.margins.rogue.item.Inventory;
 import com.margins.rogue.state.FlagStore;
 import com.margins.rogue.state.RunState;
+import com.margins.rogue.system.DetectionSystem;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -118,6 +120,11 @@ public class DialogController {
         if (e instanceof DialogEffect.GiveItem g) return giveItemLine(state, g.type(), g.count());
         if (e instanceof DialogEffect.TakeItem t) return takeItemLine(state, t.type(), t.count());
         if (e instanceof DialogEffect.Disposition d) return dispositionLine(state.getFlagStore(), d.npc(), d.delta());
+        if (e instanceof DialogEffect.Deescalate dz) {
+            RoguePlayer p = state.getPlayer();
+            int n = DetectionSystem.deescalateNear(state, p.getTileX(), p.getTileY(), dz.radius());
+            return n > 0 ? "The patrol stands down." : null; // Story 4.2 (AC-2): one line for the whole patrol
+        }
         return null; // unreachable — sealed DialogEffect is exhaustive here
     }
 

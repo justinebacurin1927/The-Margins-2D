@@ -66,6 +66,39 @@ public final class DetectionSystem {
         }
     }
 
+    /**
+     * VOICE talk-down (Story 4.2, AC-2, D3): drop every living SUSPICIOUS enemy within Euclidean
+     * {@code radius} of (x,y) to UNAWARE and reset its sight streak, so a talked-down patrol must
+     * re-earn its wariness. ALERTED enemies are past talking (they've committed to Klein) and are
+     * left untouched. Returns how many were de-escalated (0 = nothing to talk down). Detection
+     * transitions stay owned by DetectionSystem (AD-9) — dialogue routes here, never mutating
+     * Detection directly.
+     */
+    public static int deescalateNear(RunState state, int x, int y, int radius) {
+        int count = 0;
+        for (RogueEnemy e : state.getEnemies()) {
+            if (!e.isAlive() || e.getDetection() != Detection.SUSPICIOUS) continue;
+            int dx = e.getTileX() - x;
+            int dy = e.getTileY() - y;
+            if (dx * dx + dy * dy > radius * radius) continue;
+            e.setDetection(Detection.UNAWARE);
+            e.setSightTurns(0);
+            count++;
+        }
+        return count;
+    }
+
+    /** Story 4.2 (AC-2): is a wary (SUSPICIOUS) patrol adjacent to Klein — the gate for offering a
+     *  parley. ALERTED is past talking (Flee owns escape); UNAWARE hasn't noticed him. */
+    public static boolean hasSuspiciousAdjacent(RunState state) {
+        int px = state.getPlayer().getTileX();
+        int py = state.getPlayer().getTileY();
+        for (RogueEnemy e : state.getEnemies()) {
+            if (e.isAlive() && e.getDetection() == Detection.SUSPICIOUS && e.isAdjacentTo(px, py)) return true;
+        }
+        return false;
+    }
+
     private static boolean canSee(RogueTileMap map, RogueEnemy e, int px, int py) {
         int dx = px - e.getTileX();
         int dy = py - e.getTileY();

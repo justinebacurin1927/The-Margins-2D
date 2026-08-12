@@ -83,6 +83,7 @@ public class TurnEngine {
                 break;
             case BLOCK:
                 player.setBlocking(true);
+                CombatSystem.blockNoise(state); // Story 4.2 (AC-1): a brace is as loud as a swing (AD-9)
                 result.messages.add("Brace!");
                 acted = true;
                 break;

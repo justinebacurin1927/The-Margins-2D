@@ -4,7 +4,7 @@ baseline_commit: 58ed421
 
 # Story 4.2: Combat noise draws reinforcements
 
-Status: ready-for-dev
+Status: review
 
 ## Story
 
@@ -55,24 +55,24 @@ so that violence has a spatial consequence and avoidance/VOICE can still beat a 
 
 ## Tasks / Subtasks
 
-- [ ] **Task 1 — Block emits combat noise (AC-1, AC-3, D2).**
-  - [ ] 1.1 Emit a `NoiseEvent` when Block resolves, at `ATTACK_NOISE_RADIUS` (4). Keep combat-noise emission co-located with combat authority: add a small `CombatSystem.blockNoise(RunState)` (or emit in the existing combat path) rather than reaching into the private constant from `TurnEngine`. Wire the `BLOCK` case in `TurnEngine` (`TurnEngine.java:84-88`) to trigger it.
-  - [ ] 1.2 Confirm the noise is enqueued in the acted step (player-first) so `NoiseSystem.resolve` draws reinforcements the same turn. Do not touch `NoiseSystem` — it already does the draw.
-- [ ] **Task 2 — De-escalation mechanism, routed through DetectionSystem (AC-2, AC-3, D3).**
-  - [ ] 2.1 Add a public helper `DetectionSystem.deescalateNear(RunState, int x, int y, int radius, List<String> messages)` (name to taste): for each living enemy within Euclidean `radius`, if `Detection.SUSPICIOUS` → set `UNAWARE` (D3: ALERTED untouched). Emit at most ONE observation line (Story 1.8 AC-2 discipline — a whole patrol reads once, e.g. "The patrol stands down.").
-  - [ ] 2.2 Add `DialogEffect.Deescalate(int radius)` to the sealed `permits` list + a record (pure model, `com.margins.dialog`, AD-2 — no rogue deps in the descriptor).
-  - [ ] 2.3 Add the `apply(...)` branch in `DialogController` (`DialogController.java:112`) mapping `Deescalate` → `DetectionSystem.deescalateNear(state, player x/y, radius, ...)`, returning its observation line (the sealed-exhaustive instanceof chain stays exhaustive).
-- [ ] **Task 3 — Minimal authored parley scene + VOICE gate (AC-2, D1).**
-  - [ ] 3.1 Author a small parley scene (mirror `CorneoIntro`): a hail node → a VOICE-gated `DialogOption` → success node carrying `DialogEffect.Deescalate` ("You talk them down.") and a failure node (they stay wary — no de-escalation; a terse line). Keep it 2–3 nodes.
-  - [ ] 3.2 Route the gate on `GateStat.VOICE` so `gateValue` compares `player.getVoice()` (FR-19). Pick the gate threshold consistent with existing VOICE gates in the codebase (check `CorneoIntro`/existing scenes for the convention).
-- [ ] **Task 4 — Reachable parley trigger + screen wiring + reachability gate (AC-2, retro #1).**
-  - [ ] 4.1 Bind a parley key (propose **T** = Talk/parley) in `MarginScreen.readAction`, active only when a SUSPICIOUS enemy is adjacent to Klein (reuse the adjacency/`enemyAt` helpers). On press, open the parley scene via the existing dialogue entry (`dialog`/DialogController + the screen's dialogue mode).
-  - [ ] 4.2 Add `T  Parley` to the how-to-play EXPLORE legend (`renderHowToPlayPage`). Reachability audit: confirm the parley path is keyboard-reachable and does nothing (no turn, a short "No one to talk to." or silent) when no wary patrol is adjacent.
-- [ ] **Task 5 — Tests + verification (all ACs).**
-  - [ ] 5.1 AC-1: a block enqueues exactly one `NoiseEvent` at Klein's tile, radius 4; then `NoiseSystem.resolve` raises an in-radius UNAWARE enemy to SUSPICIOUS and retargets it (combat-specific pin, distinct from `LightNoiseTest`).
-  - [ ] 5.2 AC-2/D3: `DetectionSystem.deescalateNear` drops in-radius SUSPICIOUS→UNAWARE, leaves ALERTED and out-of-radius enemies untouched; the `Deescalate` `DialogEffect` executes via `DialogController` and de-escalates; a VOICE-fail branch does NOT carry the effect (no de-escalation).
-  - [ ] 5.3 Parley trigger: the key produces a parley action only when a SUSPICIOUS enemy is adjacent (gate), and is a no-op otherwise.
-  - [ ] 5.4 Full suite green via the `docs/BUILD.md` recipe (`mvn -o clean install`), no regressions (currently 416 tests). **Verify:** all green, boot clean.
+- [x] **Task 1 — Block emits combat noise (AC-1, AC-3, D2).**
+  - [x] 1.1 Emit a `NoiseEvent` when Block resolves, at `ATTACK_NOISE_RADIUS` (4). Keep combat-noise emission co-located with combat authority: add a small `CombatSystem.blockNoise(RunState)` (or emit in the existing combat path) rather than reaching into the private constant from `TurnEngine`. Wire the `BLOCK` case in `TurnEngine` (`TurnEngine.java:84-88`) to trigger it.
+  - [x] 1.2 Confirm the noise is enqueued in the acted step (player-first) so `NoiseSystem.resolve` draws reinforcements the same turn. Do not touch `NoiseSystem` — it already does the draw.
+- [x] **Task 2 — De-escalation mechanism, routed through DetectionSystem (AC-2, AC-3, D3).**
+  - [x] 2.1 Add a public helper `DetectionSystem.deescalateNear(RunState, int x, int y, int radius, List<String> messages)` (name to taste): for each living enemy within Euclidean `radius`, if `Detection.SUSPICIOUS` → set `UNAWARE` (D3: ALERTED untouched). Emit at most ONE observation line (Story 1.8 AC-2 discipline — a whole patrol reads once, e.g. "The patrol stands down.").
+  - [x] 2.2 Add `DialogEffect.Deescalate(int radius)` to the sealed `permits` list + a record (pure model, `com.margins.dialog`, AD-2 — no rogue deps in the descriptor).
+  - [x] 2.3 Add the `apply(...)` branch in `DialogController` (`DialogController.java:112`) mapping `Deescalate` → `DetectionSystem.deescalateNear(state, player x/y, radius, ...)`, returning its observation line (the sealed-exhaustive instanceof chain stays exhaustive).
+- [x] **Task 3 — Minimal authored parley scene + VOICE gate (AC-2, D1).**
+  - [x] 3.1 Author a small parley scene (mirror `CorneoIntro`): a hail node → a VOICE-gated `DialogOption` → success node carrying `DialogEffect.Deescalate` ("You talk them down.") and a failure node (they stay wary — no de-escalation; a terse line). Keep it 2–3 nodes.
+  - [x] 3.2 Route the gate on `GateStat.VOICE` so `gateValue` compares `player.getVoice()` (FR-19). Pick the gate threshold consistent with existing VOICE gates in the codebase (check `CorneoIntro`/existing scenes for the convention).
+- [x] **Task 4 — Reachable parley trigger + screen wiring + reachability gate (AC-2, retro #1).**
+  - [x] 4.1 Bind a parley key (propose **T** = Talk/parley) in `MarginScreen.readAction`, active only when a SUSPICIOUS enemy is adjacent to Klein (reuse the adjacency/`enemyAt` helpers). On press, open the parley scene via the existing dialogue entry (`dialog`/DialogController + the screen's dialogue mode).
+  - [x] 4.2 Add `T  Parley` to the how-to-play EXPLORE legend (`renderHowToPlayPage`). Reachability audit: confirm the parley path is keyboard-reachable and does nothing (no turn, a short "No one to talk to." or silent) when no wary patrol is adjacent.
+- [x] **Task 5 — Tests + verification (all ACs).**
+  - [x] 5.1 AC-1: a block enqueues exactly one `NoiseEvent` at Klein's tile, radius 4; then `NoiseSystem.resolve` raises an in-radius UNAWARE enemy to SUSPICIOUS and retargets it (combat-specific pin, distinct from `LightNoiseTest`).
+  - [x] 5.2 AC-2/D3: `DetectionSystem.deescalateNear` drops in-radius SUSPICIOUS→UNAWARE, leaves ALERTED and out-of-radius enemies untouched; the `Deescalate` `DialogEffect` executes via `DialogController` and de-escalates; a VOICE-fail branch does NOT carry the effect (no de-escalation).
+  - [x] 5.3 Parley trigger: the key produces a parley action only when a SUSPICIOUS enemy is adjacent (gate), and is a no-op otherwise.
+  - [x] 5.4 Full suite green via the `docs/BUILD.md` recipe (`mvn -o clean install`), no regressions (currently 416 tests). **Verify:** all green, boot clean.
 
 ## Dev Notes
 
@@ -112,10 +112,32 @@ Claude Opus 4.8 (1M context) — create-story 2026-08-12.
 
 ### Debug Log References
 
+- `mvn -o clean install` — BUILD SUCCESS, full suite green (425 tests, 0 failures; +9 over the 416 baseline), both modules installed.
+- 3 initial failures in `ParleyDeescalationTest` (`deescalateNearLeavesAlertedUntouched`, `deescalateNearIgnoresOutOfRadius`, `aFailedVoiceCheckDoesNotDeescalate`): root cause was the **test fixture**, not production code — `new RunState(1L)` seed-spawns a patrol, so `getEnemies().get(0)` was a pre-spawned UNAWARE enemy, not the appended fixture enemy (the other tests passed only coincidentally because that enemy was already UNAWARE). Fixed by `state.getEnemies().clear()` in the fixture before adding the controlled enemy. Re-ran green.
+
 ### Completion Notes List
 
+- **AC-1 — block noise draws reinforcements.** `CombatSystem.blockNoise(RunState)` emits one `NoiseEvent` at Klein's tile at `ATTACK_NOISE_RADIUS` (4, D2), co-located with the existing attack noise; `TurnEngine`'s `BLOCK` case calls it. `NoiseSystem.resolve` (unchanged — it already implements the UNAWARE→SUSPICIOUS + retarget draw) consumes it. Pinned by `CombatNoiseTest` (emit-one-at-tile, direct emit+resolve draw, and an end-to-end acted-path draw isolated from sight by a no-LOS wall).
+- **AC-2 — VOICE talks a wary patrol down.** New `DetectionSystem.deescalateNear(state, x, y, radius) → int` drops in-radius **SUSPICIOUS** enemies to UNAWARE (resets sightTurns), leaves ALERTED untouched (D3), and returns the count. New `DialogEffect.Deescalate(int radius)` (sealed permit + record) executes in `DialogController.apply` via that helper, returning one observation line ("The patrol stands down."). `ParleyScene.build()` is the minimal VOICE-gated scene (threshold 3 = Klein's starting VOICE); its success node carries the effect. Pinned by `ParleyDeescalationTest` (SUSPICIOUS→UNAWARE in radius; ALERTED + out-of-radius untouched; adjacency gate; full scene success via `DialogController`; fail branch carries no de-escalation).
+- **AC-3 — authority discipline preserved.** All combat noise flows through `CombatSystem`/`RunState.emitNoise` → `NoiseSystem.resolve` (AD-9); all detection transitions stay inside `DetectionSystem` (the controller never mutates `Detection` directly). `NoiseSystem` untouched.
+- **AC-4 / retro #1 — reachability.** Parley is bound to **P** in `MarginScreen` (opens the scene when `DetectionSystem.hasSuspiciousAdjacent`; a "No one to parley with." refusal otherwise, no turn), and `P  Parley` is in the how-to-play EXPLORE legend. The gate (`hasSuspiciousAdjacent`) is a testable helper, pinned in `ParleyDeescalationTest`.
+- **Deviation 1 (key):** the story proposed **T** for parley, but **T** is already bound to "Craft torch". Used **P** (mnemonic for Parley, previously unbound) instead. No collision.
+- **Deviation 2 (signature):** `deescalateNear` returns an `int` count rather than taking the story's `List<String> messages` param — the single observation line is built at the call site (`DialogController.apply`), which keeps the one-line-per-patrol rule at the observation boundary and avoids double-logging. Detection logic stays a pure count in `DetectionSystem`.
+- **AD-6:** no new persisted field (noise queue is transient; de-escalation mutates existing `Detection`; the parley scene is transient authored content) — no migration needed.
+
 ### File List
+
+- `core/src/main/java/com/margins/rogue/system/CombatSystem.java`
+- `core/src/main/java/com/margins/rogue/system/TurnEngine.java`
+- `core/src/main/java/com/margins/rogue/system/DetectionSystem.java`
+- `core/src/main/java/com/margins/dialog/DialogEffect.java`
+- `core/src/main/java/com/margins/rogue/narrative/DialogController.java`
+- `core/src/main/java/com/margins/rogue/narrative/ParleyScene.java` (new)
+- `core/src/main/java/com/margins/MarginScreen.java`
+- `core/src/test/java/com/margins/rogue/CombatNoiseTest.java` (new)
+- `core/src/test/java/com/margins/rogue/narrative/ParleyDeescalationTest.java` (new)
 
 ## Change Log
 
 - 2026-08-12 — created by create-story. Scope decisions D1 (AC-2 = mechanism + one reachable trigger; rich faction dialogue → Epic 5), D2 (block noise = attack radius 4), D3 (parley de-escalates SUSPICIOUS→UNAWARE only) confirmed with Justine. Substrate audit: attack noise + `NoiseSystem.resolve` draw already ship and are pinned; the real work is block noise + the VOICE de-escalation mechanism + one reachable parley trigger.
+- 2026-08-12 — dev-story: implemented block noise (`CombatSystem.blockNoise`, wired in `TurnEngine`'s BLOCK case), the VOICE de-escalation mechanism (`DetectionSystem.deescalateNear`/`hasSuspiciousAdjacent`, `DialogEffect.Deescalate`, `DialogController` execution), the minimal `ParleyScene` (VOICE gate 3), and the reachable **P** parley trigger + how-to-play legend. Two documented deviations: **P** key (T was taken by Craft torch) and `deescalateNear` returns an int count (line built at the call site). +9 tests (`CombatNoiseTest` ×3, `ParleyDeescalationTest` ×6); full suite green (425). Status → review.

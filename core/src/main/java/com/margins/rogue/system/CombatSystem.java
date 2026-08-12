@@ -36,6 +36,15 @@ public final class CombatSystem {
     }
 
     private static final int ATTACK_NOISE_RADIUS = 4;
+
+    /** The Block/Brace action is as loud as a swing (Story 4.2, AC-1, D2): emit one NoiseEvent at
+     *  Klein's tile at {@link #ATTACK_NOISE_RADIUS} so a brace draws reinforcements exactly like an
+     *  attack (AD-9). Co-located with the attack noise so all combat noise has one home. */
+    public static void blockNoise(RunState state) {
+        RoguePlayer player = state.getPlayer();
+        state.emitNoise(player.getTileX(), player.getTileY(), ATTACK_NOISE_RADIUS);
+    }
+
     /** The Dodge action's evasion multiplier (Story 4.1, FR-12): while evading, the dodge chance is
      *  min(90, dodgePercent × 2) — a 200% boost capped short of a guarantee. */
     private static final int DODGE_BOOST_PERCENT = 200;

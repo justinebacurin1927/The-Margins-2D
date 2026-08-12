@@ -10,7 +10,7 @@ package com.margins.dialog;
  */
 public sealed interface DialogEffect permits
         DialogEffect.SetFlag, DialogEffect.Bond, DialogEffect.GiveItem,
-        DialogEffect.TakeItem, DialogEffect.Disposition {
+        DialogEffect.TakeItem, DialogEffect.Disposition, DialogEffect.Deescalate {
 
     /** Write a flag to the FlagStore (AD-7) when the node is entered. Scene bookkeeping —
      *  written silently (the node text is the observation). The {@link DialogNode#withFlag}
@@ -28,4 +28,9 @@ public sealed interface DialogEffect permits
 
     /** Shift an NPC's disposition counter in the FlagStore ("disposition." + npc) by {@code delta}. */
     record Disposition(String npc, int delta) implements DialogEffect {}
+
+    /** VOICE talk-down (Story 4.2, AC-2): on node entry, de-escalate SUSPICIOUS enemies within
+     *  {@code radius} tiles of the player to UNAWARE. Execution lives in the controller (routed
+     *  through DetectionSystem, AD-9); a parley scene attaches this to its VOICE-pass success node. */
+    record Deescalate(int radius) implements DialogEffect {}
 }

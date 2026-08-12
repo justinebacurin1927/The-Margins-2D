@@ -32,9 +32,11 @@ import com.margins.rogue.narrative.CorneoIntro;
 import com.margins.rogue.narrative.DialogController;
 import com.margins.rogue.narrative.IntroController;
 import com.margins.rogue.narrative.JournalController;
+import com.margins.rogue.narrative.ParleyScene;
 import com.margins.rogue.narrative.TutorialController;
 import com.margins.rogue.save.SaveService;
 import com.margins.rogue.state.RunState;
+import com.margins.rogue.system.DetectionSystem;
 import com.margins.rogue.system.FovSystem;
 import com.margins.rogue.system.PlayerAction;
 import com.margins.rogue.system.TorchSystem;
@@ -545,6 +547,17 @@ public class MarginScreen implements Screen {
         }
         if (down(Input.Keys.TAB)) {
             openInventory();
+            return;
+        }
+        // Story 4.2 (AC-2): parley — open a VOICE talk-down scene when a wary (SUSPICIOUS) patrol is
+        // adjacent. A safe-pause surface like the journal (no PlayerAction → no turn); refused with a
+        // line when there's no one to talk down.
+        if (down(Input.Keys.P)) {
+            if (DetectionSystem.hasSuspiciousAdjacent(state)) {
+                dialog.start(ParleyScene.build(), state);
+            } else {
+                state.appendMessages(List.of("No one to parley with."));
+            }
             return;
         }
         if (handleBurgerPointer()
@@ -3650,10 +3663,11 @@ public class MarginScreen implements Screen {
         drawText("H  Brace", left, top - 45, pageText); // Story 4.1 (FR-12): the combat action set
         drawText("R  Dodge", left, top - 59, pageText);
         drawText("X  Flee", left, top - 73, pageText);
-        drawText("G  Take item", left, top - 87, pageText);
-        drawText("SPACE  Wait", left, top - 101, pageText);
-        drawText("TAB  Backpack", left, top - 115, pageText);
-        drawText("J  Journal", left, top - 129, pageText);
+        drawText("P  Parley", left, top - 87, pageText); // Story 4.2 (AC-2): VOICE talk-down of a wary patrol
+        drawText("G  Take item", left, top - 101, pageText);
+        drawText("SPACE  Wait", left, top - 115, pageText);
+        drawText("TAB  Backpack", left, top - 129, pageText);
+        drawText("J  Journal", left, top - 143, pageText);
 
         drawHeading("SURVIVE", right, top, pageMuted);
         drawText("C  Forage", right, top - 17, pageText);

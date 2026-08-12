@@ -55,7 +55,7 @@
 #   item is now folded into new Story 1.1's acceptance criteria (AD-6).
 
 generated: 2026-08-06
-last_updated: 2026-08-12  # Story 4.2 → ready-for-dev: combat noise draws reinforcements (block noise = attack radius 4, D2) + VOICE de-escalation mechanism & one reachable parley trigger (D1; rich faction dialogue → Epic 5), SUSPICIOUS→UNAWARE only (D3). Story 4.1 done. Epic 4 in-progress.
+last_updated: 2026-08-12  # Story 4.2 → review: block noise (D2) + VOICE de-escalation mechanism & reachable P parley trigger (D1) + SUSPICIOUS→UNAWARE talk-down (D3) implemented; suite green (425 tests, +9). Story 4.1 done. Epic 4 in-progress.
 project: The Margin
 project_key: NOKEY
 tracking_system: file-system
@@ -95,7 +95,7 @@ development_status:
   # Epic 4 — Combat & Its Costs
   epic-4: in-progress
   4-1-combat-resolves-at-the-actors-point-via-combatsystem: done
-  4-2-combat-noise-draws-reinforcements: ready-for-dev
+  4-2-combat-noise-draws-reinforcements: review
   4-3-occupation-escalation-thickens-per-act: backlog
   4-4-weapon-durability-and-gear-with-memory: backlog
   4-5-scavenge-on-break-and-skill-based-repair: backlog
