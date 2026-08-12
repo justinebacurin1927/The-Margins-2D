@@ -55,7 +55,7 @@
 #   item is now folded into new Story 1.1's acceptance criteria (AD-6).
 
 generated: 2026-08-06
-last_updated: 2026-08-13  # Story 4.3 → done: code review passed (all 3 ACs verified, D1-D4 met, D4 inert scope honest); 5 low patches applied (cordon-comment honesty, deduped SAFE_TIER constant, AD-5 claim scoped to Act 1 + loot-shift flagged for Epic 5, E2E non-vacuity guard, baseEnemyCountFor javadoc), 5 dismissed (unreachable/by-design); suite green (438). FlagStore act flag + per-act cordon-aware density + placeFloorActors wiring; mechanism only, inert until Epic 5's live act-flip trigger. Story 4.2 done, 4.1 done. Epic 4 in-progress (3/6 stories done).
+last_updated: 2026-08-13  # Story 4.4 → ready-for-dev: create-story done. Scope confirmed with Justine — D1 first-class Weapon instances (RunState List<Weapon> + wieldedIndex; flyweight int-ordinal inventory can't carry per-item durability), D2 minimal set (Spear T1/Blade T3/Bow T5; ~30-weapon 5x5 table = deferred content), D3 wielded weapon adds tier damage / broken = unarmed (unwielded default preserves STR-only combat tests), D4 4.4 = AD-13 repair CURVE model + tests only (reachable repair + materials + scavenge = 4.5). Durability decays on ATTACK+BLOCK only (CHOP/THROW aren't real actions); new key-bound WIELD action for reachability. Story 4.3 done, 4.2 done, 4.1 done. Epic 4 in-progress (3/6 done).
 project: The Margin
 project_key: NOKEY
 tracking_system: file-system
@@ -97,7 +97,7 @@ development_status:
   4-1-combat-resolves-at-the-actors-point-via-combatsystem: done
   4-2-combat-noise-draws-reinforcements: done
   4-3-occupation-escalation-thickens-per-act: done
-  4-4-weapon-durability-and-gear-with-memory: backlog
+  4-4-weapon-durability-and-gear-with-memory: ready-for-dev
   4-5-scavenge-on-break-and-skill-based-repair: backlog
   4-6-permadeath-and-last-stand: backlog
   epic-4-retrospective: optional
