@@ -1065,6 +1065,8 @@ public class MarginScreen implements Screen {
         if (down(Input.Keys.R))     return PlayerAction.dodge(facing);
         if (down(Input.Keys.X))     return PlayerAction.flee(facing);
         if (down(Input.Keys.Z))     return PlayerAction.wield(facing); // Story 4.4: ready/cycle the wielded weapon
+        if (down(Input.Keys.N))     return PlayerAction.repair(facing); // Story 4.5: mend the wielded weapon
+        if (down(Input.Keys.U))     return PlayerAction.scavenge(facing); // Story 4.5: strip a broken weapon for parts
         if (down(Input.Keys.W) || down(Input.Keys.UP))    return PlayerAction.move(0, 1, 1);
         if (down(Input.Keys.S) || down(Input.Keys.DOWN))  return PlayerAction.move(0, -1, 0);
         if (down(Input.Keys.A) || down(Input.Keys.LEFT))  return PlayerAction.move(-1, 0, 2);
@@ -3680,6 +3682,8 @@ public class MarginScreen implements Screen {
         drawText("V  Boil water", right, top - 87, pageText);
         drawText("E  Use selected item", right, top - 101, pageText);
         drawText("L  Lockpick", right, top - 115, pageText);
+        drawText("N  Mend weapon", right, top - 129, pageText);   // Story 4.5
+        drawText("U  Scavenge weapon", right, top - 143, pageText); // Story 4.5
 
         fillRect(x + 14, y + 92, width - 28, 1,
                 startupMenuOpen ? TITLE_BORDER : UI_BORDER);

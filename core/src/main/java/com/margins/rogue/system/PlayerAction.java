@@ -19,7 +19,10 @@ public class PlayerAction {
         LOCKPICK,
         // Story 4.4 (FR-13): ready (cycle) the wielded weapon from RunState's weapon list. No itemType
         // (weapons aren't backpack ordinals — they're first-class instances, AD-13).
-        WIELD
+        WIELD,
+        // Story 4.5 (FR-13): mend the wielded weapon (consumes category materials, AD-13 SKILL curve)
+        // and strip the first broken weapon for parts. No itemType (they act on RunState.weapons).
+        REPAIR, SCAVENGE
     }
 
     public final Kind kind;
@@ -109,5 +112,13 @@ public class PlayerAction {
 
     public static PlayerAction wield(int dir) {
         return new PlayerAction(Kind.WIELD, 0, 0, dir, -1);
+    }
+
+    public static PlayerAction repair(int dir) {
+        return new PlayerAction(Kind.REPAIR, 0, 0, dir, -1);
+    }
+
+    public static PlayerAction scavenge(int dir) {
+        return new PlayerAction(Kind.SCAVENGE, 0, 0, dir, -1);
     }
 }

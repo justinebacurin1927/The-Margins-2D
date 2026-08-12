@@ -281,6 +281,16 @@ public class TurnEngine {
                 }
                 break;
             }
+            case REPAIR:
+                // Story 4.5 (AC-2): mend the wielded weapon (consumes materials, AD-13 SKILL curve).
+                // A refusal (unarmed / not damaged / beyond repair / no materials) spends no turn.
+                acted = RepairSystem.repair(state, result.messages);
+                break;
+            case SCAVENGE:
+                // Story 4.5 (AC-1): strip the first broken weapon for tier-scaled parts. A refusal
+                // (nothing broken / pack full) spends no turn.
+                acted = RepairSystem.scavenge(state, result.messages);
+                break;
         }
 
         if (acted) {

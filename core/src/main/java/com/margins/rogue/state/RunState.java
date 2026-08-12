@@ -489,6 +489,16 @@ public class RunState {
     /** Revert to unarmed — called when the wielded weapon breaks (Story 4.4, AC-1). */
     public void breakWielded() { wieldedIndex = -1; }
 
+    /** Story 4.5 (AC-1): remove the weapon at {@code index} (e.g. scavenged), keeping the
+     *  "wieldedIndex is valid or −1" invariant — the removed weapon unwields, and a wielded weapon
+     *  after it shifts down one. Out-of-range is a no-op. */
+    public void removeWeapon(int index) {
+        if (index < 0 || index >= weapons.size()) return;
+        weapons.remove(index);
+        if (wieldedIndex == index) wieldedIndex = -1;
+        else if (wieldedIndex > index) wieldedIndex--;
+    }
+
     /** Story 4.4 (AC-1): ready the next usable weapon, cycling from the current one and skipping broken
      *  gear. Returns the newly wielded weapon, or null when there is nothing usable to ready (empty
      *  list, or every weapon broken) — the caller refuses without spending a turn. */
