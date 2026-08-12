@@ -175,12 +175,18 @@ public class RunState {
     private void placeFloorActors(FloorResult result, int avoidX, int avoidY) {
         WorldSpine spine = result.spine;
         enemies = new ArrayList<>();
+        // Story 4.3 (AD-11 channel a): the current act thickens the interior. Read once — the map
+        // and enemies generate together at run start, so this is Act 1 in shipped play today.
+        // Epic 5 seam: the LIVE act-flip trigger (regenerate-unexplored / reinforce on act change)
+        // is not wired here; 4.3 ships the tested-but-inert ramp (see story D4).
+        int act = flagStore.getAct();
         for (int i = 1; i < result.roomCenters.size(); i++) {
             int cx = result.roomCenters.get(i)[0];
             int cy = result.roomCenters.get(i)[1];
-            // The enemy COUNT is a deterministic step of the region's eastness (Decision 4) — no
-            // rng in the decision, only per-enemy position draws touch the seeded stream (AD-5).
-            int count = enemyCountFor(spine.eastness(cx));
+            // The enemy COUNT is a deterministic step of the region's eastness AND the act (Story 4.3)
+            // — no rng in the decision, only per-enemy position draws touch the seeded stream (AD-5).
+            float ny = cy / (spine.getHeight() - 1f);
+            int count = enemyCountFor(spine.eastness(cx), act, ny);
             for (int e = 0; e < count; e++) {
                 int ex = cx + rng.nextInt(3) - 1;
                 int ey = cy + rng.nextInt(3) - 1;
@@ -283,15 +289,45 @@ public class RunState {
         return maxX < 0 ? null : new int[]{minX, minY, maxX, maxY};
     }
 
+    /** The 0.2f safe-tier boundary and the NW-cordon corner both key off this fraction (Story 4.3). */
+    private static final float SAFE_TIER = 0.2f;
+    private static final float CORDON_NY = 0.8f; // far-north: the NW border cordon's y-band (WorldSpine BORDER_Y = 0.9f)
+
     /** Enemy count per region: 0 in the safe west (near Corneo), rising to 3 in the eastern
      *  interior — the invasion's gradient (AC-2). The safe tier includes the 0.2f boundary line
      *  itself, so a home-cluster landmark that sits exactly on it (the Graveyard center, x=19) is
-     *  safe. Pure function of eastness (Decision 4). */
-    private static int enemyCountFor(float eastness) {
-        if (eastness <= 0.2f) return 0;
+     *  safe. Pure function of eastness (Decision 4).
+     *
+     *  <p>Story 4.3 (AD-11 channel a): the occupation thickens per act. On top of the base step,
+     *  each act past the first adds {@code (act - 1)} enemies to already-dangerous (base &gt; 0)
+     *  interior regions — additive, monotonic, no compounding. Still a pure, rng-free decision
+     *  (AD-5): {@code act} is a flag read once, {@code ny} is geometry; only the per-enemy position
+     *  draws touch the seeded stream. At {@code act == 1} this is bit-identical to the pre-4.3 bands
+     *  (no existing seed's layout changes). The NW border cordon is excluded (AC-2 / {@link
+     *  #inCordon}) so channel (a) can never harden AD-12's win gate — that thinning is channel (b),
+     *  owned by Epic 5. */
+    static int enemyCountFor(float eastness, int act, float ny) { // package-private: unit-tested (OccupationEscalationTest)
+        int base = baseEnemyCountFor(eastness);
+        if (act > 1 && base > 0 && !inCordon(eastness, ny)) {
+            base += (act - 1);
+        }
+        return base;
+    }
+
+    static int baseEnemyCountFor(float eastness) {
+        if (eastness <= SAFE_TIER) return 0;
         if (eastness < 0.45f) return 1;
         if (eastness < 0.7f) return 2;
         return 3;
+    }
+
+    /** The NW border cordon box (Story 4.3, AC-2): far-west AND far-north (WorldSpine BORDER_X = 0.05f,
+     *  BORDER_Y = 0.9f). The per-act ramp skips it so channel (a) never touches the win-gate cordon
+     *  (channel b, Epic 5 / Story 5.7). Deliberately belt-and-suspenders: the west safe tier already
+     *  zeroes that far-west corner (base 0 → never bumped), but naming the cordon makes AC-2 a pinned
+     *  invariant, not an emergent accident, and documents the two-channel split at the site. */
+    static boolean inCordon(float eastness, float ny) { // package-private: unit-tested (OccupationEscalationTest)
+        return eastness < SAFE_TIER && ny > CORDON_NY;
     }
 
     /** Supply count per region: 0 in the safe west, 1 mid-map, 2 in the east — loot rises east

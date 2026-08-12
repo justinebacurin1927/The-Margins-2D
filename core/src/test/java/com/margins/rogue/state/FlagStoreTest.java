@@ -62,4 +62,39 @@ class FlagStoreTest {
         fs.applyBondTag("bond.mystery");
         assertEquals(1, fs.getBond(), "an unrecognized tag changes nothing");
     }
+
+    // --- Story 4.3 (AD-11): the story act, read by the occupation-escalation ramp ---
+
+    @Test
+    void actDefaultsToOneWhenUnset() {
+        FlagStore fs = new FlagStore();
+        assertEquals(0, fs.get(FlagStore.KEY_ACT), "the raw flag is unset (empty-slot sentinel)");
+        assertEquals(1, fs.getAct(),
+                "an unset act reads as Act 1 — a pre-4.3 save loads Act 1 by construction (AD-6)");
+    }
+
+    @Test
+    void setActWritesAndReadsBack() {
+        FlagStore fs = new FlagStore();
+        fs.setAct(2);
+        assertEquals(2, fs.getAct(), "Follow the Road → Act 2 (Epic 5 flips this)");
+        fs.setAct(3);
+        assertEquals(3, fs.getAct(), "The Rescue → Act 3");
+    }
+
+    @Test
+    void setActClampsBelowOneToOne() {
+        FlagStore fs = new FlagStore();
+        fs.setAct(0);
+        assertEquals(1, fs.getAct(), "act never drops below 1");
+        fs.setAct(-5);
+        assertEquals(1, fs.getAct());
+    }
+
+    @Test
+    void getActFloorsAStrayNegativeFlag() {
+        FlagStore fs = new FlagStore();
+        fs.set(FlagStore.KEY_ACT, -2); // a malformed direct write still reads a valid act
+        assertEquals(1, fs.getAct(), "getAct floors to Act 1 regardless of how the flag got there");
+    }
 }

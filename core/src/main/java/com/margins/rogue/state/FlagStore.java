@@ -24,6 +24,13 @@ public class FlagStore {
      *  quest/Journal story (2.5) and the Act-2 rescue quest (Epic 5) read it. */
     public static final String KEY_ALDRIC_CAPTURED = "aldric.captured";
 
+    /** The current story act (Story 4.3, AD-11). The occupation-escalation ramp reads this to
+     *  thicken the interior per act. AD-11: the escalation trigger is a story-flag, NOT a timer —
+     *  Epic 5's act-gating quests ("Follow the Road" 1→2, "The Rescue" 2→3, Story 5.6) own the
+     *  writes via {@link #setAct}. The never-set sentinel (0) maps to Act 1 in {@link #getAct}, so a
+     *  pre-4.3 save reads Act 1 by construction (AD-6 deterministic default — no migration). */
+    public static final String KEY_ACT = "act.current";
+
     /** Stable tag carried by an honest dialogue choice → Bond +1 (FR-15). */
     public static final String BOND_TAG_HONEST = "bond.honest";
     /** Stable tag carried by a dismissive dialogue choice → Bond −1 (FR-15). */
@@ -43,6 +50,20 @@ public class FlagStore {
     /** Shift a key by {@code delta} from its current value (0 if never set). */
     public void add(String key, int delta) {
         flags.put(key, get(key) + delta);
+    }
+
+    /** The current story act, ≥ 1 (Story 4.3, AD-11). The never-set/0 sentinel maps to Act 1, so a
+     *  field-absent save reads Act 1 (AD-6 deterministic default), and no caller needs to special-case
+     *  an unset flag. */
+    public int getAct() {
+        return Math.max(1, get(KEY_ACT));
+    }
+
+    /** Advance to (or set) the current act, clamped to ≥ 1 (Story 4.3). Epic 5's act-gating quests
+     *  call this; 4.3 uses it as the test-only trigger for the otherwise-inert ramp (the map/enemies
+     *  generate once per run at Act 1, so nothing re-reads this live yet — Epic 5 wires that). */
+    public void setAct(int act) {
+        set(KEY_ACT, Math.max(1, act));
     }
 
     /** Galleon's Bond value (0 = neutral baseline, AD-7 / FR-15). */
