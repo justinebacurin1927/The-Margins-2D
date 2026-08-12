@@ -6,6 +6,7 @@ import com.margins.rogue.RogueEnemy;
 import com.margins.rogue.RoguePlayer;
 import com.margins.rogue.state.RunState;
 
+import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
 
@@ -58,12 +59,14 @@ public final class CombatSystem {
         boolean companionPresent = companion != null && companion.isAlive();
         int bx = companionPresent ? companion.getTileX() : -1; // -1 = no companion to block on
         int by = companionPresent ? companion.getTileY() : -1;
-        // Turn order by AG (Story 4.1, FR-12, AC-1): living enemies act highest-AG first. Java's
-        // List.sort is a stable TimSort, so equal-AG enemies keep their insertion order (D3) — no
-        // existing multi-enemy behavior changes, and the sort is AD-5-safe (ordering is not an rng
-        // draw). Dead enemies are still skipped below, so the sort can't make a corpse act (AD-4).
-        state.getEnemies().sort(Comparator.comparingInt(RogueEnemy::getAg).reversed());
-        for (RogueEnemy e : state.getEnemies()) {
+        // Turn order by AG (Story 4.1, FR-12, AC-1): living enemies act highest-AG first. We sort a
+        // COPY, never the live backing list — the canonical enemy order (rendering, save/load) must
+        // stay put; only this phase's iteration order changes. Java's List.sort is a stable TimSort,
+        // so equal-AG enemies keep their insertion order (D3), and the sort is AD-5-safe (ordering is
+        // not an rng draw). Dead enemies are still skipped below, so the sort can't make a corpse act.
+        List<RogueEnemy> order = new ArrayList<>(state.getEnemies());
+        order.sort(Comparator.comparingInt(RogueEnemy::getAg).reversed());
+        for (RogueEnemy e : order) {
             if (!e.isAlive()) continue;
             if (e.getDetection() == Detection.SUSPICIOUS) {
                 e.takeTurn(e.getLastSeenX(), e.getLastSeenY(), bx, by); // investigate, no attack
@@ -117,6 +120,10 @@ public final class CombatSystem {
         RoguePlayer player = state.getPlayer();
         int px = player.getTileX(), py = player.getTileY();
         int bestDist = nearestEnemyDist(state, px, py); // the player's current distance is the bar
+        if (bestDist == Integer.MAX_VALUE) { // nothing alive on the map to flee from
+            messages.add("Nothing to flee from.");
+            return false;
+        }
         int bestDir = -1;
         for (int d = 0; d < 4; d++) {
             int nx = px + RoguePlayer.directionX(d);

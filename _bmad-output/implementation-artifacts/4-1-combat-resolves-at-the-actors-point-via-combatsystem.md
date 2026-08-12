@@ -4,7 +4,7 @@ baseline_commit: 619edc1
 
 # Story 4.1: Combat resolves at the actor's point via CombatSystem
 
-Status: review
+Status: done
 
 ## Story
 
@@ -105,6 +105,18 @@ The `666bcb2` baseline already provides most of the combat frame. **Story 4.1's 
   - [x] 5.1 Bind the combat keys in `MarginScreen.readAction`: **H = Block**, **R = Dodge**, **X = Flee**. Order them with the existing combat key (Q) and the survival keys without shadowing anything.
   - [x] 5.2 Update `renderHowToPlayPage` (`MarginScreen.java:2547-2578`) — the SURVIVE column gains `H  Brace`, `R  Dodge`, `X  Flee` (next to `L  Lockpick`).
   - [x] 5.3 Reachability audit: for each of the five combat actions, confirm a key produces it (Q / H / R / E / X) — no test-only-reachable combat feature. Then full suite (`mvn -o -pl core test`, the `docs/BUILD.md` recipe) + a clean boot via the harness (`mvn -o -pl core install` before `exec:java`). **Verify:** 398+ core tests green, boot clean.
+
+### Review Findings
+
+Code review 2026-08-12 (Blind Hunter + Edge-Case Hunter + Acceptance Auditor, focused diff `619edc1`..`d5816cf`). Acceptance Auditor verified AC-1/AC-2/AC-3/AC-4 and D1/D2/D3 all satisfied; findings below are quality/robustness, not AC violations.
+
+- [x] [Review][Decision] `ag` duplicates the still-live `instinct` stat — `dodgePercent()` moved from `instinct` to `ag`, but `instinct` still exists (INS dialogue gating in `DialogController`) and is still ctor-set to 7. **RESOLVED 2026-08-12 (Justine): intended design — the two are deliberately distinct axes: `ag` = combat agility (dodge/turn-order), `instinct` = perception/dialogue INS-gating. They start equal (7) by value-preserving construction (D3) but are free to diverge as each axis grows. No reconciliation; dismissed.** [RoguePlayer.java:264; DialogController.java:90]
+- [x] [Review][Patch] enemyPhase sorts the live backing list `state.getEnemies()` in place — sort a copy so the canonical/persisted enemy order isn't permanently reordered once AG varies. **FIXED 2026-08-12: enemyPhase now sorts a `new ArrayList<>(state.getEnemies())` copy; live list untouched.** [CombatSystem.java:65]
+- [x] [Review][Patch] Flee with no living enemies left on the map refuses with "No way out!" (semantically wrong). **FIXED 2026-08-12: explicit no-enemies guard emits "Nothing to flee from." (distinct from the boxed-in "No way out!").** [CombatSystem.java:116-136]
+- [x] [Review][Defer] AG turn-order sort is inert in shipped content — every spawned enemy is AG=3 (`setAg` never called in `main/`); machinery + tests are correct but need enemy-AG variety (future story) to have visible effect. [CombatSystem.java:65; RunState.java:188] — deferred, needs enemy variety
+- [x] [Review][Defer] `flee` ignores `player.tryMove(...)`'s return — benign today (tile pre-validated, single-threaded turn) but "You flee!" logs unconditionally; harden by honoring the boolean. [CombatSystem.java:133] — deferred, latent only
+- [x] [Review][Defer] `evading` clear (`setEvading(false)`) is not exception-safe — a throw in a pipeline step between the DODGE action and the post-`enemyPhase` clear would orphan a free boosted dodge into the next turn; wrap in try/finally or reset at turn entry. [TurnEngine.java:298] — deferred, theoretical
+- [x] [Review][Defer] `combatDamageRoutesOnlyThroughCombatSystem` is a method-name substring guard, not a real HP-routing invariant — Auditor confirmed AC-2 holds via grep, but the test gives false confidence; harden to trace actual HP mutation. [CombatActionsTest.java] — deferred, test hardening
 
 ## Dev Notes
 
