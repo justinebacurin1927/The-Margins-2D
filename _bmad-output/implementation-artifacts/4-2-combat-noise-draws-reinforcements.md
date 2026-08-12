@@ -4,7 +4,7 @@ baseline_commit: 58ed421
 
 # Story 4.2: Combat noise draws reinforcements
 
-Status: review
+Status: done
 
 ## Story
 
@@ -73,6 +73,17 @@ so that violence has a spatial consequence and avoidance/VOICE can still beat a 
   - [x] 5.2 AC-2/D3: `DetectionSystem.deescalateNear` drops in-radius SUSPICIOUS→UNAWARE, leaves ALERTED and out-of-radius enemies untouched; the `Deescalate` `DialogEffect` executes via `DialogController` and de-escalates; a VOICE-fail branch does NOT carry the effect (no de-escalation).
   - [x] 5.3 Parley trigger: the key produces a parley action only when a SUSPICIOUS enemy is adjacent (gate), and is a no-op otherwise.
   - [x] 5.4 Full suite green via the `docs/BUILD.md` recipe (`mvn -o clean install`), no regressions (currently 416 tests). **Verify:** all green, boot clean.
+
+### Review Findings
+
+Code review 2026-08-12 (Blind Hunter + Edge-Case Hunter + Acceptance Auditor, focused diff `58ed421`..`c499a16`). Acceptance Auditor verified AC-1..AC-4 and D1/D2/D3 all satisfied and both documented deviations accurate; findings below are behaviour/robustness.
+
+- [x] [Review][Decision→Patch] A successful parley does not durably hold — the talked-down patrol re-suspects next action if Klein stays in LOS. **RESOLVED 2026-08-12 (Justine): intended as a break-contact tool — the free UNAWARE beat lets Klein move out of sight the same turn (parley costs no turn). Patch: reword the log line so it doesn't overstate, and add a test documenting the re-suspect-in-LOS vs stays-calm-out-of-LOS behavior.** [DetectionSystem.deescalateNear + DialogController]
+- [x] [Review][Decision→Patch] Scope mismatch: parley offered on Manhattan-1 adjacency but de-escalates every SUSPICIOUS enemy in Euclidean radius 4. **RESOLVED 2026-08-12 (Justine): intended "talk-down by earshot" — a patrol is a group. Patch: keep radius 4, add a JavaDoc note that the two-metric split (Manhattan gate, Euclidean effect) is deliberate.** [hasSuspiciousAdjacent vs ParleyScene.PARLEY_RADIUS=4]
+- [x] [Review][Patch] `deescalateNear` resets `detection` and `sightTurns` but not `calmTurns`, unlike every other detection path — leaves stale `calmTurns` on an UNAWARE enemy, breaking the "UNAWARE ⇒ calm baseline" invariant. **FIXED 2026-08-12: added `e.setCalmTurns(0)`.** [DetectionSystem.java deescalateNear]
+
+**Review patches applied 2026-08-12:** (1) reworded the talk-down line to "They ease off — for now." (break-contact, not a pacify) + 2 tests documenting re-suspect-in-LOS vs stays-calm-out-of-LOS; (2) JavaDoc on `deescalateNear` documenting the deliberate break-contact behaviour and the two-metric (Manhattan gate / Euclidean earshot) split; (3) `calmTurns` reset. Full suite green (427 tests, +2).
+- [x] [Review][Defer] `ParleyScene`'s own failure branch is never exercised end-to-end — because `VOICE_THRESHOLD` (3) == Klein's starting VOICE and there's no VOICE setter, the fail test hand-rolls a threshold-4 node; the shipped scene's "The words don't land." path is unpinned. [ParleyDeescalationTest] — deferred, needs a VOICE setter to test properly
 
 ## Dev Notes
 

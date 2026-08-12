@@ -123,7 +123,7 @@ public class DialogController {
         if (e instanceof DialogEffect.Deescalate dz) {
             RoguePlayer p = state.getPlayer();
             int n = DetectionSystem.deescalateNear(state, p.getTileX(), p.getTileY(), dz.radius());
-            return n > 0 ? "The patrol stands down." : null; // Story 4.2 (AC-2): one line for the whole patrol
+            return n > 0 ? "They ease off — for now." : null; // Story 4.2 (AC-2): break-contact, not a pacify; one line for the whole patrol
         }
         return null; // unreachable — sealed DialogEffect is exhaustive here
     }

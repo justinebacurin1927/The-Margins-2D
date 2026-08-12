@@ -68,11 +68,22 @@ public final class DetectionSystem {
 
     /**
      * VOICE talk-down (Story 4.2, AC-2, D3): drop every living SUSPICIOUS enemy within Euclidean
-     * {@code radius} of (x,y) to UNAWARE and reset its sight streak, so a talked-down patrol must
-     * re-earn its wariness. ALERTED enemies are past talking (they've committed to Klein) and are
-     * left untouched. Returns how many were de-escalated (0 = nothing to talk down). Detection
-     * transitions stay owned by DetectionSystem (AD-9) — dialogue routes here, never mutating
-     * Detection directly.
+     * {@code radius} of (x,y) to UNAWARE and reset its detection streaks, so a talked-down patrol
+     * starts from a clean calm baseline. ALERTED enemies are past talking (they've committed to
+     * Klein) and are left untouched. Returns how many were de-escalated (0 = nothing to talk down).
+     * Detection transitions stay owned by DetectionSystem (AD-9) — dialogue routes here, never
+     * mutating Detection directly.
+     *
+     * <p><b>Break-contact, not a pacify (design, Story 4.2 review):</b> the talk-down does NOT
+     * durably hold. Parley costs no turn, and if a de-escalated enemy still has line-of-sight next
+     * turn, {@link #update} re-suspects it (sightTurns was reset, so re-ALERT is delayed but not
+     * re-suspicion). This is intended — the free UNAWARE beat lets Klein move out of sight the same
+     * turn. "Talked down" means "you bought a moment to break contact," not "pacified."
+     *
+     * <p><b>Two distance metrics, deliberately:</b> the parley is <em>offered</em> on Manhattan-1
+     * adjacency ({@link #hasSuspiciousAdjacent}) but the talk-down reaches every SUSPICIOUS enemy in
+     * this Euclidean radius-{@code r} disc — "talk-down by earshot": one guard in Klein's face, but
+     * the whole nearby patrol hears him and stands down.
      */
     public static int deescalateNear(RunState state, int x, int y, int radius) {
         int count = 0;
@@ -83,13 +94,15 @@ public final class DetectionSystem {
             if (dx * dx + dy * dy > radius * radius) continue;
             e.setDetection(Detection.UNAWARE);
             e.setSightTurns(0);
+            e.setCalmTurns(0); // UNAWARE ⇒ calm baseline — keep the invariant the rest of DetectionSystem holds
             count++;
         }
         return count;
     }
 
     /** Story 4.2 (AC-2): is a wary (SUSPICIOUS) patrol adjacent to Klein — the gate for offering a
-     *  parley. ALERTED is past talking (Flee owns escape); UNAWARE hasn't noticed him. */
+     *  parley (the Manhattan-1 front of {@link #deescalateNear}'s wider earshot disc). ALERTED is
+     *  past talking (Flee owns escape); UNAWARE hasn't noticed him. */
     public static boolean hasSuspiciousAdjacent(RunState state) {
         int px = state.getPlayer().getTileX();
         int py = state.getPlayer().getTileY();

@@ -12,6 +12,8 @@ import com.margins.rogue.state.RunState;
 import com.margins.rogue.system.DetectionSystem;
 import org.junit.jupiter.api.Test;
 
+import java.util.ArrayList;
+
 import static org.junit.jupiter.api.Assertions.*;
 
 /**
@@ -78,7 +80,7 @@ class ParleyDeescalationTest {
         c.select(0, s); // "Talk them down. (VOICE)"
 
         assertEquals(Detection.UNAWARE, s.getEnemies().get(0).getDetection(), "the patrol stands down (AC-2)");
-        assertTrue(s.getMessageLog().contains("The patrol stands down."),
+        assertTrue(s.getMessageLog().contains("They ease off — for now."),
                 "the talk-down is observed in the log");
     }
 
@@ -98,5 +100,50 @@ class ParleyDeescalationTest {
         assertSame(fail, c.getCurrent(), "VOICE 3 < 4 routes to the failure branch");
         assertEquals(Detection.SUSPICIOUS, s.getEnemies().get(0).getDetection(),
                 "a failed check does not talk them down");
+    }
+
+    @Test
+    void talkedDownEnemyReSuspectsIfStillInSight() {
+        // Break-contact, not a pacify (Story 4.2 review decision): a talked-down enemy that still
+        // has line-of-sight next turn re-suspects. If Klein stands there, the beat is wasted.
+        RunState s = new RunState(1L);
+        RogueTileMap map = s.getTileMap();
+        s.getPlayer().placeAt(25, 25);
+        s.getEnemies().clear();
+        map.setTile(25, 25, RogueTile.FLOOR);
+        map.setTile(25, 26, RogueTile.FLOOR); // adjacent, clear LOS
+        RogueEnemy e = new RogueEnemy(25, 26, map);
+        e.setDetection(Detection.SUSPICIOUS);
+        s.getEnemies().add(e);
+
+        assertEquals(1, DetectionSystem.deescalateNear(s, 25, 25, 4));
+        assertEquals(Detection.UNAWARE, e.getDetection(), "talked down for the moment");
+
+        DetectionSystem.update(s, new ArrayList<>()); // Klein didn't break LOS
+
+        assertEquals(Detection.SUSPICIOUS, e.getDetection(),
+                "still in sight → re-suspects next turn (the talk-down bought only a beat)");
+    }
+
+    @Test
+    void talkedDownEnemyStaysCalmIfKleinBreaksLineOfSight() {
+        // The intended play: talk down, then use the free turn to slip out of sight — the enemy holds
+        // UNAWARE because DetectionSystem can't see him.
+        RunState s = new RunState(1L);
+        RogueTileMap map = s.getTileMap();
+        s.getPlayer().placeAt(25, 25);
+        s.getEnemies().clear();
+        map.setTile(25, 25, RogueTile.FLOOR);
+        map.setTile(25, 27, RogueTile.WALL);  // blocks LOS
+        map.setTile(25, 28, RogueTile.FLOOR);
+        RogueEnemy e = new RogueEnemy(25, 28, map); // in radius 4, no LOS (wall between)
+        e.setDetection(Detection.SUSPICIOUS);
+        s.getEnemies().add(e);
+
+        assertEquals(1, DetectionSystem.deescalateNear(s, 25, 25, 4));
+        DetectionSystem.update(s, new ArrayList<>()); // no LOS onto Klein
+
+        assertEquals(Detection.UNAWARE, e.getDetection(),
+                "out of sight → the talk-down holds");
     }
 }
