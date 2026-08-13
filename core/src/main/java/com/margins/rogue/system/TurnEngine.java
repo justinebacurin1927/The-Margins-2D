@@ -216,6 +216,13 @@ public class TurnEngine {
                 acted = CompanionSystem.distract(state, result.messages);
                 break;
             }
+            case ORDER: {
+                // Command the companion (Story 5.3): cycle its standing order. A refused order
+                // (no companion) spends no turn (inert-USE precedent); on success the companion
+                // obeys in the Companion AI step below.
+                acted = CompanionSystem.order(state, result.messages);
+                break;
+            }
             // Story 1.5 survival crafting (FR-6). Each returns whether a turn was spent; a refused
             // action (no source/fire/coal/room) commits no turn, mirroring the inert-USE precedent.
             case COLLECT:

@@ -179,6 +179,36 @@ public final class CompanionSystem {
     }
 
     /**
+     * Command the active companion (Story 5.3, FR-16): cycle its standing order —
+     * autonomous → HOLD → HIDE → autonomous. HOLD/HIDE are the honored standing states the
+     * behavior machine obeys (Story 5.2); resuming sets FOLLOW, which is not a standing order, so
+     * {@link #act} recomputes the real autonomous state next turn. A deliberate order calms a
+     * lingering panic. Returns true if a turn was committed; refused without a turn when there is
+     * no companion. (Only the active companion is commandable — the abstract roster has no body.)
+     */
+    public static boolean order(RunState state, List<String> messages) {
+        Companion c = state.getActiveCompanion();
+        if (c == null) {
+            messages.add("No companion to command.");
+            return false;
+        }
+        CompanionBehavior next = switch (c.getBehavior()) {
+            case HOLD -> CompanionBehavior.HIDE;
+            case HIDE -> CompanionBehavior.FOLLOW; // resume the autonomous machine
+            default -> CompanionBehavior.HOLD;     // from any autonomous state
+        };
+        c.setBehavior(next);
+        c.removeCondition(Companion.Condition.PANICKED); // a command steadies the companion
+        String name = c.getId().displayName();
+        messages.add(switch (next) {
+            case HOLD -> name + " holds position.";
+            case HIDE -> name + " hides.";
+            default -> name + " follows your lead.";
+        });
+        return true;
+    }
+
+    /**
      * Galleon shouts: emit a Noise event at the companion's position (AD-9/AD-10 —
      * Distraction produces noise; it never touches enemies directly). Returns true
      * if a turn was committed. Refused without a turn when there's no companion or

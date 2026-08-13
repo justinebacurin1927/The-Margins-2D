@@ -1067,6 +1067,8 @@ public class MarginScreen implements Screen {
         if (down(Input.Keys.Z))     return PlayerAction.wield(facing); // Story 4.4: ready/cycle the wielded weapon
         if (down(Input.Keys.N))     return PlayerAction.repair(facing); // Story 4.5: mend the wielded weapon
         if (down(Input.Keys.U))     return PlayerAction.scavenge(facing); // Story 4.5: strip a broken weapon for parts
+        if (down(Input.Keys.O))     return PlayerAction.order(facing); // Story 5.3: cycle the companion's order (hold/hide/resume)
+        if (down(Input.Keys.I))     return PlayerAction.distract(facing); // Story 5.3: the companion shout (finally reachable)
         if (down(Input.Keys.W) || down(Input.Keys.UP))    return PlayerAction.move(0, 1, 1);
         if (down(Input.Keys.S) || down(Input.Keys.DOWN))  return PlayerAction.move(0, -1, 0);
         if (down(Input.Keys.A) || down(Input.Keys.LEFT))  return PlayerAction.move(-1, 0, 2);
@@ -3648,7 +3650,7 @@ public class MarginScreen implements Screen {
     }
 
     private void renderHowToPlayPage() {
-        int width = 360, height = 300;
+        int width = 360, height = 314; // Story 5.3: one more row for the companion-command legend
         int x = (hudWidth() - width) / 2, y = 30;
         if (startupMenuOpen) drawTitlePanel(x, y, width, height);
         else drawPanel(x, y, width, height, UI_PANEL_STRONG);
@@ -3684,6 +3686,7 @@ public class MarginScreen implements Screen {
         drawText("L  Lockpick", right, top - 115, pageText);
         drawText("N  Mend weapon", right, top - 129, pageText);   // Story 4.5
         drawText("U  Scavenge weapon", right, top - 143, pageText); // Story 4.5
+        drawText("O  Command   I  Shout", right, top - 157, pageText); // Story 5.3: order/distract the companion
 
         fillRect(x + 14, y + 92, width - 28, 1,
                 startupMenuOpen ? TITLE_BORDER : UI_BORDER);

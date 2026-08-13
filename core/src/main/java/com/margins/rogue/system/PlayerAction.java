@@ -22,7 +22,10 @@ public class PlayerAction {
         WIELD,
         // Story 4.5 (FR-13): mend the wielded weapon (consumes category materials, AD-13 SKILL curve)
         // and strip the first broken weapon for parts. No itemType (they act on RunState.weapons).
-        REPAIR, SCAVENGE
+        REPAIR, SCAVENGE,
+        // Story 5.3 (FR-16): command the active companion — cycle its standing order
+        // (autonomous → hold → hide → autonomous). No itemType (acts on the active companion).
+        ORDER
     }
 
     public final Kind kind;
@@ -120,5 +123,9 @@ public class PlayerAction {
 
     public static PlayerAction scavenge(int dir) {
         return new PlayerAction(Kind.SCAVENGE, 0, 0, dir, -1);
+    }
+
+    public static PlayerAction order(int dir) {
+        return new PlayerAction(Kind.ORDER, 0, 0, dir, -1);
     }
 }
