@@ -255,6 +255,19 @@ public class RoguePlayer {
         return rng.nextInt(100) < chance;
     }
 
+    /** The GRIT-scaled Last Stand chance (Story 4.6, FR-14): base 30% + GRIT×8, capped at 90 so the
+     *  reprieve is never guaranteed (mirrors the boosted-dodge cap). At the default GRIT 5 → 70%.
+     *  Package-private for headless tests. */
+    int lastStandChance() {
+        return Math.min(90, 30 + grit * 8);
+    }
+
+    /** The once-per-run Last Stand roll (Story 4.6): at 0 HP with the reprieve unused, this GRIT
+     *  check may leave Klein at 1 HP. One seeded draw, like {@link #tryDodge(Random)} (AD-5). */
+    public boolean tryLastStand(Random rng) {
+        return rng.nextInt(100) < lastStandChance();
+    }
+
     /** Effective dodge chance (ag×3), after Trembling's -15% Agility penalty — the real AG stat
      *  (Story 4.1, D3: AG=7 reproduces the old instinct=7 value exactly, 21%). Trembling can come
      *  from Starving (hunger) or Parched (thirst); Delirium's Vertigo adds a second -15%

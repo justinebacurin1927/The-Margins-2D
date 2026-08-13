@@ -185,17 +185,20 @@ public final class CombatSystem {
     }
 
     /**
-     * Post-damage HP floor (FR-16/17): the first lethal blow per run leaves Milek
-     * at 1 HP in a desperate state instead of dead; once Last Stand is spent, the
-     * next lethal event is allowed to kill. Runs after all damage this turn, so it
-     * covers every lethal source (enemy hits and hunger starvation).
+     * Post-damage HP floor (FR-14): the first lethal blow per run triggers a GRIT roll
+     * (Story 4.6) that MAY leave Klein at 1 HP in a desperate state instead of dead; once
+     * that single check is spent, the next lethal event is allowed to kill. Runs after all
+     * damage this turn, so it covers every lethal source (enemy hits and hunger starvation).
+     * The GRIT check is the once-per-run event: a failed roll lets the death stand and does
+     * not re-roll on later lethal events (D1). One seeded draw per run (AD-5).
      */
     public static void checkLastStand(RunState state, List<String> messages) {
         RoguePlayer player = state.getPlayer();
         if (player.isAlive()) return;        // survived on its own — nothing to do
-        if (state.isLastStandUsed()) return; // reprieve already spent → true death
+        if (state.isLastStandUsed()) return; // the one reprieve already spent → true death
+        state.setLastStandUsed(true);        // spend the single GRIT check (pass or fail)
+        if (!player.tryLastStand(state.rng())) return; // the roll failed → the death stands
         player.reviveTo(1);
-        state.setLastStandUsed(true);
         state.setLastStand(true);
         messages.add("Last Stand!");
     }

@@ -83,10 +83,16 @@ class SurvivalTickTest {
 
         TurnResult r = te.advance(s, PlayerAction.wait(0));
 
-        assertTrue(s.isLastStandUsed(), "the one-per-run reprieve fires when temperature kills");
-        assertTrue(s.isLastStand(), "the turn-scoped desperate flag is set");
-        assertEquals(1, p.getHp(), "revived to 1 HP instead of dying");
-        assertTrue(r.messages.contains("Last Stand!"), "the reprieve announces itself");
+        // Ordering proof (Story 4.6): the GRIT check is now probabilistic, but it can only fire
+        // AFTER the lethal temperature tick — so isLastStandUsed flipping proves checkLastStand ran
+        // post-damage (a pre-tick order would leave Klein alive at 1 HP and never spend the check).
+        assertTrue(s.isLastStandUsed(), "the one-per-run GRIT check fires after the temperature tick");
+        if (s.isLastStand()) { // the roll succeeded
+            assertEquals(1, p.getHp(), "a successful reprieve revives to 1 HP instead of dying");
+            assertTrue(r.messages.contains("Last Stand!"), "the reprieve announces itself");
+        } else { // the roll failed — honest death, the ordering is still proven above
+            assertFalse(p.isAlive(), "a failed GRIT roll lets the death stand");
+        }
     }
 
     // --- Story 1.3 honesty: the clock phase + weather are also acted-turn-only (AD-5, FR-5) ---

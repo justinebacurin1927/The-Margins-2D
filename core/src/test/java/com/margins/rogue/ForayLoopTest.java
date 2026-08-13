@@ -434,13 +434,20 @@ class ForayLoopTest {
             TurnResult r = engine.advance(s, PlayerAction.move(dx, dy, RoguePlayer.directionOf(dx, dy)));
             if (s.isLastStandUsed()) {
                 reprieved = true;
-                assertEquals(1, s.getPlayer().getHp(), "the lethal night stumble revived Klein to 1 HP, not death");
+                // Story 4.6: the check is now a GRIT roll, but it can only spend on a stumble turn
+                // that dropped Klein to 0 HP — so this proves the ordering (checkLastStand runs after
+                // the night stumble). The revive-to-1 is conditional on the roll succeeding.
                 assertTrue(r.messages.contains(HazardSystem.NIGHT_STUMBLE_MESSAGE),
-                        "the reprieve fired on a night-stumble turn: " + r.messages);
-                assertTrue(r.messages.contains("Last Stand!"), "the reprieve announces itself: " + r.messages);
+                        "the check fired on a night-stumble turn: " + r.messages);
+                if (s.isLastStand()) { // the roll succeeded
+                    assertEquals(1, s.getPlayer().getHp(), "the lethal night stumble revived Klein to 1 HP, not death");
+                    assertTrue(r.messages.contains("Last Stand!"), "the reprieve announces itself: " + r.messages);
+                } else { // the roll failed — honest death, ordering still proven above
+                    assertFalse(s.getPlayer().isAlive(), "a failed GRIT roll lets the lethal stumble stand");
+                }
             }
         }
-        assertTrue(reprieved, "a lethal night stumble fired and the Last-Stand reprieve caught it (seed 7)");
+        assertTrue(reprieved, "a lethal night stumble fired and the Last-Stand GRIT check caught it (seed 7)");
     }
 
     @Test

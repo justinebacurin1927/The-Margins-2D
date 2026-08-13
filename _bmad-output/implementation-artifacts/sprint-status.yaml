@@ -55,7 +55,7 @@
 #   item is now folded into new Story 1.1's acceptance criteria (AD-6).
 
 generated: 2026-08-06
-last_updated: 2026-08-13  # Story 4.5 → done (autonomous loop): RepairSystem (SKILL-based repair consumes per-category materials + AD-13 curve; scavenge-on-break returns deterministic tier-scaled materials) + RunState.removeWeapon + REPAIR/SCAVENGE actions (N/U bound + legend). Materials from existing supplies (full taxonomy/rare drops deferred); repair targets wielded, scavenge the first broken. +9 tests (RepairSystemTest); suite green (466). Inline review (multi-agent reserved for token budget), no High/Med findings. Story 4.4/4.3/4.2/4.1 done. Epic 4 in-progress (5/6 done).
+last_updated: 2026-08-13  # Story 4.6 → done (autonomous loop): Last Stand is now a GRIT roll — RoguePlayer.lastStandChance (min(90, 30+GRIT*8), 70% at default) + tryLastStand(Random) (dodge pattern); CombatSystem.checkLastStand spends the single once-per-run check and rolls (success→1 HP+"Last Stand!", failure→death stands, no re-roll). AC-2 permadeath ratified brownfield (deleteSave→[R]→restart; restart resets lastStandUsed). Two ordering pins relaxed to keep post-tick proof while making revive roll-conditional. +6 tests (LastStandTest); suite green (472). Inline review, no High/Med. **Epic 4 (Combat & Its Costs) COMPLETE — 6/6 done.** Next: Epic 4 retrospective (optional) or Epic 5 Story 5.1.
 project: The Margin
 project_key: NOKEY
 tracking_system: file-system
@@ -93,13 +93,13 @@ development_status:
   epic-3-retrospective: done
 
   # Epic 4 — Combat & Its Costs
-  epic-4: in-progress
+  epic-4: done
   4-1-combat-resolves-at-the-actors-point-via-combatsystem: done
   4-2-combat-noise-draws-reinforcements: done
   4-3-occupation-escalation-thickens-per-act: done
   4-4-weapon-durability-and-gear-with-memory: done
   4-5-scavenge-on-break-and-skill-based-repair: done
-  4-6-permadeath-and-last-stand: backlog
+  4-6-permadeath-and-last-stand: done
   epic-4-retrospective: optional
 
   # Epic 5 — Companions & The Story (capstone)
