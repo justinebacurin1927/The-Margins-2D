@@ -42,6 +42,11 @@ public class FlagStore {
      *  pre-4.3 save reads Act 1 by construction (AD-6 deterministic default — no migration). */
     public static final String KEY_ACT = "act.current";
 
+    /** Flag: Klein survived the NW border crossing and reached Novelborne — the canonical win
+     *  (Story 5.7, FR-18/AD-12). Set once by {@link com.margins.rogue.narrative.BorderCrossingController};
+     *  the screen renders the victory end-state. Unset → 0 (AD-6 — no migration, no ctor default). */
+    public static final String KEY_WON = "won";
+
     /** Stable tag carried by an honest dialogue choice → Bond +1 (FR-15). */
     public static final String BOND_TAG_HONEST = "bond.honest";
     /** Stable tag carried by a dismissive dialogue choice → Bond −1 (FR-15). */

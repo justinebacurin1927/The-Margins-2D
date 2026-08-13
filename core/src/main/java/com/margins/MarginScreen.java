@@ -28,6 +28,7 @@ import com.margins.rogue.item.FloorItem;
 import com.margins.rogue.item.Inventory;
 import com.margins.rogue.item.Supply;
 import com.margins.rogue.narrative.ActGateController;
+import com.margins.rogue.narrative.BorderCrossingController;
 import com.margins.rogue.narrative.CaptureController;
 import com.margins.rogue.narrative.CorneoIntro;
 import com.margins.rogue.narrative.DialogController;
@@ -36,6 +37,7 @@ import com.margins.rogue.narrative.JournalController;
 import com.margins.rogue.narrative.ParleyScene;
 import com.margins.rogue.narrative.TutorialController;
 import com.margins.rogue.save.SaveService;
+import com.margins.rogue.state.FlagStore;
 import com.margins.rogue.state.RunState;
 import com.margins.rogue.system.DetectionSystem;
 import com.margins.rogue.system.FovSystem;
@@ -198,6 +200,10 @@ public class MarginScreen implements Screen {
      *  corridor (1→2) or the road-head prison (2→3). Stateless one-shot over persisted flags; the
      *  screen calls {@code resolve} each committed turn beside {@link CaptureController} (AD-4/AD-5). */
     private ActGateController actGate = new ActGateController();
+    /** Story 5.7: the border-crossing win — in Act 3, reaching the NW border ends the run as a
+     *  victory (KEY_WON + epilogue). Stateless one-shot; resolved each committed turn beside
+     *  {@link #actGate} (AD-4). */
+    private BorderCrossingController borderCrossing = new BorderCrossingController();
 
     private enum MenuPage { ROOT, PLAY, OPTIONS, HOW_TO_PLAY, CREDITS, JOURNAL }
     private enum CompendiumCategory {
@@ -213,6 +219,10 @@ public class MarginScreen implements Screen {
     private enum CraftRecipe { TORCH, CAMPFIRE, COOK_MEAT, FILTER_WATER, BOIL_WATER }
 
     private boolean gameOver = false;
+    /** Story 5.7: latched when the border-crossing win is first observed, mirroring {@link #gameOver}.
+     *  The core owns the win (FlagStore.KEY_WON + BorderCrossingController); this is the screen's
+     *  one-shot for the victory end-state (seed the prompt, clear the save, offer [R]). */
+    private boolean won = false;
     /** Frozen when true death is first observed so the event and death panel agree. */
     private String deathCauseLine;
     /** Startup/title surface; the world remains its animated in-game backdrop. */
@@ -238,6 +248,9 @@ public class MarginScreen implements Screen {
     private static final int LOG_LINES = 4; // Vision.png-style four-line lower-left message box
     /** Single source for the death line — the log seed and the overlay must never drift (review finding). */
     private static final String GAME_OVER_LINE = "You fell in the margins.   [R] begin again";
+    /** Story 5.7: the victory prompt seeded into the log when the border crossing is won (the
+     *  epilogue narrative itself is appended by BorderCrossingController). Mirrors GAME_OVER_LINE. */
+    private static final String WIN_LINE = "Klein is home.   [R] begin again";
     private static final String GAME_VERSION = "v1.0-SNAPSHOT";
 
     // Pixel Pack v2 character cells (row-major): 0 Klein, 1 Aldric, 6 Giliman foot soldier.
@@ -492,6 +505,20 @@ public class MarginScreen implements Screen {
             return;
         }
         RoguePlayer p = state.getPlayer();
+
+        // Story 5.7: the victory end-state — mirrors game-over, takes precedence over the death check
+        // (you cannot die on the turn you cross home). The epilogue is already in the log (appended by
+        // BorderCrossingController); seed the [R] prompt once, clear the save (no continuing a won run).
+        if (state.getFlagStore().get(FlagStore.KEY_WON) != 0) {
+            if (!won) {
+                won = true;
+                state.appendMessages(List.of(WIN_LINE));
+                SaveService.deleteSave();
+                hasContinue = false;
+            }
+            if (Gdx.input.isKeyJustPressed(Input.Keys.R)) restart();
+            return;
+        }
 
         if (!p.isAlive()) {
             // The game-over line is seeded into the log once — the log is the text surface (AC-1);
@@ -915,10 +942,12 @@ public class MarginScreen implements Screen {
         capture = new CaptureController();
         journal = new JournalController();
         actGate = new ActGateController();
+        borderCrossing = new BorderCrossingController();
         intro.start(CorneoIntro.build());
         FovSystem.compute(state);
         clearAnimations();
         gameOver = false;
+        won = false;
         deathCauseLine = null;
         hasContinue = false;
         startupMenuOpen = false;
@@ -975,7 +1004,10 @@ public class MarginScreen implements Screen {
         // Story 5.6: the act-gating quests fire on the reached position (before the save below, so a
         // flip persists). Stateless one-shot — safe to call every turn (guards on act + quest flag).
         actGate.resolve(state);
-        if (committed && state.getPlayer().isAlive()) {
+        // Story 5.7: the border crossing wins the run if Klein has reached the NW border in Act 3.
+        borderCrossing.resolve(state);
+        // A won run is not saved (the victory end-state clears the save) — mirrors permadeath.
+        if (committed && state.getPlayer().isAlive() && state.getFlagStore().get(FlagStore.KEY_WON) == 0) {
             SaveService.save(state);
             hasContinue = true;
         }
@@ -1053,6 +1085,7 @@ public class MarginScreen implements Screen {
         FovSystem.compute(state);
         clearAnimations();
         gameOver = false;
+        won = false;
         deathCauseLine = null;
         menuOpen = false;
         inventoryOpen = false;
@@ -2536,6 +2569,7 @@ public class MarginScreen implements Screen {
         }
 
         if (gameOver) renderGameOverPanel();
+        if (won) renderVictoryPanel();
         else if (inventoryOpen) renderInventoryPanel();
         else if (menuOpen) renderMenuPanel();
 
@@ -3942,6 +3976,24 @@ public class MarginScreen implements Screen {
                 : "the margins claimed you.";
         font.setColor(EVENT_DEFEAT);
         font.draw(batch, summary, textX, y + 48, textW, Align.center, false);
+        font.setColor(UI_TEXT);
+        font.draw(batch, "[R] BEGIN AGAIN", textX, y + 24, textW, Align.center, false);
+    }
+
+    /** Story 5.7: the victory end-state panel — the homeward counterpart to the game-over panel.
+     *  Gold (dawn/home) accent instead of the defeat red; text-only (the epilogue rides the log). */
+    private void renderVictoryPanel() {
+        fillRect(0, 0, hudWidth(), hudHeight(), new Color(0.01f, 0.01f, 0.008f, 0.66f));
+        int w = 330, h = 96;
+        int x = (hudWidth() - w) / 2, y = (hudHeight() - h) / 2;
+        drawPanel(x, y, w, h, UI_PANEL_STRONG);
+        fillRect(x + 1, y + h - 3, w - 2, 2, EVENT_TIME);
+
+        int textX = x + 20, textW = w - 40;
+        headingFont.setColor(EVENT_TIME);
+        headingFont.draw(batch, "KLEIN REACHES NOVELBORNE", textX, y + 70, textW, Align.center, false);
+        font.setColor(EVENT_ROUTINE);
+        font.draw(batch, "He crosses the margin. Home.", textX, y + 48, textW, Align.center, false);
         font.setColor(UI_TEXT);
         font.draw(batch, "[R] BEGIN AGAIN", textX, y + 24, textW, Align.center, false);
     }

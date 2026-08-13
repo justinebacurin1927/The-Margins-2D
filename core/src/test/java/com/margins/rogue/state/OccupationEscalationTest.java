@@ -1,6 +1,7 @@
 package com.margins.rogue.state;
 
 import com.margins.rogue.RogueEnemy;
+import com.margins.rogue.world.WorldSpine;
 import org.junit.jupiter.api.Test;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -102,6 +103,54 @@ class OccupationEscalationTest {
             assertEquals(ea.getTileX(), eb.getTileX(), "enemy " + i + " x reproduces");
             assertEquals(ea.getTileY(), eb.getTileY(), "enemy " + i + " y reproduces");
         }
+    }
+
+    // --- Channel b (Story 5.7): the NW border cordon THINS as the act advances (dual of channel a) ---
+
+    @Test
+    void theCordonThinsAsTheActAdvances() {
+        assertEquals(3, RunState.cordonCountFor(1), "Act 1: the war has not yet consolidated east");
+        assertEquals(2, RunState.cordonCountFor(2));
+        assertEquals(1, RunState.cordonCountFor(3), "Act 3: thinnest — the crossing is survivable (AD-12)");
+        assertEquals(0, RunState.cordonCountFor(4), "fully consolidated east → the homeward gate empties");
+        assertEquals(3, RunState.cordonCountFor(0), "a never-set/0 act clamps to Act 1");
+    }
+
+    @Test
+    void channelBIsSeparateFromChannelA_theCordonIsNeverThickenedByEnemyCountFor() {
+        // The dual invariant to theNwBorderCordonIsNeverThickened: channel b lives in cordonCountFor,
+        // NOT enemyCountFor, so the two channels never merge (AD-11) — enemyCountFor stays 0 there.
+        for (int act = 1; act <= 4; act++) {
+            assertEquals(0, RunState.enemyCountFor(0.05f, act, 0.9f),
+                    "channel a still never touches the cordon at act " + act);
+        }
+    }
+
+    @Test
+    void aLaterActRegeneratesAThinnerCordon() {
+        // The dual of aHigherActRegeneratesADenserInterior: the NW cordon box fields FEWER foes at
+        // Act 3 than at Act 1 across the same seeds (aggregate — post-walkability placement isn't
+        // strictly per-seed monotonic).
+        long[] seeds = {1L, 2L, 3L, 5L, 8L, 13L, 42L, 100L, 777L, 2024L};
+        int act1Cordon = 0, act3Cordon = 0;
+        for (long seed : seeds) {
+            act1Cordon += cordonEnemies(regenAtAct(seed, 1));
+            act3Cordon += cordonEnemies(regenAtAct(seed, 3));
+        }
+        assertTrue(act1Cordon > 0, "sanity: the cordon fields foes at Act 1 (test not vacuous)");
+        assertTrue(act3Cordon < act1Cordon,
+                "the cordon thins by Act 3 (" + act3Cordon + " vs " + act1Cordon + ")");
+    }
+
+    /** Enemies standing inside the NW cordon box (far-west + far-north). */
+    private int cordonEnemies(RunState s) {
+        WorldSpine spine = new WorldSpine(s.getTileMap().getWidth(), s.getTileMap().getHeight());
+        int n = 0;
+        for (RogueEnemy e : s.getEnemies()) {
+            float ny = e.getTileY() / (spine.getHeight() - 1f);
+            if (RunState.inCordon(spine.eastness(e.getTileX()), ny)) n++;
+        }
+        return n;
     }
 
     /** A run whose floor was (re)generated with the given act flag set — the Epic 5 trigger, stubbed. */

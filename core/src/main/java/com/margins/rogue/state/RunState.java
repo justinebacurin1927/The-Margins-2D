@@ -176,6 +176,9 @@ public class RunState {
         // floor carries the authored loot, so the load-time backfill flag is set (review fix).
         placeStructureLoot(player.getTileX(), player.getTileY());
         structureLootPlaced = true;
+        // Story 5.7: the channel-b border cordon runs last so its seeded draws perturb no existing
+        // enemy/loot stream (AD-5) — every pre-5.7 seed layout is byte-identical; cordon foes append.
+        placeCordon(result.spine, player.getTileX(), player.getTileY());
     }
 
     /**
@@ -228,6 +231,26 @@ public class RunState {
                         floorItems.add(new FloorItem(scatter[rng.nextInt(scatter.length)], 1, ix, iy));
                     }
                 }
+            }
+        }
+    }
+
+    /**
+     * Story 5.7 (AD-11 channel b): the NW border cordon — a thinning-per-act Giliman presence
+     * guarding the homeward gate, scattered near the border landmark. Kept OUT of {@link #enemyCountFor}
+     * so channel a never touches it (AD-11 "do not merge"). Runs LAST in {@link #generateFloor} (after
+     * the generic scatter AND the authored structure loot) so its seeded draws never perturb any
+     * existing stream — every pre-5.7 seed's enemy and loot layout stays byte-identical (AD-5); only
+     * these cordon foes are appended. Seeded position draws only.
+     */
+    private void placeCordon(WorldSpine spine, int avoidX, int avoidY) {
+        int cordon = cordonCountFor(flagStore.getAct());
+        int bx = spine.borderX(), by = spine.borderY();
+        for (int e = 0; e < cordon; e++) {
+            int ex = bx + rng.nextInt(5) - 2;
+            int ey = by + rng.nextInt(5) - 2;
+            if (tileMap.isWalkable(ex, ey) && !(ex == avoidX && ey == avoidY)) {
+                enemies.add(new RogueEnemy(ex, ey, tileMap));
             }
         }
     }
@@ -348,6 +371,16 @@ public class RunState {
      *  invariant, not an emergent accident, and documents the two-channel split at the site. */
     static boolean inCordon(float eastness, float ny) { // package-private: unit-tested (OccupationEscalationTest)
         return eastness < SAFE_TIER_EASTNESS && ny > CORDON_NY;
+    }
+
+    /** Story 5.7 (AD-11 channel b): the NW border cordon THINS as the act advances — the dual of
+     *  channel a. Act 1 → 3 cordon foes, Act 2 → 2, Act 3 → 1, and 0 once the war has fully
+     *  consolidated east (act ≥ 4). The homeward gate loosens as the acts advance, so the Act-3
+     *  crossing is survivable with Act-3 readiness (AD-12) — never a boss, never a wall. Pure and
+     *  rng-free (AD-5); deliberately SEPARATE from {@link #enemyCountFor} so channel a can never
+     *  touch the win-gate cordon (AD-11 "do not merge"). */
+    static int cordonCountFor(int act) { // package-private: unit-tested (OccupationEscalationTest)
+        return Math.max(0, 4 - Math.max(1, act));
     }
 
     /** Supply count per region: 0 in the safe west, 1 mid-map, 2 in the east — loot rises east
