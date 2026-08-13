@@ -1,6 +1,8 @@
 package com.margins.rogue.narrative;
 
 import com.margins.rogue.Companion;
+import com.margins.rogue.CompanionId;
+import com.margins.rogue.CompanionLoss;
 import com.margins.rogue.item.Supply;
 import com.margins.rogue.state.FlagStore;
 import com.margins.rogue.state.RunState;
@@ -59,8 +61,8 @@ public class CaptureController {
         resolved = true;
 
         int x = aldric.getTileX(), y = aldric.getTileY();
-        state.getFlagStore().set(FlagStore.KEY_ALDRIC_CAPTURED, 1); // the persisted capture (AC-1)
-        state.removeActiveCompanion();                              // Klein escapes alone (AC-1)
+        state.getFlagStore().set(FlagStore.KEY_ALDRIC_CAPTURED, 1); // the rescue-thread flag (Story 2.4/2.5)
+        state.loseCompanion(CompanionId.ALDRIC, CompanionLoss.CAPTURED); // Story 5.5: the Captured shape (removes the body)
         state.addFloorItem(Supply.TORN_PAGE.ordinal(), 1, x, y);    // the discovery seed (AC-2)
         state.appendMessages(List.of(LINE_CHASE, LINE_TAKE, LINE_ALONE, LINE_NOTE)); // the beat (AD-15)
     }

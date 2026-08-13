@@ -1,6 +1,7 @@
 package com.margins.rogue.state;
 
 import com.margins.rogue.CompanionId;
+import com.margins.rogue.CompanionLoss;
 
 import java.util.LinkedHashMap;
 
@@ -112,6 +113,49 @@ public class FlagStore {
         if (b <= -2) return 0;
         if (b >= 2) return 2;
         return 1;
+    }
+
+    // --- Story 5.5 (FR-17): Bond effect gates, per-companion loss shape, and hostility ---
+
+    /** A real investment beyond the warm tier — high Bond unlocks lore/loyalty/personal quests. */
+    public static final int LOYALTY_BOND = 3;
+    /** The cold floor at which a companion withholds help (the tier-0 threshold). */
+    public static final int WITHHOLD_BOND = -2;
+    /** Bond this low and a companion departs the run (checked at a narrative beat, Story 5.6). */
+    public static final int DEPARTURE_BOND = -4;
+
+    /** High Bond gates loyalty/lore/personal-quest content for this companion (AC-1). Content reads it. */
+    public boolean bondUnlocksLoyalty(CompanionId id) {
+        return getBond(id) >= LOYALTY_BOND;
+    }
+
+    /** Low Bond withholds this companion's help (AC-1). Content branches on it. */
+    public boolean bondWithholdsHelp(CompanionId id) {
+        return getBond(id) <= WITHHOLD_BOND;
+    }
+
+    private static String lossKey(CompanionId id) { return "loss." + id.bindId(); }
+
+    /** The recorded loss shape for a companion, or {@link CompanionLoss#NONE} if not lost (AD-6). */
+    public CompanionLoss getLoss(CompanionId id) {
+        return CompanionLoss.values()[get(lossKey(id))];
+    }
+
+    /** Record a companion's loss shape (Story 5.5, AC-2). */
+    public void setLoss(CompanionId id, CompanionLoss loss) {
+        set(lossKey(id), loss.ordinal());
+    }
+
+    private static String hostileKey(CompanionId id) { return "hostile." + id.bindId(); }
+
+    /** Whether this companion has turned hostile (betrayal, AC-1). The seam a live hostile
+     *  ex-companion (Story 5.6 content) will read. */
+    public boolean isHostile(CompanionId id) {
+        return get(hostileKey(id)) != 0;
+    }
+
+    public void setHostile(CompanionId id) {
+        set(hostileKey(id), 1);
     }
 
     /**

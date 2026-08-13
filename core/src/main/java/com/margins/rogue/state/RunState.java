@@ -2,6 +2,7 @@ package com.margins.rogue.state;
 
 import com.margins.rogue.Companion;
 import com.margins.rogue.CompanionId;
+import com.margins.rogue.CompanionLoss;
 import com.margins.rogue.DayPhase;
 import com.margins.rogue.FloorGenerator;
 import com.margins.rogue.FloorGenerator.FloorResult;
@@ -452,6 +453,42 @@ public class RunState {
     public CompanionId getActiveCompanionId() {
         Companion c = getActiveCompanion();
         return c == null ? null : c.getId();
+    }
+
+    /**
+     * Record a companion loss in one of its three shapes (Story 5.5, AC-2). The shape is stored
+     * per-companion in the FlagStore; the active body leaves the map unless the loss is DEATH — a
+     * dead companion's corpse stays where it fell (the existing render contract), while a Captured
+     * or Departed companion is gone from the party.
+     */
+    public void loseCompanion(CompanionId id, CompanionLoss shape) {
+        flagStore.setLoss(id, shape);
+        if (shape != CompanionLoss.DEAD && getActiveCompanionId() == id) {
+            removeActiveCompanion();
+        }
+    }
+
+    /**
+     * Betrayal (Story 5.5, AC-1): the companion turns hostile — a per-companion hostile flag is set
+     * (the seam a live hostile ex-companion will read, Story 5.6), the Bond bottoms out, and the
+     * body departs the party (DEPARTED). Spawning a positioned hostile agent is deferred content.
+     */
+    public void betray(CompanionId id) {
+        flagStore.setHostile(id);
+        flagStore.adjustBond(id, FlagStore.DEPARTURE_BOND - flagStore.getBond(id)); // bottom the Bond
+        loseCompanion(id, CompanionLoss.DEPARTED);
+    }
+
+    /**
+     * Departure at low Bond (Story 5.5, AC-1/AC-2): if the companion's Bond has fallen to the
+     * departure floor and it is not already lost, it walks away (DEPARTED). Returns whether it
+     * departed. Called at a narrative beat by content (Story 5.6), not auto-run in the pipeline.
+     */
+    public boolean checkBondDeparture(CompanionId id) {
+        if (flagStore.getLoss(id) != CompanionLoss.NONE) return false;
+        if (flagStore.getBond(id) > FlagStore.DEPARTURE_BOND) return false;
+        loseCompanion(id, CompanionLoss.DEPARTED);
+        return true;
     }
 
     /**

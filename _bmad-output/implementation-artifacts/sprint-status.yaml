@@ -55,7 +55,7 @@
 #   item is now folded into new Story 1.1's acceptance criteria (AD-6).
 
 generated: 2026-08-06
-last_updated: 2026-08-13  # Story 5.4 → done (autonomous loop): companion combat + liability cost. AC-1: CombatSystem.companionAttack (engage routes to it) — single HP authority over all pools. AC-2: companion eats prepared rations from Klein's pack every 50 turns (feedUpkeep; unfed→WOUNDED+"is hungry", player hunger meter untouched so SurvivalTick stays pinned); faint party NoiseEvent (radius 2) on movement when not held/hidden/fleeing; low-HP→WOUNDED marker; non-combatants-never-fight ratified (5.2 gate). +7 tests (CompanionLiabilityTest); CompanionAiTest/SurvivalTickTest/detection unchanged; suite green (497). Inline review, no High/Med. Death shapes (5.5)/break-off/order-threat override deferred. Epic 4 COMPLETE (6/6). Epic 5 in-progress (4 done).
+last_updated: 2026-08-13  # Story 5.5 → done (autonomous loop): Bond & the shapes of loss. CompanionLoss{NONE,CAPTURED,DEPARTED,DEAD} (recoverable()=CAPTURED only) stored per-companion in FlagStore; RunState.loseCompanion (DEAD keeps corpse, else removes body), betray (hostile flag + bottom Bond + depart), checkBondDeparture (Bond≤-4). Wired DEATH (CombatSystem) + CAPTURED (CaptureController, keeps KEY_ALDRIC_CAPTURED). Bond gates bondUnlocksLoyalty(≥3)/bondWithholdsHelp(≤-2) + isHostile/setHostile. Model only — quest/dialogue/hostile-tile-agent content deferred to 5.6 (the 5.1 pattern). +6 tests (CompanionLossTest); CaptureControllerTest unchanged; suite green (503). Inline review, no High/Med. Epic 4 COMPLETE (6/6). Epic 5 in-progress (5 done).
 project: The Margin
 project_key: NOKEY
 tracking_system: file-system
@@ -108,7 +108,7 @@ development_status:
   5-2-autonomous-companion-behavior-state-machine: done
   5-3-simple-orders-steer-the-companion: done
   5-4-companion-combat-and-the-liability-cost: done
-  5-5-bond-and-the-shapes-of-loss: backlog
+  5-5-bond-and-the-shapes-of-loss: done
   5-6-the-act-gating-quests: backlog
   5-7-the-border-crossing-win-and-epilogue: backlog
   epic-5-retrospective: optional

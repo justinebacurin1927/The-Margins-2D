@@ -1,6 +1,7 @@
 package com.margins.rogue.system;
 
 import com.margins.rogue.Companion;
+import com.margins.rogue.CompanionLoss;
 import com.margins.rogue.Detection;
 import com.margins.rogue.RogueEnemy;
 import com.margins.rogue.RoguePlayer;
@@ -145,7 +146,10 @@ public final class CombatSystem {
                 // The enemy can't reach the player without passing Aldric — it strikes him instead.
                 int dealt = companion.takeDamage(e.getDamage());
                 messages.add("Aldric is hit for " + dealt + "!");
-                if (!companion.isAlive()) messages.add("Aldric falls!");
+                if (!companion.isAlive()) {
+                    messages.add("Aldric falls!");
+                    state.loseCompanion(companion.getId(), CompanionLoss.DEAD); // Story 5.5: the permanent-death shape (corpse stays)
+                }
             } else {
                 e.takeTurn(px, py, bx, by);
             }
