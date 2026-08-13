@@ -55,7 +55,7 @@
 #   item is now folded into new Story 1.1's acceptance criteria (AD-6).
 
 generated: 2026-08-06
-last_updated: 2026-08-13  # Story 5.5 → done (autonomous loop): Bond & the shapes of loss. CompanionLoss{NONE,CAPTURED,DEPARTED,DEAD} (recoverable()=CAPTURED only) stored per-companion in FlagStore; RunState.loseCompanion (DEAD keeps corpse, else removes body), betray (hostile flag + bottom Bond + depart), checkBondDeparture (Bond≤-4). Wired DEATH (CombatSystem) + CAPTURED (CaptureController, keeps KEY_ALDRIC_CAPTURED). Bond gates bondUnlocksLoyalty(≥3)/bondWithholdsHelp(≤-2) + isHostile/setHostile. Model only — quest/dialogue/hostile-tile-agent content deferred to 5.6 (the 5.1 pattern). +6 tests (CompanionLossTest); CaptureControllerTest unchanged; suite green (503). Inline review, no High/Med. Epic 4 COMPLETE (6/6). Epic 5 in-progress (5 done).
+last_updated: 2026-08-14  # Story 5.6 → done (create + dev + inline review, autonomous loop): the act-gating quests. New narrative/ActGateController (two easting-triggered gates over the 2.5 quest-flag family) — "Follow the Road" reach Watchtower → act 1→2; "The Rescue" reuse QUEST_ROAD_EAST reach road-head → act 2→3 on either outcome. Wired at MarginScreen capture-site. Epic 4's enemyCountFor ramp now live-reachable. +8 tests (ActGateControllerTest), suite 503→511 green. Review: no High/Med; 3 Low deferred to 5.7 (easting-only reach, tutorial-phase auto-start, resolveRescue-DEAD guard). Epic 5 in-progress (6/7 done; only 5.7 border-crossing win remains). Two location-triggered gates on the 2.5 quest-flag family — "Follow the Road" (reach Watchtower, Tier-2 corridor) flips act 1→2; "The Rescue" reuses QUEST_ROAD_EAST (reach road-head prison) flips 2→3 on either outcome. New narrative/ActGateController.resolve at the CaptureController wire-site (one-shot, persisted flags, AD-6 no new field). Epic 4's enemyCountFor ramp (tested-but-inert since 4.3) becomes live-reachable. Bounded per 5.5 pattern: rescue success is default reach-trigger, failure branch built+tested, the prison-encounter determinant + live map-reinforce-on-flip deferred to 5.7. PRIOR — Story 5.5 → done (autonomous loop): Bond & the shapes of loss. CompanionLoss{NONE,CAPTURED,DEPARTED,DEAD} (recoverable()=CAPTURED only) stored per-companion in FlagStore; RunState.loseCompanion (DEAD keeps corpse, else removes body), betray (hostile flag + bottom Bond + depart), checkBondDeparture (Bond≤-4). Wired DEATH (CombatSystem) + CAPTURED (CaptureController, keeps KEY_ALDRIC_CAPTURED). Bond gates bondUnlocksLoyalty(≥3)/bondWithholdsHelp(≤-2) + isHostile/setHostile. Model only — quest/dialogue/hostile-tile-agent content deferred to 5.6 (the 5.1 pattern). +6 tests (CompanionLossTest); CaptureControllerTest unchanged; suite green (503). Inline review, no High/Med. Epic 4 COMPLETE (6/6). Epic 5 in-progress (5 done).
 project: The Margin
 project_key: NOKEY
 tracking_system: file-system
@@ -109,7 +109,7 @@ development_status:
   5-3-simple-orders-steer-the-companion: done
   5-4-companion-combat-and-the-liability-cost: done
   5-5-bond-and-the-shapes-of-loss: done
-  5-6-the-act-gating-quests: backlog
+  5-6-the-act-gating-quests: done
   5-7-the-border-crossing-win-and-epilogue: backlog
   epic-5-retrospective: optional
 

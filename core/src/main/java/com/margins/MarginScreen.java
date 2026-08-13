@@ -27,6 +27,7 @@ import com.margins.rogue.Weather;
 import com.margins.rogue.item.FloorItem;
 import com.margins.rogue.item.Inventory;
 import com.margins.rogue.item.Supply;
+import com.margins.rogue.narrative.ActGateController;
 import com.margins.rogue.narrative.CaptureController;
 import com.margins.rogue.narrative.CorneoIntro;
 import com.margins.rogue.narrative.DialogController;
@@ -193,6 +194,10 @@ public class MarginScreen implements Screen {
      *  state (NOT on RunState — AD-6); while {@code isActive()} the turn loop is suspended (AD-14 —
      *  the quest log is a suspended text surface). Renders {@code journal.entries(state)} (AC-2). */
     private JournalController journal = new JournalController();
+    /** Story 5.6: the act-gating quests — advances the act when Klein reaches the Copper Road
+     *  corridor (1→2) or the road-head prison (2→3). Stateless one-shot over persisted flags; the
+     *  screen calls {@code resolve} each committed turn beside {@link CaptureController} (AD-4/AD-5). */
+    private ActGateController actGate = new ActGateController();
 
     private enum MenuPage { ROOT, PLAY, OPTIONS, HOW_TO_PLAY, CREDITS, JOURNAL }
     private enum CompendiumCategory {
@@ -909,6 +914,7 @@ public class MarginScreen implements Screen {
         tutorial = new TutorialController();
         capture = new CaptureController();
         journal = new JournalController();
+        actGate = new ActGateController();
         intro.start(CorneoIntro.build());
         FovSystem.compute(state);
         clearAnimations();
@@ -966,6 +972,9 @@ public class MarginScreen implements Screen {
         // makes it a safe every-frame call; it fires once and never again). If the party were
         // somehow already empty, resolve() no-ops — nothing to capture.
         if (tutorial.isComplete()) capture.resolve(state);
+        // Story 5.6: the act-gating quests fire on the reached position (before the save below, so a
+        // flip persists). Stateless one-shot — safe to call every turn (guards on act + quest flag).
+        actGate.resolve(state);
         if (committed && state.getPlayer().isAlive()) {
             SaveService.save(state);
             hasContinue = true;
