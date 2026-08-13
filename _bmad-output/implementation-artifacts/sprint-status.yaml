@@ -55,7 +55,7 @@
 #   item is now folded into new Story 1.1's acceptance criteria (AD-6).
 
 generated: 2026-08-06
-last_updated: 2026-08-13  # Story 5.3 → done (autonomous loop): simple orders steer the companion. PlayerAction.ORDER + CompanionSystem.order cycles the standing order (autonomous→HOLD→HIDE→resume, clears PANICKED, refuses w/o companion) via TurnEngine; O→order and I→distract bound in readAction (distract was handler-only/unreachable — gap closed) + combined legend row (panel 300→314). Held companion stays put & won't fight even under threat; distract still pulls patrols. +6 tests (CompanionOrdersTest); suite green (490). Inline review, no High/Med. HOLD-under-threat override + name cleanup deferred (5.4). Epic 4 COMPLETE (6/6). Epic 5 in-progress (3 done).
+last_updated: 2026-08-13  # Story 5.4 → done (autonomous loop): companion combat + liability cost. AC-1: CombatSystem.companionAttack (engage routes to it) — single HP authority over all pools. AC-2: companion eats prepared rations from Klein's pack every 50 turns (feedUpkeep; unfed→WOUNDED+"is hungry", player hunger meter untouched so SurvivalTick stays pinned); faint party NoiseEvent (radius 2) on movement when not held/hidden/fleeing; low-HP→WOUNDED marker; non-combatants-never-fight ratified (5.2 gate). +7 tests (CompanionLiabilityTest); CompanionAiTest/SurvivalTickTest/detection unchanged; suite green (497). Inline review, no High/Med. Death shapes (5.5)/break-off/order-threat override deferred. Epic 4 COMPLETE (6/6). Epic 5 in-progress (4 done).
 project: The Margin
 project_key: NOKEY
 tracking_system: file-system
@@ -107,7 +107,7 @@ development_status:
   5-1-companion-as-a-full-tile-agent: done
   5-2-autonomous-companion-behavior-state-machine: done
   5-3-simple-orders-steer-the-companion: done
-  5-4-companion-combat-and-the-liability-cost: backlog
+  5-4-companion-combat-and-the-liability-cost: done
   5-5-bond-and-the-shapes-of-loss: backlog
   5-6-the-act-gating-quests: backlog
   5-7-the-border-crossing-win-and-epilogue: backlog

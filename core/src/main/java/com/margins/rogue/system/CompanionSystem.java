@@ -5,6 +5,7 @@ import com.margins.rogue.CompanionBehavior;
 import com.margins.rogue.Detection;
 import com.margins.rogue.RogueEnemy;
 import com.margins.rogue.RoguePlayer;
+import com.margins.rogue.item.Supply;
 import com.margins.rogue.state.RunState;
 
 import java.util.List;
@@ -45,6 +46,10 @@ public final class CompanionSystem {
      *  and a shout (6) — loud enough to draw a nearby patrol and blow Klein's stealth. */
     public static final int PANIC_NOISE_RADIUS = 5;
 
+    /** The faint noise a moving party makes (Story 5.4, AC-2 penalty): a small radius — only an
+     *  enemy nearly on top of the party hears it, so waiting/sneaking-in-place stays viable. */
+    public static final int PARTY_NOISE_RADIUS = 2;
+
     private CompanionSystem() {}
 
     /**
@@ -58,8 +63,11 @@ public final class CompanionSystem {
         Companion c = state.getActiveCompanion();
         if (c == null || !c.isAlive()) return;
         RoguePlayer player = state.getPlayer();
-        RogueEnemy threat = nearestThreat(state, player);
 
+        feedUpkeep(state, c, messages);        // Story 5.4 (AC-2): the party eats Klein's rations
+        int fromX = c.getTileX(), fromY = c.getTileY();
+
+        RogueEnemy threat = nearestThreat(state, player);
         CompanionBehavior behavior = isStandingOrder(c.getBehavior())
                 ? c.getBehavior()                       // honor a HOLD/HIDE order (Story 5.3 sets it)
                 : decideBehavior(c, threat);            // else the autonomous default lifecycle
@@ -75,6 +83,45 @@ public final class CompanionSystem {
             case HOLD, HIDE -> { /* stay put; HIDE is quiet — no move, no noise */ }
             case DISTRACT -> { /* the shout is the one-shot distract(); no persistent action */ }
         }
+
+        // Story 5.4 (AC-2 noise): a moving party isn't silent — a faint NoiseEvent, unless the
+        // companion held/hid (quiet) or fled (its own louder panic noise already fired). AD-9/AD-10.
+        boolean moved = c.getTileX() != fromX || c.getTileY() != fromY;
+        if (moved && behavior != CompanionBehavior.HIDE && behavior != CompanionBehavior.HOLD
+                && behavior != CompanionBehavior.FLEE) {
+            state.emitNoise(c.getTileX(), c.getTileY(), PARTY_NOISE_RADIUS);
+        }
+        // Story 5.4 (AC-2 ratify): a badly hurt companion carries the WOUNDED marker (observability).
+        if (c.getHp() * 3 <= c.getMaxHp()) c.addCondition(Companion.Condition.WOUNDED);
+    }
+
+    /** Story 5.4 (AC-2 "costs extra food"): every {@link Companion#MEAL_INTERVAL} acted turns the
+     *  active companion eats one prepared ration (COOKED_MEAT, else PRESERVED_FOOD) from Klein's
+     *  shared pack — the party's food premium, drawn from the player's provisions (not his hunger
+     *  meter). With nothing to eat the companion goes hungry (WOUNDED, warned once) and retries
+     *  sooner. Only the active companion eats (the abstract roster has no body). */
+    private static void feedUpkeep(RunState state, Companion c, List<String> messages) {
+        if (!c.tickMeal()) return; // not time to eat yet
+        int ration = findRation(state);
+        if (ration >= 0) {
+            state.getInventory().remove(ration, 1);
+            c.resetMeal();
+        } else {
+            if (!c.hasCondition(Companion.Condition.WOUNDED)) {
+                messages.add(c.getId().displayName() + " is hungry.");
+            }
+            c.addCondition(Companion.Condition.WOUNDED);
+            c.setMealTimer(Companion.HUNGRY_RETRY);
+        }
+    }
+
+    /** The inventory type id of a prepared ration the companion will eat, or -1 if the pack has none. */
+    private static int findRation(RunState state) {
+        int cooked = Supply.COOKED_MEAT.ordinal();
+        if (state.getInventory().count(cooked) > 0) return cooked;
+        int preserved = Supply.PRESERVED_FOOD.ordinal();
+        if (state.getInventory().count(preserved) > 0) return preserved;
+        return -1;
     }
 
     /** A standing position order the autonomous machine must not overwrite (Story 5.3 sets these). */
@@ -92,13 +139,12 @@ public final class CompanionSystem {
         return combatant ? CompanionBehavior.FOLLOW : CompanionBehavior.TAKE_COVER;
     }
 
-    /** Combatant engagement (unchanged from the original follow): strike an adjacent threat, else
-     *  close on it with a greedy step. The retreat is the return to station once the threat clears. */
+    /** Combatant engagement: strike an adjacent threat through the single combat authority
+     *  (Story 5.4, AC-1 — {@link CombatSystem#companionAttack}), else close on it with a greedy
+     *  step. The retreat is the return to station once the threat clears. */
     private static void engage(RunState state, Companion c, RogueEnemy threat, RoguePlayer player, List<String> messages) {
         if (c.isAdjacentTo(threat.getTileX(), threat.getTileY())) {
-            threat.takeDamage(c.getDamage());
-            messages.add(c.getId().displayName() + " strikes for " + c.getDamage() + "!");
-            if (!threat.isAlive()) messages.add("Enemy defeated.");
+            CombatSystem.companionAttack(state, c, threat, messages);
         } else {
             stepToward(state, c, threat.getTileX(), threat.getTileY(), player);
         }

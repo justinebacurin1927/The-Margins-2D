@@ -37,6 +37,18 @@ public final class CombatSystem {
         decayWielded(state, messages); // Story 4.4 (AC-1): the swing wears the weapon, hit or miss
     }
 
+    /**
+     * Resolve a combatant companion's melee strike on a target (Story 5.4, AC-1): the companion's
+     * damage applies here, through the single HP authority, at the Companion-AI step — not inline in
+     * {@code CompanionSystem}. Same damage and observation lines as the extracted engage code, so
+     * no HP pool has a second owner (AD-10).
+     */
+    public static void companionAttack(RunState state, Companion companion, RogueEnemy target, List<String> messages) {
+        target.takeDamage(companion.getDamage());
+        messages.add(companion.getId().displayName() + " strikes for " + companion.getDamage() + "!");
+        if (!target.isAlive()) messages.add("Enemy defeated.");
+    }
+
     /** Klein's melee damage (Story 4.4, D3): base STR plus the wielded weapon's tier bonus — 0 when
      *  unarmed or when the wielded weapon is broken, so a broken weapon deals exactly base STR. */
     public static int attackDamage(RunState state) {

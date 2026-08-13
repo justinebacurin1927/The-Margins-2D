@@ -31,8 +31,14 @@ public class Companion {
 
     private int tileX, tileY;
     private String bindId;              // plain label for later art/dialogue ("erik"/"galleon")
+    /** How many acted turns between the companion eating one ration from Klein's shared stores
+     *  (Story 5.4, AC-2 "costs extra food"); the shorter retry when there was nothing to eat. */
+    public static final int MEAL_INTERVAL = 50;
+    public static final int HUNGRY_RETRY = 10;
+
     private CompanionId id = CompanionId.ALDRIC; // roster identity (Story 5.1); field-init for save-safety (AD-6)
     private CompanionBehavior behavior = CompanionBehavior.FOLLOW; // AI state (Story 5.2); field-init (AD-6)
+    private int mealTimer = MEAL_INTERVAL; // Story 5.4: turns until the next ration is due; field-init (AD-6)
     private int distractionsLeft = MAX_DISTRACTIONS_PER_FLOOR; // per-floor use limit (FR-14); persisted
     private boolean wounded;            // own condition state (AD-3); field-init false (AD-6)
     private boolean panicked;
@@ -64,6 +70,13 @@ public class Companion {
     /** The companion's current AI behavior state (Story 5.2). */
     public CompanionBehavior getBehavior() { return behavior; }
     public void setBehavior(CompanionBehavior behavior) { this.behavior = behavior; }
+
+    /** Story 5.4 (AC-2 food): advance the meal countdown one acted turn; returns true when a ration
+     *  is due (the caller feeds from Klein's pack or the companion goes hungry). */
+    public boolean tickMeal() { return --mealTimer <= 0; }
+    public void resetMeal() { mealTimer = MEAL_INTERVAL; }
+    public void setMealTimer(int turns) { mealTimer = turns; }
+    public int getMealTimer() { return mealTimer; }
 
     public int getHp() { return hp; }
     public int getMaxHp() { return maxHp; }
