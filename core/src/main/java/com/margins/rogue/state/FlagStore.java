@@ -1,5 +1,7 @@
 package com.margins.rogue.state;
 
+import com.margins.rogue.CompanionId;
+
 import java.util.LinkedHashMap;
 
 /**
@@ -16,8 +18,16 @@ import java.util.LinkedHashMap;
  */
 public class FlagStore {
 
-    /** Map key for Galleon's Bond. */
-    public static final String KEY_BOND = "bond.galleon";
+    /** Per-companion Bond key (Story 5.1, AD-7): {@code "bond." + id.bindId()} (e.g. "bond.aldric").
+     *  Bond is now keyed per roster member so each of the four carries its own relationship. */
+    public static String bondKey(CompanionId id) { return "bond." + id.bindId(); }
+
+    /** Map key for the default/primary companion's Bond — Aldric, the remake's canon combat
+     *  companion (Story 5.1 retargets the old single {@code "bond.galleon"} to {@code bondKey(ALDRIC)};
+     *  the no-arg Bond accessors below address Aldric so every existing single-companion call site
+     *  and test stays correct). A pre-5.1 save's {@code bond.galleon} key is not read — Bond inherits
+     *  the neutral 0 baseline (AD-6 field-absent default). */
+    public static final String KEY_BOND = bondKey(CompanionId.ALDRIC);
 
     /** Flag: Aldric was captured after the tutorial (Story 2.4, FR-3) — the rescue thread's
      *  run-scoped signal (recoverable later, not death). Set once by CaptureController; the
@@ -66,23 +76,39 @@ public class FlagStore {
         set(KEY_ACT, Math.max(1, act));
     }
 
-    /** Galleon's Bond value (0 = neutral baseline, AD-7 / FR-15). */
+    /** The primary companion's (Aldric's) Bond value (0 = neutral baseline, AD-7 / FR-15). */
     public int getBond() {
-        return get(KEY_BOND);
+        return getBond(CompanionId.ALDRIC);
     }
 
-    /** Shift Bond by {@code delta} (e.g. a tagged dialogue choice, FR-15). */
+    /** A specific roster member's Bond value (Story 5.1, AD-7) — read an abstract (inactive)
+     *  companion's Bond without a positioned body. */
+    public int getBond(CompanionId id) {
+        return get(bondKey(id));
+    }
+
+    /** Shift the primary companion's (Aldric's) Bond by {@code delta} (e.g. a tagged dialogue choice). */
     public void adjustBond(int delta) {
-        add(KEY_BOND, delta);
+        adjustBond(CompanionId.ALDRIC, delta);
+    }
+
+    /** Shift a specific roster member's Bond (Story 5.1, AD-7) — each member's Bond is independent. */
+    public void adjustBond(CompanionId id, int delta) {
+        add(bondKey(id), delta);
     }
 
     /**
      * The Bond tone tier dialogue will branch on (FR-15): 0 = cold/distant
      * (≤ −2), 1 = neutral (−1..1), 2 = warm (≥ 2). Two honest choices warm
-     * Galleon; two dismissive choices chill him.
+     * the companion; two dismissive choices chill them.
      */
     public int getBondTier() {
-        int b = getBond();
+        return getBondTier(CompanionId.ALDRIC);
+    }
+
+    /** The Bond tone tier for a specific roster member (Story 5.1, AD-7). */
+    public int getBondTier(CompanionId id) {
+        int b = getBond(id);
         if (b <= -2) return 0;
         if (b >= 2) return 2;
         return 1;

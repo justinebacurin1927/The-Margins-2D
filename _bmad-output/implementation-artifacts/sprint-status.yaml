@@ -55,7 +55,7 @@
 #   item is now folded into new Story 1.1's acceptance criteria (AD-6).
 
 generated: 2026-08-06
-last_updated: 2026-08-13  # Story 4.6 → done (autonomous loop): Last Stand is now a GRIT roll — RoguePlayer.lastStandChance (min(90, 30+GRIT*8), 70% at default) + tryLastStand(Random) (dodge pattern); CombatSystem.checkLastStand spends the single once-per-run check and rolls (success→1 HP+"Last Stand!", failure→death stands, no re-roll). AC-2 permadeath ratified brownfield (deleteSave→[R]→restart; restart resets lastStandUsed). Two ordering pins relaxed to keep post-tick proof while making revive roll-conditional. +6 tests (LastStandTest); suite green (472). Inline review, no High/Med. **Epic 4 (Combat & Its Costs) COMPLETE — 6/6 done.** Next: Epic 4 retrospective (optional) or Epic 5 Story 5.1.
+last_updated: 2026-08-13  # Story 5.1 → done (autonomous loop): companion as a full tile-agent. CompanionId roster enum (ALDRIC combatant; MARA/OLD_FEN/YENNA non-combat); Companion gains heal/isIncapacitated + its own Condition{WOUNDED,PANICKED} set + a CompanionId identity (own Status, AD-3); FlagStore per-companion Bond (bondKey + CompanionId overloads, ALDRIC-default keeps all Bond tests green, retires bond.galleon→bond.aldric); RunState.activateCompanion/getActiveCompanionId — one positioned body, three abstract Bond entries (no tile/tick/noise, AD-10/AD-7). +6 tests (CompanionRosterTest); suite green (478). Inline review, no High/Med. Behavior machine (5.2)/orders (5.3)/combat-liability (5.4) deferred. Epic 4 COMPLETE (6/6). Epic 5 in-progress (1/... done).
 project: The Margin
 project_key: NOKEY
 tracking_system: file-system
@@ -103,8 +103,8 @@ development_status:
   epic-4-retrospective: optional
 
   # Epic 5 — Companions & The Story (capstone)
-  epic-5: backlog
-  5-1-companion-as-a-full-tile-agent: backlog
+  epic-5: in-progress
+  5-1-companion-as-a-full-tile-agent: done
   5-2-autonomous-companion-behavior-state-machine: backlog
   5-3-simple-orders-steer-the-companion: backlog
   5-4-companion-combat-and-the-liability-cost: backlog

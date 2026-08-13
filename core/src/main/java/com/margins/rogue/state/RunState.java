@@ -1,6 +1,7 @@
 package com.margins.rogue.state;
 
 import com.margins.rogue.Companion;
+import com.margins.rogue.CompanionId;
 import com.margins.rogue.DayPhase;
 import com.margins.rogue.FloorGenerator;
 import com.margins.rogue.FloorGenerator.FloorResult;
@@ -426,14 +427,31 @@ public class RunState {
     }
 
     /**
-     * Spawn a single active companion beside the player at run start (a
-     * placeholder bind — real recruitment is 4.3 + Epic 6). One slot (AD-10):
-     * the list is cleared first so restart never accumulates.
+     * Spawn a single active companion beside the player at run start (Aldric, the remake's canon
+     * combat companion — Story 5.1; real recruitment is Epic 5). One slot (AD-10): the list is
+     * cleared first so restart never accumulates.
      */
     private void spawnStartingCompanion() {
+        activateCompanion(CompanionId.ALDRIC);
+    }
+
+    /**
+     * Make {@code id} the active companion (Story 5.1, AD-10): materialize it as the single
+     * positioned tile-agent beside the player, replacing whoever held the one party slot. The
+     * previously active member simply loses its body — its Bond persists in the {@code FlagStore}
+     * (per-companion key), so it reverts to an abstract entry with no tile, no noise, and no survival
+     * tick until re-activated (AC-2). The other three roster members never had a body to begin with.
+     */
+    public void activateCompanion(CompanionId id) {
         companions.clear();
         int[] spot = companionSpotNear(player.getTileX(), player.getTileY());
-        companions.add(new Companion(spot[0], spot[1], tileMap, "galleon"));
+        companions.add(new Companion(spot[0], spot[1], tileMap, id));
+    }
+
+    /** The active companion's roster identity, or null if the party slot is empty (AD-10). */
+    public CompanionId getActiveCompanionId() {
+        Companion c = getActiveCompanion();
+        return c == null ? null : c.getId();
     }
 
     /**

@@ -23,9 +23,18 @@ public class Companion {
     private int hp = 14;
     private int damage = 3;
 
+    /** The companion's own condition/debuff vocabulary (Story 5.1, AC-1) — authoritative ON the
+     *  companion, never a shadow of the player's Status (AD-3). WOUNDED is the low-HP marker;
+     *  PANICKED is the AI-emotion the behavior machine (5.2) will read to emit stealth-blowing noise.
+     *  Stored as booleans so it round-trips trivially (AD-6, field-absent → clear). */
+    public enum Condition { WOUNDED, PANICKED }
+
     private int tileX, tileY;
     private String bindId;              // plain label for later art/dialogue ("erik"/"galleon")
+    private CompanionId id = CompanionId.ALDRIC; // roster identity (Story 5.1); field-init for save-safety (AD-6)
     private int distractionsLeft = MAX_DISTRACTIONS_PER_FLOOR; // per-floor use limit (FR-14); persisted
+    private boolean wounded;            // own condition state (AD-3); field-init false (AD-6)
+    private boolean panicked;
     private transient RogueTileMap map;
 
     private Companion() {} // for libGDX Json deserialization; map re-injected via setMap
@@ -37,9 +46,19 @@ public class Companion {
         this.bindId = bindId;
     }
 
+    /** Roster-aware constructor (Story 5.1): the companion carries its {@link CompanionId} and takes
+     *  its {@code bindId} from the roster identity. */
+    public Companion(int x, int y, RogueTileMap map, CompanionId id) {
+        this(x, y, map, id.bindId());
+        this.id = id;
+    }
+
     public int getTileX() { return tileX; }
     public int getTileY() { return tileY; }
     public String getBindId() { return bindId; }
+
+    /** The roster identity this positioned companion represents (Story 5.1, AD-10). */
+    public CompanionId getId() { return id; }
 
     public int getHp() { return hp; }
     public int getMaxHp() { return maxHp; }
@@ -51,9 +70,52 @@ public class Companion {
         return Math.max(0, amount);
     }
 
+    /** Heal the companion's own HP pool (Story 5.1, AC-1 healable), clamped to its max. Returns the
+     *  HP actually restored. A companion at 0 HP is incapacitated, not a corpse — healing can bring
+     *  it back up (its death <em>shape</em> is a deferred scope decision, FR-17). */
+    public int heal(int amount) {
+        int before = hp;
+        hp = Math.min(maxHp, hp + Math.max(0, amount));
+        return hp - before;
+    }
+
     /** Whether the companion is up and acting (dead companions stop moving, attacking, and being
      *  targeted — the screen keeps his sprite where he fell until the next run). */
     public boolean isAlive() { return hp > 0; }
+
+    /** Downed at 0 HP (Story 5.1, AC-1 incapacitable): distinct from the player's permadeath — an
+     *  incapacitated companion is out of the fight but not game-over, and can be healed back up. */
+    public boolean isIncapacitated() { return hp <= 0; }
+
+    /** Add one of the companion's own conditions (AC-1). */
+    public void addCondition(Condition c) {
+        switch (c) {
+            case WOUNDED -> wounded = true;
+            case PANICKED -> panicked = true;
+        }
+    }
+
+    /** Remove one of the companion's own conditions. */
+    public void removeCondition(Condition c) {
+        switch (c) {
+            case WOUNDED -> wounded = false;
+            case PANICKED -> panicked = false;
+        }
+    }
+
+    /** Whether the companion currently carries a condition (its own state, independent of the player). */
+    public boolean hasCondition(Condition c) {
+        return switch (c) {
+            case WOUNDED -> wounded;
+            case PANICKED -> panicked;
+        };
+    }
+
+    /** Clear all of the companion's conditions. */
+    public void clearConditions() {
+        wounded = false;
+        panicked = false;
+    }
 
     /** Whether Distraction is available this floor (FR-14). */
     public boolean canDistract() { return distractionsLeft > 0; }
