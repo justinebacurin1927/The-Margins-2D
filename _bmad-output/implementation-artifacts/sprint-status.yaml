@@ -55,7 +55,7 @@
 #   item is now folded into new Story 1.1's acceptance criteria (AD-6).
 
 generated: 2026-08-06
-last_updated: 2026-08-13  # Story 5.1 → done (autonomous loop): companion as a full tile-agent. CompanionId roster enum (ALDRIC combatant; MARA/OLD_FEN/YENNA non-combat); Companion gains heal/isIncapacitated + its own Condition{WOUNDED,PANICKED} set + a CompanionId identity (own Status, AD-3); FlagStore per-companion Bond (bondKey + CompanionId overloads, ALDRIC-default keeps all Bond tests green, retires bond.galleon→bond.aldric); RunState.activateCompanion/getActiveCompanionId — one positioned body, three abstract Bond entries (no tile/tick/noise, AD-10/AD-7). +6 tests (CompanionRosterTest); suite green (478). Inline review, no High/Med. Behavior machine (5.2)/orders (5.3)/combat-liability (5.4) deferred. Epic 4 COMPLETE (6/6). Epic 5 in-progress (1/... done).
+last_updated: 2026-08-13  # Story 5.2 → done (autonomous loop): autonomous companion behavior state machine. New CompanionBehavior enum (FOLLOW/HOLD/HIDE/DISTRACT/FIGHT_RETREAT/TAKE_COVER/FLEE); CompanionSystem.follow→act, gated on isCombatant() — combatant fights (FIGHT_RETREAT, unchanged from old engage)/follows, non-combatant flees (FLEE, panic-noise blows stealth via NoiseSystem)/takes cover and NEVER fights (fixes the old any-companion-charges bug, FR-15). HIDE honored + quiet (5.3 order seam). +6 tests (CompanionBehaviorTest); CompanionAiTest unchanged; suite green (484). Inline review, no High/Med. Orders (5.3)/combat-liability+wounded-retreat (5.4) deferred. Epic 4 COMPLETE (6/6). Epic 5 in-progress (2 done).
 project: The Margin
 project_key: NOKEY
 tracking_system: file-system
@@ -105,7 +105,7 @@ development_status:
   # Epic 5 — Companions & The Story (capstone)
   epic-5: in-progress
   5-1-companion-as-a-full-tile-agent: done
-  5-2-autonomous-companion-behavior-state-machine: backlog
+  5-2-autonomous-companion-behavior-state-machine: done
   5-3-simple-orders-steer-the-companion: backlog
   5-4-companion-combat-and-the-liability-cost: backlog
   5-5-bond-and-the-shapes-of-loss: backlog

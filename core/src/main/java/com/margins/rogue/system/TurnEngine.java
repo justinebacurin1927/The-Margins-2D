@@ -323,7 +323,7 @@ public class TurnEngine {
                         ? RunState.LINE_DUSK : RunState.LINE_DAWN);
             }
             DetectionSystem.update(state, result.messages); // advance awareness before enemies move (AD-4)
-            CompanionSystem.follow(state, result.messages); // the ally fights/follows in the Companion+Enemy-AI phase (AD-4, AD-10)
+            CompanionSystem.act(state, result.messages); // the ally runs its behavior machine in the Companion+Enemy-AI phase (AD-4, AD-10)
             CombatSystem.enemyPhase(state, result.messages);
             player.setEvading(false); // Dodge's evasion is a one-turn effect — cleared before the next step (Story 4.1)
             TorchSystem.tick(state); // burn the torch (if lit) before its light/noise step (AD-4, Story 1.6)

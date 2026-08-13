@@ -32,6 +32,7 @@ public class Companion {
     private int tileX, tileY;
     private String bindId;              // plain label for later art/dialogue ("erik"/"galleon")
     private CompanionId id = CompanionId.ALDRIC; // roster identity (Story 5.1); field-init for save-safety (AD-6)
+    private CompanionBehavior behavior = CompanionBehavior.FOLLOW; // AI state (Story 5.2); field-init (AD-6)
     private int distractionsLeft = MAX_DISTRACTIONS_PER_FLOOR; // per-floor use limit (FR-14); persisted
     private boolean wounded;            // own condition state (AD-3); field-init false (AD-6)
     private boolean panicked;
@@ -59,6 +60,10 @@ public class Companion {
 
     /** The roster identity this positioned companion represents (Story 5.1, AD-10). */
     public CompanionId getId() { return id; }
+
+    /** The companion's current AI behavior state (Story 5.2). */
+    public CompanionBehavior getBehavior() { return behavior; }
+    public void setBehavior(CompanionBehavior behavior) { this.behavior = behavior; }
 
     public int getHp() { return hp; }
     public int getMaxHp() { return maxHp; }

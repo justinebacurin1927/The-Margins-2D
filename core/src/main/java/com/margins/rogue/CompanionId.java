@@ -11,17 +11,19 @@ package com.margins.rogue;
  * (Story 5.2/5.4) — only Aldric fights.
  */
 public enum CompanionId {
-    ALDRIC(true, "aldric"),
-    MARA(false, "mara"),
-    OLD_FEN(false, "old_fen"),
-    YENNA(false, "yenna");
+    ALDRIC(true, "aldric", "Aldric"),
+    MARA(false, "mara", "Mara"),
+    OLD_FEN(false, "old_fen", "Old Fen"),
+    YENNA(false, "yenna", "Yenna");
 
     private final boolean combatant;
     private final String bindId;
+    private final String displayName;
 
-    CompanionId(boolean combatant, String bindId) {
+    CompanionId(boolean combatant, String bindId, String displayName) {
         this.combatant = combatant;
         this.bindId = bindId;
+        this.displayName = displayName;
     }
 
     /** Whether this companion fights through the combat authority (Aldric only, FR-15/AD-10). */
@@ -29,4 +31,7 @@ public enum CompanionId {
 
     /** The stable label keying Bond and art/dialogue ({@code "bond." + bindId}). */
     public String bindId() { return bindId; }
+
+    /** The name shown in observation lines (Story 5.2 — e.g. "Mara panics!"). */
+    public String displayName() { return displayName; }
 }

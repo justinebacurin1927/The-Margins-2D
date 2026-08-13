@@ -114,10 +114,10 @@ class CaptureControllerTest {
         RunState s = state();
         new CaptureController().resolve(s);
 
-        // CompanionSystem.follow: no companion, nothing moves, nothing narrates.
+        // CompanionSystem.act: no companion, nothing moves, nothing narrates.
         List<String> msgs = new ArrayList<>();
-        CompanionSystem.follow(s, msgs);
-        assertTrue(msgs.isEmpty(), "no follow/engage messages without a companion");
+        CompanionSystem.act(s, msgs);
+        assertTrue(msgs.isEmpty(), "no behavior-machine messages without a companion");
 
         // DISTRACT: refused without a companion — the existing refusal line, no turn.
         int clock = s.getClockTurns();

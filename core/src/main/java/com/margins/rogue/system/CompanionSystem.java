@@ -1,6 +1,7 @@
 package com.margins.rogue.system;
 
 import com.margins.rogue.Companion;
+import com.margins.rogue.CompanionBehavior;
 import com.margins.rogue.Detection;
 import com.margins.rogue.RogueEnemy;
 import com.margins.rogue.RoguePlayer;
@@ -40,27 +41,79 @@ public final class CompanionSystem {
      *  an empty tile or two between him and Klein, so he follows with purpose instead of tailing. */
     public static final int STATION_DIST = 2;
 
+    /** How far a panicking companion's cry carries (Story 5.2, AD-9): between an attack swing (4)
+     *  and a shout (6) — loud enough to draw a nearby patrol and blow Klein's stealth. */
+    public static final int PANIC_NOISE_RADIUS = 5;
+
     private CompanionSystem() {}
 
-    /** The companion's AI turn: engage the nearest threat, else follow to his rear-guard station.
-     *  A dead companion is inert. */
-    public static void follow(RunState state, List<String> messages) {
+    /**
+     * The companion's AI turn (Story 5.2): compute and execute one {@link CompanionBehavior}. A
+     * standing HOLD/HIDE order (set by Story 5.3) is honored; otherwise the behavior is decided
+     * autonomously from the {@code isCombatant} gate and the nearest threat — a combatant fights
+     * (FIGHT_RETREAT) or follows, a non-combatant flees (FLEE) or takes cover, never fighting
+     * (FR-15). A dead companion is inert. Runs only in the player-acted pipeline (AD-5).
+     */
+    public static void act(RunState state, List<String> messages) {
         Companion c = state.getActiveCompanion();
         if (c == null || !c.isAlive()) return;
         RoguePlayer player = state.getPlayer();
         RogueEnemy threat = nearestThreat(state, player);
-        if (threat != null) {
-            if (c.isAdjacentTo(threat.getTileX(), threat.getTileY())) {
-                threat.takeDamage(c.getDamage());
-                messages.add("Aldric strikes for " + c.getDamage() + "!");
-                if (!threat.isAlive()) messages.add("Enemy defeated.");
-            } else {
-                stepToward(state, c, threat.getTileX(), threat.getTileY(), player);
+
+        CompanionBehavior behavior = isStandingOrder(c.getBehavior())
+                ? c.getBehavior()                       // honor a HOLD/HIDE order (Story 5.3 sets it)
+                : decideBehavior(c, threat);            // else the autonomous default lifecycle
+        c.setBehavior(behavior);
+
+        switch (behavior) {
+            case FIGHT_RETREAT -> engage(state, c, threat, player, messages);
+            case FLEE -> flee(state, c, threat, player, messages);
+            case FOLLOW, TAKE_COVER -> {
+                int[] station = rearStation(state, player);
+                stepToward(state, c, station[0], station[1], player);
             }
-            return;
+            case HOLD, HIDE -> { /* stay put; HIDE is quiet — no move, no noise */ }
+            case DISTRACT -> { /* the shout is the one-shot distract(); no persistent action */ }
         }
-        int[] station = rearStation(state, player);
-        stepToward(state, c, station[0], station[1], player);
+    }
+
+    /** A standing position order the autonomous machine must not overwrite (Story 5.3 sets these). */
+    private static boolean isStandingOrder(CompanionBehavior b) {
+        return b == CompanionBehavior.HOLD || b == CompanionBehavior.HIDE;
+    }
+
+    /** The autonomous behavior for an unordered companion: the combatant gate (FR-15) crossed with
+     *  whether a threat is present. */
+    private static CompanionBehavior decideBehavior(Companion c, RogueEnemy threat) {
+        boolean combatant = c.getId().isCombatant();
+        if (threat != null) {
+            return combatant ? CompanionBehavior.FIGHT_RETREAT : CompanionBehavior.FLEE;
+        }
+        return combatant ? CompanionBehavior.FOLLOW : CompanionBehavior.TAKE_COVER;
+    }
+
+    /** Combatant engagement (unchanged from the original follow): strike an adjacent threat, else
+     *  close on it with a greedy step. The retreat is the return to station once the threat clears. */
+    private static void engage(RunState state, Companion c, RogueEnemy threat, RoguePlayer player, List<String> messages) {
+        if (c.isAdjacentTo(threat.getTileX(), threat.getTileY())) {
+            threat.takeDamage(c.getDamage());
+            messages.add(c.getId().displayName() + " strikes for " + c.getDamage() + "!");
+            if (!threat.isAlive()) messages.add("Enemy defeated.");
+        } else {
+            stepToward(state, c, threat.getTileX(), threat.getTileY(), player);
+        }
+    }
+
+    /** Non-combatant panic (Story 5.2, AC-2): step one tile away from the threat and cry out — a
+     *  {@link NoiseEvent} that the noise step resolves this same turn, so panic can blow Klein's
+     *  stealth. The companion carries its own PANICKED condition (AD-3). */
+    private static void flee(RunState state, Companion c, RogueEnemy threat, RoguePlayer player, List<String> messages) {
+        c.addCondition(Companion.Condition.PANICKED);
+        int ax = Integer.compare(c.getTileX(), threat.getTileX()); // away from the threat
+        int ay = Integer.compare(c.getTileY(), threat.getTileY());
+        stepToward(state, c, c.getTileX() + ax * REACTION_RADIUS, c.getTileY() + ay * REACTION_RADIUS, player);
+        state.emitNoise(c.getTileX(), c.getTileY(), PANIC_NOISE_RADIUS);
+        messages.add(c.getId().displayName() + " panics!");
     }
 
     /** The nearest ALERTED enemy within REACTION_RADIUS of the player — Aldric's mandate is to
