@@ -33,6 +33,66 @@ class SurvivalTickTest {
         throw new IllegalStateException("no floor tile adjacent to a wall");
     }
 
+    /** Place the player on a floor tile that has a walkable neighbor; return the (dx,dy) toward it. */
+    private static int[] placeWithWalkableStep(RunState s) {
+        RogueTileMap m = s.getTileMap();
+        int[][] dirs = {{1, 0}, {-1, 0}, {0, 1}, {0, -1}};
+        for (int x = 1; x < m.getWidth() - 1; x++) {
+            for (int y = 1; y < m.getHeight() - 1; y++) {
+                if (m.getTile(x, y) != RogueTile.FLOOR) continue;
+                for (int[] d : dirs) {
+                    if (m.isWalkable(x + d[0], y + d[1]) && !s.isOccupiedByEnemy(x + d[0], y + d[1])) {
+                        s.getPlayer().placeAt(x, y);
+                        return d;
+                    }
+                }
+            }
+        }
+        throw new IllegalStateException("no floor tile with a walkable neighbor");
+    }
+
+    @Test
+    void anEncumberedStepBurnsExtraHungerAnUnencumberedOneDoesNot() {
+        // Story 6.1 (AC-2, D4): the encumbrance hook fires on a committed MOVE only when carried
+        // weight is over the STR-scaled capacity — an over-packed step tires Klein faster (shorter
+        // foray range). Two identical single steps from the same seed, one light, one over-packed.
+        int lightDrop = hungerDropOnOneStep(false);
+        int heavyDrop = hungerDropOnOneStep(true);
+        assertEquals(1, lightDrop, "an unencumbered step burns just the normal one hunger turn");
+        assertEquals(1 + 3, heavyDrop, "an encumbered step burns the normal tick plus the extra encumbrance cost");
+    }
+
+    @Test
+    void anEncumberedNonDisplacingMoveBurnsNoEncumbranceCost() {
+        // Story 6.1 review-fix: the cost is charged on real displacement only. A turn-spending MOVE
+        // that advances no tile (zero-delta here; a Bloated/Crippled stumble is the same shape) must
+        // burn only the normal one hunger turn, not the +3 encumbrance cost.
+        RunState s = new RunState(1L);
+        placeWithWalkableStep(s); // land on a floor tile
+        RoguePlayer p = s.getPlayer();
+        s.getInventory().tryAdd(2000, s.getInventory().carryCapacity(p.getStr()) + 1);
+        assertTrue(s.getInventory().isEncumbered(p.getStr()), "over-packed before the move");
+        int before = p.getHunger();
+        new TurnEngine().advance(s, PlayerAction.move(0, 0, 0)); // spends a turn, advances no tile
+        assertEquals(1, before - p.getHunger(), "a non-displacing move burns only the normal tick, no encumbrance cost");
+    }
+
+    /** Advance one walkable step from seed 1 and return how much the hunger countdown dropped;
+     *  when {@code overpack}, load weight past capacity first so the step is encumbered. */
+    private static int hungerDropOnOneStep(boolean overpack) {
+        RunState s = new RunState(1L);
+        int[] step = placeWithWalkableStep(s);
+        RoguePlayer p = s.getPlayer();
+        if (overpack) {
+            int over = s.getInventory().carryCapacity(p.getStr()) + 1;
+            s.getInventory().tryAdd(2000, over); // one opaque stack (weight 1 each) > capacity
+            assertTrue(s.getInventory().isEncumbered(p.getStr()), "the over-pack is encumbered before the step");
+        }
+        int before = p.getHunger();
+        new TurnEngine().advance(s, PlayerAction.move(step[0], step[1], 0));
+        return before - p.getHunger();
+    }
+
     @Test
     void wallBumpTicksNoTrack() {
         RunState s = new RunState(1L);

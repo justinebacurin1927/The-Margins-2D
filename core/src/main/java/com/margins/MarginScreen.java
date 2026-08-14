@@ -39,6 +39,7 @@ import com.margins.rogue.narrative.TutorialController;
 import com.margins.rogue.save.SaveService;
 import com.margins.rogue.state.FlagStore;
 import com.margins.rogue.state.RunState;
+import com.margins.rogue.system.BagSystem;
 import com.margins.rogue.system.DetectionSystem;
 import com.margins.rogue.system.FovSystem;
 import com.margins.rogue.system.PlayerAction;
@@ -77,6 +78,10 @@ public class MarginScreen implements Screen {
     private static final int INVENTORY_PANEL_W = 410;
     private static final int INVENTORY_PANEL_H = 260;
     private static final int INVENTORY_COLS = 4;
+    /** HUD quickbar strip is a fixed-width preview of the first stacks; the full main store (up to
+     *  {@link Inventory#mainSlotCapacity()}) lives in the inventory overlay grid (Story 6.1 defers
+     *  the bespoke Quick-Access layout). */
+    private static final int HUD_QUICKBAR_SLOTS = 8;
     private static final int INVENTORY_CELL = 46;
     private static final int INVENTORY_GAP = 5;
     private static final int LOG_PANEL_Y = 6;
@@ -1195,7 +1200,7 @@ public class MarginScreen implements Screen {
 
     private void openInventory() {
         Inventory inv = state.getInventory();
-        if (selectedSlot < 0 || selectedSlot >= Inventory.BACKPACK_STACKS) {
+        if (selectedSlot < 0 || selectedSlot >= Inventory.MAIN_BASE_SLOTS) {
             selectedSlot = inv.nextOccupiedStack(-1);
         }
         if (selectedSlot < 0) selectedSlot = 0; // an empty pack still has a navigable first slot
@@ -1267,12 +1272,19 @@ public class MarginScreen implements Screen {
         int type = selectedType();
         Supply supply = Supply.byOrdinal(type);
         if (canReadyInLoadout(supply) && down(Input.Keys.Y)) {
-            if (state.getInventory().equip(type)) {
-                state.appendMessages(List.of("Readied " + supply.displayName() + "."));
-                if (state.getInventory().backpackType(selectedSlot) < 0) {
-                    int nextOccupied = state.getInventory().nextOccupiedStack(selectedSlot);
-                    selectedSlot = nextOccupied < 0 ? 0 : nextOccupied;
-                }
+            boolean readied;
+            if (supply.isStorage()) {
+                // Story 6.2: readying a found bag rolls its hidden trap (RNG lives in BagSystem).
+                List<String> readyMsgs = new ArrayList<>();
+                readied = BagSystem.ready(state, type, readyMsgs);
+                state.appendMessages(readyMsgs);
+            } else {
+                readied = state.getInventory().equip(type);
+                if (readied) state.appendMessages(List.of("Readied " + supply.displayName() + "."));
+            }
+            if (readied && state.getInventory().backpackType(selectedSlot) < 0) {
+                int nextOccupied = state.getInventory().nextOccupiedStack(selectedSlot);
+                selectedSlot = nextOccupied < 0 ? 0 : nextOccupied;
             }
             return;
         } else if (down(Input.Keys.T)) {
@@ -1302,10 +1314,10 @@ public class MarginScreen implements Screen {
     /** Body/loadout page: the two real equipped slots can be inspected and returned to the pack. */
     private void handleBodyInventoryInput() {
         if (down(Input.Keys.W) || down(Input.Keys.UP) || down(Input.Keys.A) || down(Input.Keys.LEFT)) {
-            selectedEquipmentSlot = Math.floorMod(selectedEquipmentSlot - 1, Inventory.EQUIPPED_SLOTS);
+            selectedEquipmentSlot = Math.floorMod(selectedEquipmentSlot - 1, Inventory.QUICK_GEAR_SLOTS);
         } else if (down(Input.Keys.S) || down(Input.Keys.DOWN)
                 || down(Input.Keys.D) || down(Input.Keys.RIGHT)) {
-            selectedEquipmentSlot = Math.floorMod(selectedEquipmentSlot + 1, Inventory.EQUIPPED_SLOTS);
+            selectedEquipmentSlot = Math.floorMod(selectedEquipmentSlot + 1, Inventory.QUICK_GEAR_SLOTS);
         }
         if (down(Input.Keys.X) || down(Input.Keys.E)) {
             int type = state.getInventory().equippedType(selectedEquipmentSlot);
@@ -1402,18 +1414,24 @@ public class MarginScreen implements Screen {
                 || supply == Supply.TORN_PAGE || supply == Supply.MAP_FRAGMENT);
     }
 
-    /** Existing utility materials that make sense in the two persisted ready slots. */
+    /** Items that ready into a Quick-Access band — gear/artifact/storage-bag (Story 6.1, category-driven). */
     static boolean canReadyInLoadout(Supply supply) {
-        return supply == Supply.FOLDED_CLOTH || supply == Supply.ROPE || supply == Supply.SMALL_TOOLS;
+        return supply != null && (supply.isQuickGear() || supply.isQuickArtifact() || supply.isStorage());
     }
 
-    /** Four-by-two cursor movement with SPD-like edge wrapping. Row zero is the visual top row. */
+    /** Rows the main-store grid needs for {@link Inventory#MAIN_BASE_SLOTS} at {@value #INVENTORY_COLS}
+     *  columns (ceil — the base count need not divide evenly). */
+    private static int mainGridRows() {
+        return (Inventory.MAIN_BASE_SLOTS + INVENTORY_COLS - 1) / INVENTORY_COLS;
+    }
+
+    /** Grid cursor movement with SPD-like edge wrapping over the main-store grid. Row zero is the top. */
     static int moveInventoryCursor(int slot, int colDelta, int rowDelta) {
-        int clamped = Math.max(0, Math.min(Inventory.BACKPACK_STACKS - 1, slot));
+        int clamped = Math.max(0, Math.min(Inventory.MAIN_BASE_SLOTS - 1, slot));
         int col = Math.floorMod(clamped % INVENTORY_COLS + colDelta, INVENTORY_COLS);
-        int rows = Inventory.BACKPACK_STACKS / INVENTORY_COLS;
+        int rows = mainGridRows();
         int row = Math.floorMod(clamped / INVENTORY_COLS + rowDelta, rows);
-        return row * INVENTORY_COLS + col;
+        return Math.min(Inventory.MAIN_BASE_SLOTS - 1, row * INVENTORY_COLS + col);
     }
 
     /** Click a quickbar slot to open the full backpack with that stack focused. */
@@ -1434,7 +1452,7 @@ public class MarginScreen implements Screen {
         int stride = 24;
         if (pointerHud.x < slotX || pointerHud.y < slotY || pointerHud.y >= slotY + 22) return -1;
         int slot = (int) ((pointerHud.x - slotX) / stride);
-        if (slot < 0 || slot >= Inventory.BACKPACK_STACKS) return -1;
+        if (slot < 0 || slot >= HUD_QUICKBAR_SLOTS) return -1;
         return pointerHud.x - (slotX + slot * stride) < 22 ? slot : -1;
     }
 
@@ -1444,11 +1462,12 @@ public class MarginScreen implements Screen {
         int panelY = (hudHeight() - INVENTORY_PANEL_H) / 2;
         int gridX = panelX + 14;
         int gridY = panelY + 99;
-        for (int slot = 0; slot < Inventory.BACKPACK_STACKS; slot++) {
+        int rows = mainGridRows();
+        for (int slot = 0; slot < Inventory.MAIN_BASE_SLOTS; slot++) {
             int row = slot / INVENTORY_COLS;
             int col = slot % INVENTORY_COLS;
             int sx = gridX + col * (INVENTORY_CELL + INVENTORY_GAP);
-            int sy = gridY + (1 - row) * (INVENTORY_CELL + INVENTORY_GAP);
+            int sy = gridY + (rows - 1 - row) * (INVENTORY_CELL + INVENTORY_GAP);
             if (pointerHud.x >= sx && pointerHud.x < sx + INVENTORY_CELL
                     && pointerHud.y >= sy && pointerHud.y < sy + INVENTORY_CELL) return slot;
         }
@@ -2848,7 +2867,7 @@ public class MarginScreen implements Screen {
         batch.setColor(Color.WHITE);
         batch.draw(pixels.backpackIcon(), x + 7, y + 39, 17, 17);
         drawHeading("BACKPACK", x + 27, y + 53, INV_TEXT);
-        drawText(inv.backpackStackCount() + "/" + Inventory.BACKPACK_STACKS,
+        drawText(inv.backpackStackCount() + "/" + inv.mainSlotCapacity(),
                 x + PACK_PANEL_W - 27, y + 53, inv.isBackpackFull() ? INV_WARNING : INV_MUTED);
         String selected = "";
         if (selectedSlot >= 0 && inv.backpackType(selectedSlot) >= 0) {
@@ -2863,7 +2882,7 @@ public class MarginScreen implements Screen {
         int gap = 2;
         int sx = x + 8;
         int sy = y + 5;
-        for (int slot = 0; slot < Inventory.BACKPACK_STACKS; slot++) {
+        for (int slot = 0; slot < HUD_QUICKBAR_SLOTS; slot++) {
             int type = inv.backpackType(slot);
             boolean sel = slot == selectedSlot;
             int slotX = sx + slot * (slotSize + gap);
@@ -2908,7 +2927,7 @@ public class MarginScreen implements Screen {
                 batch.draw(pixels.backpackIcon(), x + 12, top - 27, 20, 20);
                 heading = "BACKPACK";
                 Inventory inv = state.getInventory();
-                meta = inv.backpackStackCount() + " / " + Inventory.BACKPACK_STACKS + " STACKS";
+                meta = inv.backpackStackCount() + " / " + inv.mainSlotCapacity() + " STACKS";
                 if (inv.isBackpackFull()) metaColor = INV_WARNING;
                 break;
         }
@@ -2929,11 +2948,12 @@ public class MarginScreen implements Screen {
         Inventory inv = state.getInventory();
         int gridX = x + 14;
         int gridY = y + 99;
-        for (int slot = 0; slot < Inventory.BACKPACK_STACKS; slot++) {
+        int rows = mainGridRows();
+        for (int slot = 0; slot < Inventory.MAIN_BASE_SLOTS; slot++) {
             int row = slot / INVENTORY_COLS;
             int col = slot % INVENTORY_COLS;
             int sx = gridX + col * (INVENTORY_CELL + INVENTORY_GAP);
-            int sy = gridY + (1 - row) * (INVENTORY_CELL + INVENTORY_GAP);
+            int sy = gridY + (rows - 1 - row) * (INVENTORY_CELL + INVENTORY_GAP);
             boolean selected = slot == selectedSlot;
             int type = inv.backpackType(slot);
 

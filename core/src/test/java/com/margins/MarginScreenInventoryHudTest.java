@@ -18,10 +18,12 @@ class MarginScreenInventoryHudTest {
     }
 
     @Test
-    void cursorWrapsBetweenTheTwoRowsWithoutChangingColumn() {
-        assertEquals(5, MarginScreen.moveInventoryCursor(1, 0, 1));
-        assertEquals(1, MarginScreen.moveInventoryCursor(5, 0, 1));
-        assertEquals(1, MarginScreen.moveInventoryCursor(5, 0, -1));
+    void cursorWrapsAcrossTheFiveRowGridWithoutChangingColumn() {
+        // Story 6.1: the main store is 19 base slots → a 5-row, 4-column grid.
+        assertEquals(5, MarginScreen.moveInventoryCursor(1, 0, 1));   // row 0 → row 1
+        assertEquals(9, MarginScreen.moveInventoryCursor(5, 0, 1));   // row 1 → row 2
+        assertEquals(17, MarginScreen.moveInventoryCursor(1, 0, -1)); // up from the top row wraps to the last row
+        assertEquals(1, MarginScreen.moveInventoryCursor(17, 0, 1));  // down from the last row wraps to the top
     }
 
     @Test

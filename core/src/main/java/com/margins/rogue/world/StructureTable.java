@@ -125,6 +125,13 @@ public final class StructureTable {
         return new LootEntry(supply, count, chancePercent);
     }
 
+    /** Story 6.2 (FR-20, D5): a found storage bag — placed by {@code RunState}'s LAST generation pass
+     *  (after structure loot AND the cordon) so every prior seed layout stays byte-identical (AD-5),
+     *  which is why it is a standalone entry rather than an item on any structure's authored loot set.
+     *  A found bag may be trapped — the trap is rolled when it is readied ({@code BagSystem}). */
+    public static final int FOUND_BAG_CHANCE = 45;
+    public static final LootEntry[] FOUND_BAG_LOOT = { loot(Supply.TRAVELERS_PACK, 1, FOUND_BAG_CHANCE) };
+
     /** The authored content for one World-Structure type. Instances are static finals; the loot
      *  arrays are FINAL and injected through the constructor, so a caller can never reassign
      *  another structure's content (review fix — the old withLoot/withLockedCellar fluents left

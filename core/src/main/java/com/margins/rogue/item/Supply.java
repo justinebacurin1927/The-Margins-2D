@@ -62,7 +62,14 @@ public enum Supply {
     ROPE("Rope", TrueIdentity.ROPE_ID),
     SMALL_TOOLS("Small Tools", TrueIdentity.SMALL_TOOLS_ID),
     MAP_FRAGMENT("Map Fragment", TrueIdentity.MAP_FRAGMENT_ID),
-    PRESERVED_FOOD("Preserved Food", TrueIdentity.PRESERVED_FOOD_ID);
+    PRESERVED_FOOD("Preserved Food", TrueIdentity.PRESERVED_FOOD_ID),
+
+    // Story 6.1 (FR-20): the first storage item — a bag that expands the main store when readied
+    // (isStorage, storageSlotBonus). Single-identity self-evident (inert on use — it is worn, not
+    // eaten) and NOT scatterable (an authored economy item, not forest junk — keeps the generic
+    // scatter pool unchanged, AD-5). Appended last so existing ordinals/saves are unchanged (AD-6).
+    // Its durability + thematic traps are Story 6.2.
+    TRAVELERS_PACK("Traveler's Pack", TrueIdentity.TRAVELERS_PACK_ID);
 
     private final String displayName;
     private final TrueIdentity[] possible;
@@ -82,7 +89,49 @@ public enum Supply {
      *  carried loot with their uses in later stories (4.5/3.5) — USING one is a no-op. */
     public boolean isConsumedOnUse() {
         return this != SEALED_LETTER && this != TORN_PAGE && this != COAL && this != SALT && this != WOOD
-                && this != ROPE && this != SMALL_TOOLS && this != MAP_FRAGMENT;
+                && this != ROPE && this != SMALL_TOOLS && this != MAP_FRAGMENT && this != TRAVELERS_PACK;
+    }
+
+    // --- Story 6.1 (FR-20): weight + the three hybrid-inventory categories. Minimal authored
+    // defaults (D5): most supplies are un-categorized consumables that live in the main store and
+    // weigh 1. A fuller weight/category catalog rides the item growth in 6.2+. ---
+
+    /** Per-item carry weight (default 1). A minimal authored pass — the bulky craft materials and the
+     *  bag itself weigh more; everything else is 1 (D3). */
+    public int weight() {
+        switch (this) {
+            case TRAVELERS_PACK: return 3;
+            case WOOD: case COAL: case ROPE: case SMALL_TOOLS: case PRESERVED_FOOD: return 2;
+            default: return 1;
+        }
+    }
+
+    /** A storage item (a bag): readying it expands the main store by {@link #storageSlotBonus()}
+     *  (AC-1). The only one in 6.1 is the Traveler's Pack; the bag set grows in 6.2+. */
+    public boolean isStorage() {
+        return this == TRAVELERS_PACK;
+    }
+
+    /** The largest per-bag {@link #storageSlotBonus()} any storage item can grant — sizes the main
+     *  store's physical array ({@link Inventory#MAX_MAIN_SLOTS}) so readying a bag never reallocates. */
+    public static final int MAX_STORAGE_SLOT_BONUS = 4;
+
+    /** Main-store slots a readied storage item adds (0 if not a storage item). Merged/summed across
+     *  the equipped bags, capped at {@link Inventory#MAX_STORAGE_ITEMS} bags (AC-1, D2). */
+    public int storageSlotBonus() {
+        return this == TRAVELERS_PACK ? MAX_STORAGE_SLOT_BONUS : 0;
+    }
+
+    /** A Quick-Access gear item (weapon/armor-type) — routes into the 5 gear slots when readied.
+     *  The current utility materials that already ready into the loadout (D5 minimal set). */
+    public boolean isQuickGear() {
+        return this == FOLDED_CLOTH || this == ROPE || this == SMALL_TOOLS;
+    }
+
+    /** A Quick-Access artifact/ring item — routes into the 3 artifact slots. None yet (the artifact
+     *  set arrives with item growth in 6.2+); the 3 slots exist and stay available regardless (AC-1). */
+    public boolean isQuickArtifact() {
+        return false;
     }
 
     /** The toxin track a provision carries (Story 1.7, FR-8). Mushrooms are deterministic — a
@@ -212,6 +261,7 @@ public enum Supply {
     public boolean isScatterable() {
         switch (this) {
             case TORN_PAGE: case ROPE: case SMALL_TOOLS: case MAP_FRAGMENT: case PRESERVED_FOOD:
+            case TRAVELERS_PACK: // Story 6.1: the bag is an authored economy item, never forest scatter (AD-5)
                 return false;
             default: return true;
         }

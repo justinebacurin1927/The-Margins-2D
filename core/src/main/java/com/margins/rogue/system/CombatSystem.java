@@ -141,6 +141,7 @@ public final class CombatSystem {
                     } else {
                         messages.add("Hit for " + dealt + "!");
                     }
+                    BagSystem.onPlayerHit(state, messages); // Story 6.2: the hit batters the pack (wear + trap)
                 }
             } else if (companionPresent && e.isAdjacentTo(bx, by)) {
                 // The enemy can't reach the player without passing Aldric — it strikes him instead.

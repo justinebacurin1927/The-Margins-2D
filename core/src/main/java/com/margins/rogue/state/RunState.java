@@ -63,7 +63,7 @@ public class RunState {
     private RoguePlayer player;
     private List<RogueEnemy> enemies;
     // Field-initialized so it's non-null even when a save predating this field is loaded (Json skips the constructor).
-    private Inventory inventory = new Inventory();  // finite carry: 8 backpack stacks + 2 equipped slots (FR-9, AD-12)
+    private Inventory inventory = new Inventory();  // finite hybrid carry: 19 base main slots (bag-expandable) + Quick-Access gear/artifact (FR-9/FR-20, AD-12)
     private List<FloorItem> floorItems = new ArrayList<>(); // items lying on tiles; persisted so drops survive save/load (FR-10)
     private List<Companion> companions = new ArrayList<>(); // allied turn actors; single party slot (AD-10)
     private IdentifyMap identifyMap;      // per-seed Supply→TrueIdentity binding (FR-11, AD-12); built at run start, persisted
@@ -157,6 +157,7 @@ public class RunState {
         generateFloor();
         spawnStartingCompanion();
         seedStartingWeapons(); // Story 4.4: the authored starter set (unwielded — see the helper)
+        seedStartingBag(); // Story 6.1: Klein begins with his Traveler's Pack worn (readied) — AC-1 expansion live from turn 1
         rollWeather(); // cycle 0's weather, drawn LAST so layout/identity draws stay on the pre-1.3 stream
         seedMessageLog(); // the opening line, so the surface is never empty at first render
     }
@@ -179,7 +180,23 @@ public class RunState {
         // Story 5.7: the channel-b border cordon runs last so its seeded draws perturb no existing
         // enemy/loot stream (AD-5) — every pre-5.7 seed layout is byte-identical; cordon foes append.
         placeCordon(result.spine, player.getTileX(), player.getTileY());
+        // Story 6.2 (D5, AD-5): found bags are drawn LAST — after structure loot AND the cordon — so
+        // every prior seed's layout stays byte-identical; only the new bag draws append to the stream.
+        placeFoundBags(player.getTileX(), player.getTileY());
     }
+
+    /** Story 6.2 (FR-20, D5): scatter the found storage bag(s) into a structure footprint. Drawn from a
+     *  seed-DERIVED sub-stream ({@code seed ^ salt}) rather than the shared gameplay rng, so the placement
+     *  is still reproducible from the seed yet perturbs NO existing layout — every pre-6.2 seed's structure
+     *  loot, cordon, weather, and runtime hazard rolls stay byte-identical (AD-5). A found bag may be
+     *  trapped; the trap is rolled when it is readied ({@code BagSystem}), so placement carries no trap state. */
+    private void placeFoundBags(int avoidX, int avoidY) {
+        Random bagRng = new Random(seed ^ BAG_PLACEMENT_SALT);
+        placeLootInFootprint(StructureTable.POACHERS_CAMP, StructureTable.FOUND_BAG_LOOT, avoidX, avoidY, bagRng);
+    }
+
+    /** Decorrelates the found-bag placement sub-stream from the main seed (Story 6.2). */
+    private static final long BAG_PLACEMENT_SALT = 0x6A6BADL;
 
     /**
      * Build the region's enemies and scattered supplies, avoiding the
@@ -266,7 +283,7 @@ public class RunState {
      */
     private void placeStructureLoot(int avoidX, int avoidY) {
         for (StructureTable.Structure structure : StructureTable.all()) {
-            placeLootInFootprint(structure, structure.loot, avoidX, avoidY);
+            placeLootInFootprint(structure, structure.loot, avoidX, avoidY, rng);
         }
     }
 
@@ -275,7 +292,7 @@ public class RunState {
      *  generation-time authored pass ({@link #placeStructureLoot}) and Story 3.5's runtime cellar
      *  open ({@link #placeLockedCellarLoot}) — the same placement rule, one source. */
     private void placeLootInFootprint(StructureTable.Structure structure, StructureTable.LootEntry[] entries,
-                                      int avoidX, int avoidY) {
+                                      int avoidX, int avoidY, Random lootRng) {
         int[] box = structureFootprint(tileMap, structure.structureType);
         if (box == null) return; // every structure is stamped, but stay defensive
         List<int[]> cells = new ArrayList<>();
@@ -289,10 +306,10 @@ public class RunState {
         if (cells.isEmpty()) return;
         for (StructureTable.LootEntry entry : entries) {
             // Guaranteed entries skip the roll; chance entries draw exactly once (AD-5).
-            boolean hit = entry.chancePercent >= 100 || rng.nextInt(100) < entry.chancePercent;
+            boolean hit = entry.chancePercent >= 100 || lootRng.nextInt(100) < entry.chancePercent;
             if (!hit) continue;
             for (int k = 0; k < entry.count; k++) {
-                int[] c = cells.get(rng.nextInt(cells.size()));
+                int[] c = cells.get(lootRng.nextInt(cells.size()));
                 floorItems.add(new FloorItem(entry.supply.ordinal(), 1, c[0], c[1]));
             }
         }
@@ -305,7 +322,7 @@ public class RunState {
      *  stream (AD-5); the generation stream is untouched because this is a later event draw. */
     public void placeLockedCellarLoot(int avoidX, int avoidY) {
         StructureTable.Structure oldHouse = StructureTable.forType(RogueTileMap.STRUCTURE_OLD_HOUSE);
-        placeLootInFootprint(oldHouse, oldHouse.lockedLoot, avoidX, avoidY);
+        placeLootInFootprint(oldHouse, oldHouse.lockedLoot, avoidX, avoidY, rng); // runtime event on the live seeded stream
     }
 
     /** The bounding box of a structure's stamped footprint, or null if the type isn't on the map. */
@@ -418,6 +435,7 @@ public class RunState {
         if (weather == null) weather = Weather.CLEAR;
         cycleNumber = clockTurns / CYCLE_LENGTH;
         if (identifyMap != null) identifyMap.reconcile(Supply.count()); // grow a pre-1.5 save's shorter binding
+        if (inventory != null) inventory.restoreAfterLoad(); // Story 6.1 (AD-6): grow a pre-6.1 save's main store + default the new Quick-Access/storage bands
         // Story 3.2 review fix: a pre-3.2 save (no structureLootPlaced key → false) restored the
         // structureTypes layer but never got the authored loot pass — structures + hazards, no loot
         // (AC-2 gap). Backfill ONCE: only when the typed structure layer exists (a legacy
@@ -536,6 +554,18 @@ public class RunState {
         weapons.add(Weapon.spearT1());
         weapons.add(Weapon.bladeT3());
         weapons.add(Weapon.bowT5());
+    }
+
+    /** Story 6.1 (review): Klein begins a run with his Traveler's Pack already worn (readied into a
+     *  storage slot), so the bag-expanded main store (AC-1, 19 → 23 usable stacks) and the STR/weight
+     *  carry are live in the actual game from the first turn — not a test-only mechanic. A traveler
+     *  fleeing the fall of Corneo would carry his pack. Deterministic (no RNG) so the seeded stream is
+     *  untouched (AD-5). Rides the persisted inventory across {@link #restart} (which does not clear it),
+     *  so no double-grant. Further bags are found in the world with Story 6.2. */
+    private void seedStartingBag() {
+        if (inventory.tryAdd(Supply.TRAVELERS_PACK.ordinal(), 1) == Inventory.AddResult.ADDED) {
+            inventory.equip(Supply.TRAVELERS_PACK.ordinal()); // ready it → expands the main store to 23
+        }
     }
 
     /** Walkable tile near (x,y): starts a couple tiles out (his rear-guard station distance), then

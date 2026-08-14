@@ -229,10 +229,11 @@ class StructureContentTest {
         assertFalse(Supply.SMALL_TOOLS.isScatterable());
         assertFalse(Supply.MAP_FRAGMENT.isScatterable());
         assertFalse(Supply.PRESERVED_FOOD.isScatterable());
-        // The scatter pool excludes exactly the quest seed + the 4 structure items, so its length
-        // is unchanged from the 3.1 baseline (byte-identical generic scatter, AD-5).
-        assertEquals(Supply.count() - 5, Supply.scatterableOrdinals().length,
-                "the generic scatter pool length is unchanged by the 4 appended structure items");
+        // The scatter pool excludes exactly the quest seed + the 4 structure items + the Story 6.1
+        // storage bag, so its length is unchanged from the 3.1 baseline (byte-identical scatter, AD-5).
+        assertFalse(Supply.TRAVELERS_PACK.isScatterable());
+        assertEquals(Supply.count() - 6, Supply.scatterableOrdinals().length,
+                "the generic scatter pool length is unchanged by the appended non-scatter items");
     }
 
     @Test
