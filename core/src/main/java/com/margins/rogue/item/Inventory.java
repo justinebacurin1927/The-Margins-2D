@@ -96,16 +96,19 @@ public class Inventory {
         quickArtifact = grow(quickArtifact, QUICK_ARTIFACT_SLOTS, EMPTY);
         if (storageBags == null) storageBags = new ArrayList<>();
         // Story 6.2 (AD-6): migrate a pre-6.2 save's flyweight storageItems int[] into full-durability
-        // untrapped Bag instances, so a 6.1 save's readied bag(s) are not dropped on load.
+        // untrapped Bag instances, so a 6.1 save's readied bag(s) are not dropped on load. Only migrate
+        // into an EMPTY bag list — never append legacy bags on top of an already-loaded new-format list.
         if (storageItems != null) {
-            for (int t : storageItems) {
-                if (t == EMPTY) continue;
-                Supply s = Supply.byOrdinal(t);
-                if (s != null && s.isStorage() && storageBags.size() < MAX_STORAGE_ITEMS) {
-                    storageBags.add(Bag.untrapped(s));
+            if (storageBags.isEmpty()) { // only migrate into an empty list — never double-add onto new-format bags
+                for (int t : storageItems) {
+                    if (t == EMPTY) continue;
+                    Supply s = Supply.byOrdinal(t);
+                    if (s != null && s.isStorage() && storageBags.size() < MAX_STORAGE_ITEMS) {
+                        storageBags.add(Bag.untrapped(s));
+                    }
                 }
             }
-            storageItems = null; // consumed
+            storageItems = null; // consumed either way, so it never lingers into a new-format save
         }
     }
 
@@ -114,7 +117,7 @@ public class Inventory {
     public int mainSlotCapacity() {
         int bonus = 0;
         for (Bag bag : storageBags) {
-            if (!bag.isBroken()) bonus += bag.slotBonus();
+            if (bag != null && !bag.isBroken()) bonus += bag.slotBonus(); // null-safe vs a partial Json load
         }
         return Math.min(MAX_MAIN_SLOTS, MAIN_BASE_SLOTS + bonus);
     }
@@ -225,14 +228,25 @@ public class Inventory {
      * the store so the caller can spill them to the ground (drop-or-leave). Deterministic — no RNG.
      */
     public List<int[]> breakBag(Bag bag) {
-        storageBags.remove(bag);
+        if (!storageBags.remove(bag)) return new ArrayList<>(); // not readied → no capacity change, nothing spills
         int cap = mainSlotCapacity();
-        List<int[]> overflow = new ArrayList<>();
-        for (int i = cap; i < types.length; i++) {
+        // Compact occupied stacks toward index 0 first, so holes left by earlier removes are NOT counted
+        // as overflow — only the genuine tail (occupiedCount − cap) spills (review fix).
+        List<int[]> occupied = new ArrayList<>();
+        for (int i = 0; i < types.length; i++) {
             if (types[i] != EMPTY) {
-                overflow.add(new int[]{types[i], counts[i]});
+                occupied.add(new int[]{types[i], counts[i]});
                 types[i] = EMPTY;
                 counts[i] = 0;
+            }
+        }
+        List<int[]> overflow = new ArrayList<>();
+        for (int i = 0; i < occupied.size(); i++) {
+            if (i < cap) {
+                types[i] = occupied.get(i)[0];
+                counts[i] = occupied.get(i)[1];
+            } else {
+                overflow.add(occupied.get(i)); // beyond the shrunk capacity — spills
             }
         }
         return overflow;
@@ -326,7 +340,7 @@ public class Inventory {
         }
         for (int t : equipped) if (t != EMPTY) w += weightOf(t);
         for (int t : quickArtifact) if (t != EMPTY) w += weightOf(t);
-        for (Bag bag : storageBags) w += weightOf(bag.getType().ordinal());
+        for (Bag bag : storageBags) if (bag != null && bag.getType() != null) w += weightOf(bag.getType().ordinal());
         return w;
     }
 

@@ -36,16 +36,20 @@ public final class BagSystem {
      * at most (AD-5), on a deliberate player action. Returns whether a bag actually readied.
      */
     public static boolean ready(RunState state, int type, List<String> messages) {
+        Inventory inv = state.getInventory();
+        Supply s = Supply.byOrdinal(type);
+        // Check the ready preconditions BEFORE rolling, so a failed ready (no bag held, or all bag slots
+        // full) never advances the shared seeded stream on a no-op (AD-5 — review fix).
+        if (s == null || !s.isStorage() || inv.count(type) <= 0 || inv.storageItemCount() >= Inventory.MAX_STORAGE_ITEMS) {
+            return false;
+        }
         BagTrap trap = BagTrap.NONE;
         if (state.rng().nextInt(100) < FOUND_BAG_TRAP_CHANCE) {
             trap = BagTrap.ARMED[state.rng().nextInt(BagTrap.ARMED.length)];
         }
-        boolean readied = state.getInventory().readyBagFromStore(type, trap); // trap stays hidden until it fires
-        if (readied) {
-            Supply s = Supply.byOrdinal(type);
-            messages.add("Readied " + (s == null ? "a bag" : s.displayName()) + ".");
-        }
-        return readied;
+        inv.readyBagFromStore(type, trap); // preconditions hold → always succeeds; trap stays hidden until it fires
+        messages.add("Readied " + s.displayName() + ".");
+        return true;
     }
 
     /**
@@ -62,7 +66,8 @@ public final class BagSystem {
         Bag worn = bags.get(0);
         worn.decay(BAG_DECAY_PER_HIT);
         if (worn.isBroken()) {
-            messages.add("Your " + worn.getType().displayName() + " is battered apart.");
+            String name = worn.getType() == null ? "pack" : worn.getType().displayName(); // null-safe vs a bad save
+            messages.add("Your " + name + " is battered apart.");
             spill(state, inv.breakBag(worn), DURABILITY_RECOVERABLE_PERCENT, messages);
         }
 
@@ -91,9 +96,12 @@ public final class BagSystem {
         for (int[] stack : overflow) {
             int type = stack[0];
             int count = stack[1];
-            int keep = count * recoverablePercent / 100; // floor
+            // Compute the LOSS by floor (not the keep), so a small stack (count 1–3 on a 75%-recoverable
+            // trap) loses nothing rather than being destroyed whole; a durability break loses 0 (review fix).
+            int destroyed = count * (100 - recoverablePercent) / 100;
+            int keep = count - destroyed;
             if (keep > 0) state.addFloorItem(type, keep, px, py);
-            lost += count - keep;
+            lost += destroyed;
         }
         messages.add(lost > 0
                 ? "The pack spills — you salvage what you can, but " + lost + " is lost."

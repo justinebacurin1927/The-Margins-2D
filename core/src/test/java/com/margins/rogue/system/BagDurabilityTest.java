@@ -50,6 +50,27 @@ class BagDurabilityTest {
     }
 
     @Test
+    void breakingABagDoesNotOverDropStacksThatStillFitAfterCompaction() {
+        // Review fix: low-index holes from removes must not count as overflow — only (occupiedCount −
+        // new capacity) stacks spill, not the raw tail at indices ≥ capacity.
+        Inventory inv = new Inventory();
+        inv.tryAdd(Supply.TRAVELERS_PACK.ordinal(), 1);
+        inv.equip(Supply.TRAVELERS_PACK.ordinal());            // capacity 23
+        int cap = inv.mainSlotCapacity();
+        for (int i = 0; i < cap; i++) inv.tryAdd(1000 + i, 1); // fill slots 0..22
+        inv.remove(1000, 1);                                   // free slot 0 (a low hole)
+        inv.remove(1001, 1);                                   // free slot 1 (another low hole)
+        assertEquals(cap - 2, inv.backpackStackCount(), "21 occupied stacks, two low holes");
+
+        List<int[]> overflow = inv.breakBag(inv.getStorageBags().get(0)); // 23 → 19; 21 occupied
+
+        assertEquals((cap - 2) - Inventory.MAIN_BASE_SLOTS, overflow.size(),
+                "only occupiedCount − newCap (2) spill — not the 4 raw high slots");
+        assertEquals(Inventory.MAIN_BASE_SLOTS, inv.backpackStackCount(),
+                "the rest were compacted into the shrunk base store, none needlessly dropped");
+    }
+
+    @Test
     void aWornBagBreaksOnAHitAndSpillsEverythingRecoverable() {
         RunState s = new RunState(3L);
         Inventory inv = s.getInventory();                       // Klein starts wearing his pack → capacity 23

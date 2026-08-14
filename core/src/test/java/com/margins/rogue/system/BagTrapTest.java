@@ -91,4 +91,27 @@ class BagTrapTest {
         }
         assertEquals(overflowStacks * 6, droppedFromTrap, "75% of each 8-stack (6) is recoverable on the ground");
     }
+
+    @Test
+    void aTrapBreakKeepsSmallStacksWholeInsteadOfDestroyingThem() {
+        // Review fix: the loss is a floor of the LOST share, so a 1-count stack on a 75%-recoverable
+        // trap loses nothing (25% of 1 floors to 0) instead of being destroyed whole.
+        RunState s = new RunState(4L);
+        Inventory inv = s.getInventory();                          // starting bag → capacity 23
+        inv.tryAdd(Supply.TRAVELERS_PACK.ordinal(), 1);
+        assertTrue(inv.readyBagFromStore(Supply.TRAVELERS_PACK.ordinal(), BagTrap.DART)); // → 27
+        int cap = inv.mainSlotCapacity();
+        for (int i = 0; i < cap; i++) inv.tryAdd(3000 + i, 1);     // ONE item per stack
+
+        int overflowStacks = cap - (Inventory.MAIN_BASE_SLOTS + Supply.TRAVELERS_PACK.storageSlotBonus()); // 4
+        int floorBefore = s.getFloorItems().size();
+        BagSystem.fireTrap(s, inv.getStorageBags().get(1), new ArrayList<>());
+
+        assertEquals(floorBefore + overflowStacks, s.getFloorItems().size(), "each single-item stack still drops");
+        int dropped = 0;
+        for (int i = s.getFloorItems().size() - overflowStacks; i < s.getFloorItems().size(); i++) {
+            dropped += s.getFloorItems().get(i).count;
+        }
+        assertEquals(overflowStacks, dropped, "single-item stacks survive a 75% trap — floor(25% of 1) = 0 lost");
+    }
 }

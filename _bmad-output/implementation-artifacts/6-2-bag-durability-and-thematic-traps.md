@@ -4,7 +4,7 @@ baseline_commit: 150e962
 
 # Story 6.2: Bag durability and thematic traps
 
-Status: review
+Status: done
 
 ## Story
 
@@ -61,6 +61,25 @@ so that storage itself carries risk (FR-20).
   - [x] 6.2 AC-2: `BagTrapTest` — each trap's effect (dart/fire/freeze/none); a sprung trap breaks the bag and drops exactly 75% (6 of 8 per stack) while losing 25%.
   - [x] 6.3 Persistence/migration: `RunStatePersistenceTest.pre62SaveMigratesFlyweightStorageItemsToDurableBags` (legacy `storageItems`→`Bag`); `hybridInventoryRoundTrips` + the pre-6.1 test updated to the `Bag` model (element type registered in the test serializer).
   - [x] 6.4 Regression: full suite **535 → 545 green**; determinism (Night/Weather/StructureContent) untouched by the isolated bag stream. **Verified:** `mvn -o -pl core test` (545 pass); `mvn -o compile` (core + desktop clean).
+
+## Review Findings (code-review 2026-08-15 — 3-layer parallel: Blind Hunter, Edge-Case Hunter, Acceptance Auditor)
+
+Auditor verdict: **both ACs satisfied and fully reachable in-game**; AD-1/2/5/6/10 upheld; test coverage complete. Findings below are correctness/robustness hardening.
+
+### Patch
+- [x] [Review][Patch, FIXED] `Inventory.breakBag` over-drops when the store has low-index holes. [`Inventory.breakBag`] — **Fixed:** compact occupied stacks toward index 0 first, then only the genuine tail (occupiedCount − cap) spills; a bag not in the list returns empty (no spill). Pinned by `BagDurabilityTest.breakingABagDoesNotOverDropStacksThatStillFitAfterCompaction`. (edge+blind)
+- [x] [Review][Patch, FIXED] The 75/25 spill destroyed small stacks entirely. [`BagSystem.spill`] — **Fixed:** compute the loss by floor (`destroyed = count·(100−pct)/100`), so a 1-count stack loses nothing on a 75%-recoverable trap. Pinned by `BagTrapTest.aTrapBreakKeepsSmallStacksWholeInsteadOfDestroyingThem` (8-stack still 6/2). (edge+blind)
+- [x] [Review][Patch, FIXED] `BagSystem.ready` consumed the shared RNG even when the bag failed to ready. [`BagSystem.ready`] — **Fixed:** the ready preconditions (isStorage / held / slot free) are checked before the trap roll, so a failed ready no longer advances the seeded stream (AD-5). (blind)
+- [x] [Review][Patch, FIXED] Defensive-guards batch. [`Inventory` / `BagSystem`] — **Fixed:** null-safe `getType()` derefs in `totalWeight`/the break message + null list elements in `mainSlotCapacity`; `restoreAfterLoad` migrates only into an empty bag list (no double-add) and always clears the legacy field. (edge+blind)
+
+### Deferred
+- [x] [Review][Defer] `restart()` does not reset the inventory (pre-existing, not 6.2). [`RunState.restart`] — A restarted run keeps the previous run's supplies + readied bag rather than a fresh pack; if the old bag broke, the new run starts bag-less. Pre-dates 6.2; a true new-run inventory reset is a separate cleanup. (blind)
+- [x] [Review][Defer] A trapped bag can be defused by durability attrition without firing. [`BagSystem.onPlayerHit`] — If a trapped bag wears to 0 first, it breaks clean (100% spill) and its trap never springs. Auditor confirmed this is consistent with D2/D4 (durability break is the clean path); flagged as a reachability nuance, not an AC violation. (blind+auditor, Low)
+- [x] [Review][Defer] Only the first readied bag wears, but a trapped bag at any index can fire. [`BagSystem`] — Wear is decoupled from which bag springs; a deep-stored trapped bag is as dangerous as the worn one. Thematic nuance; harmless. (blind, Low)
+- [x] [Review][Defer] Cosmetic/observation nits: dead `Bag.disarm()` (break already removes the bag; comment mis-attributes the double-fire guard), FREEZE's "the cold bites deep" message vs its 0 immediate HP (harm lands later via the FROZEN band), and the silent load-time migration drop of >5 legacy bags. [`Bag`/`BagTrap`/`Inventory`] (blind, Low)
+
+### Dismissed (7)
+`restart()` double-grants the starting bag (FALSE POSITIVE — `seedStartingBag` is constructor-only, not in `generateFloor`); test-serializer `Bag`-registration "divergence" (benign — libGDX class hints round-trip; suite 545-green; prod `SaveService` registered); spilled items not re-storable at the shrunk capacity (by design — drop-or-leave); same-type `FloorItem`s don't merge on a tile (pre-existing floor model); trap can reduce HP with no re-check (Auditor verified — `hurtRaw` is single-HP-authority and `checkLastStand` runs after `enemyPhase`); append-only-enum migration ordinal shift (enum never reorders); pre-6.2 saves get no retroactive found bags (intended, mirrors the structure-loot backfill).
 
 ## Dev Notes
 
@@ -127,4 +146,5 @@ Claude Opus 4.8 (1M context) — create-story 2026-08-15 (autonomous loop).
 ## Change Log
 
 - 2026-08-15 — created by create-story (autonomous loop). Decisions: D1 `Bag` first-class instance mirroring `Weapon`, replacing 6.1's `int[] storageItems` with `List<Bag> storageBags`; D2 durability + wear-on-hit-taken (repair deferred); D3 `BagTrap {NONE,DART,FIRE,FREEZE}` firing on first ready, effects via `hurtRaw`/`adjustTemperature`; D4 break→spill (durability 100% recoverable, trap 75%/25%) which also guards the 6.1-deferred capacity-shrink/scan invariant; D5 minimal found-bag world placement (some trapped, AD-5 append-last). Bounded: bag repair, voluntary un-ready, Quick-Access UI exposure, full bag catalog, currency (6.3), traders (6.4) all deferred. Status → ready-for-dev.
+- 2026-08-15 — code-review (3-layer parallel: Blind Hunter, Edge-Case Hunter, Acceptance Auditor). Auditor: both ACs satisfied + fully reachable, all AD constraints upheld, coverage complete. 0 decision-needed, 4 patch (all applied), 4 defer, 7 dismissed. **Patches:** breakBag compacts before harvesting overflow (no over-drop); spill computes the loss by floor so small stacks survive; ready() checks preconditions before the RNG roll (AD-5); defensive null/migration guards. +2 regression tests. Dismissed the "restart double-grant" (false positive — seedStartingBag is constructor-only) and the "test-serializer divergence" (benign). Suite 545 → 547 green; compile clean. Status → done.
 - 2026-08-15 — dev-story (dev). Implemented both ACs. Refined D3's trap trigger: a found bag's trap is rolled at ready time (`BagSystem.ready`, keeping `Inventory` RNG-free) and fires on a later combat hit, so it springs on a bag holding contents (fixes the empty-on-ready flaw). AD-5: found-bag placement uses a seed-derived sub-stream so the shared gameplay rng — and every seed-pinned determinism test — is byte-identical (no snapshot-test churn). AD-6: kept a migration-only `storageItems` field so a 6.1 save's readied bag becomes a full-durability `Bag`. Closed the 6.1-deferred capacity-shrink/overflow-spill invariant + the missing bag-removal path. Suite 535 → 545 green; core + desktop compile clean. Status → review.
