@@ -108,6 +108,26 @@ class RunStatePersistenceTest {
     }
 
     @Test
+    void aMixedCoinPurseSurvivesRoundTrip() {
+        // Story 6.3 (FR-21, AD-6): coin is ordinary Supply stacks in the main store, so it round-trips
+        // with no new element-type registration and no migration. A pre-6.3 save simply has no coin.
+        RunState s = new RunState(42L);
+        s.getInventory().tryAdd(Supply.COPPER.ordinal(), 3);
+        s.getInventory().tryAdd(Supply.SILVER.ordinal(), 2);
+        s.getInventory().tryAdd(Supply.GOLD.ordinal(), 1);
+        long wealth = s.getInventory().walletValueInCopper(); // 3 + 50 + 250 = 303
+
+        RunState loaded = json().fromJson(RunState.class, json().toJson(s));
+        loaded.restoreAfterLoad();
+
+        assertEquals(303L, wealth);
+        assertEquals(wealth, loaded.getInventory().walletValueInCopper(), "wealth survives the round-trip");
+        assertEquals(3, loaded.getInventory().count(Supply.COPPER.ordinal()));
+        assertEquals(2, loaded.getInventory().count(Supply.SILVER.ordinal()));
+        assertEquals(1, loaded.getInventory().count(Supply.GOLD.ordinal()));
+    }
+
+    @Test
     void thirstTemperatureAndClockSurviveRoundTrip() {
         // AC (Story 1.2 / AD-6): the new survival tracks are persisted state and must round-trip.
         RunState s = new RunState(42L);

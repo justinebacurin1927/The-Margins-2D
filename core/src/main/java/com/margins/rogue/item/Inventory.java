@@ -349,6 +349,20 @@ public class Inventory {
         return s == null ? 1 : s.weight(); // opaque/test type ids default to 1
     }
 
+    /** Story 6.3 (FR-21): total wealth carried, valued in Copper — the single wealth query the HUD
+     *  and the Story-6.4 traders read. Coin lives in the main store (picked up like any Supply stack),
+     *  so this sums {@code count × Supply.copperValue()} over the main store only (mirrors
+     *  {@link #totalWeight()}; non-currency stacks contribute 0). Pure function of what is held. */
+    public long walletValueInCopper() {
+        long v = 0;
+        for (int i = 0; i < types.length; i++) {
+            if (types[i] == EMPTY) continue;
+            Supply s = Supply.byOrdinal(types[i]);
+            if (s != null) v += (long) counts[i] * s.copperValue();
+        }
+        return v;
+    }
+
     /** STR-scaled weight capacity (AC-2, D3). Callers pass {@code RoguePlayer.getStr()}, which already
      *  folds the Story-1.7 bacterial/Starving STR penalty — so encumbrance tightens when weakened. */
     public int carryCapacity(int str) {

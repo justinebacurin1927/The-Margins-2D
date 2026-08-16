@@ -232,8 +232,13 @@ class StructureContentTest {
         // The scatter pool excludes exactly the quest seed + the 4 structure items + the Story 6.1
         // storage bag, so its length is unchanged from the 3.1 baseline (byte-identical scatter, AD-5).
         assertFalse(Supply.TRAVELERS_PACK.isScatterable());
-        assertEquals(Supply.count() - 6, Supply.scatterableOrdinals().length,
-                "the generic scatter pool length is unchanged by the appended non-scatter items");
+        // Story 6.3: the four currency tiers are authored-placement only (never generic scatter, AD-5/AD-17).
+        assertFalse(Supply.COPPER.isScatterable());
+        assertFalse(Supply.SILVER.isScatterable());
+        assertFalse(Supply.GOLD.isScatterable());
+        assertFalse(Supply.ROYAL_GOLD_PLAQUE.isScatterable());
+        assertEquals(Supply.count() - 10, Supply.scatterableOrdinals().length,
+                "the generic scatter pool length is unchanged by the appended non-scatter items (6 + 4 coins)");
     }
 
     @Test
@@ -459,8 +464,12 @@ class StructureContentTest {
         // scatterable type, a walkability change, an insertion into the generic draw sequence —
         // shifts this snapshot and fails here. Recorded from the verified implementation; update
         // deliberately when story content legitimately changes the layout.
+        // Story 6.3: the four COPPER entries are the new scarce currency, appended from an isolated
+        // seed-derived sub-stream — every pre-6.3 item stays byte-identical; coin is purely additive
+        // and lands only east of mid (all x >= 56 here — value rises east, AD-17).
         assertEquals(
-                "COAL@76,32|COAL@8,29|COOKED_MEAT@74,9|FILTERED_WATER@57,10|FOLDED_CLOTH@14,17|"
+                "COAL@76,32|COAL@8,29|COOKED_MEAT@74,9|COPPER@56,7|COPPER@67,34|COPPER@75,8|"
+                + "COPPER@84,35|FILTERED_WATER@57,10|FOLDED_CLOTH@14,17|"
                 + "FOLDED_CLOTH@16,38|FOLDED_CLOTH@63,37|HALF_ROTTEN_MEAT@62,32|HERBAL_CURE@33,33|"
                 + "HERBAL_CURE@74,9|HONEY@45,5|HONEY@83,24|HONEYCOMB@35,23|HONEYCOMB@45,2|"
                 + "POND_WATER@58,10|PRESERVED_FOOD@13,12|PRESERVED_FOOD@17,15|PRESERVED_FOOD@42,31|"

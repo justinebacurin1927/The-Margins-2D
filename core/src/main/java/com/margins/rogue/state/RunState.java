@@ -183,6 +183,10 @@ public class RunState {
         // Story 6.2 (D5, AD-5): found bags are drawn LAST — after structure loot AND the cordon — so
         // every prior seed's layout stays byte-identical; only the new bag draws append to the stream.
         placeFoundBags(player.getTileX(), player.getTileY());
+        // Story 6.3 (D4, AD-5/AD-17): scarce currency is placed LAST, from its OWN seed-derived
+        // sub-stream, so it perturbs neither the shared gameplay rng nor the bag sub-stream — every
+        // pre-6.3 seed's entire layout stays byte-identical; the world holds a bounded amount of coin.
+        placeCurrency(player.getTileX(), player.getTileY());
     }
 
     /** Story 6.2 (FR-20, D5): scatter the found storage bag(s) into a structure footprint. Drawn from a
@@ -197,6 +201,33 @@ public class RunState {
 
     /** Decorrelates the found-bag placement sub-stream from the main seed (Story 6.2). */
     private static final long BAG_PLACEMENT_SALT = 0x6A6BADL;
+
+    /** Story 6.3 (FR-21, AD-17, D4): place the scarce currency set into the EASTERN structure
+     *  footprints — every structure whose footprint center sits at or east of the map midline (the
+     *  deeper eastern camps, where danger rises east). This is a pure GEOMETRIC east-gate, not a tier
+     *  selection: the western home-cluster and the near-mid structures (the Old House, the Graveyard,
+     *  and the Deep Cave threshold all fall west of mid) stay coinless, while the eastern Kitchen
+     *  Camp / Watchtower / Poacher's Camp / Sunken Well band carries the coin — so value rises east
+     *  (AD-17) and the loot-rises-east invariant holds. Drawn from a seed-DERIVED sub-stream
+     *  ({@code seed ^ salt}), distinct from both the shared gameplay rng AND the found-bag sub-stream,
+     *  so the placement is reproducible from the seed yet perturbs NO existing layout — every pre-6.3
+     *  seed's structure loot, cordon, weather, found bags, and runtime hazard rolls stay byte-identical
+     *  (AD-5). No coin is minted by any action; this bounded, one-shot-per-footprint placement is the
+     *  whole of the economy's supply (AC-2 no infinite-money loop). */
+    private void placeCurrency(int avoidX, int avoidY) {
+        Random coinRng = new Random(seed ^ CURRENCY_PLACEMENT_SALT);
+        int midX = tileMap.getWidth() / 2;
+        for (StructureTable.Structure st : StructureTable.all()) {
+            int[] box = structureFootprint(tileMap, st.structureType);
+            if (box == null) continue;
+            int centerX = (box[0] + box[2]) / 2;
+            if (centerX < midX) continue; // coin is scarce and eastern — value rises east (AD-17)
+            placeLootInFootprint(st, StructureTable.CURRENCY_LOOT, avoidX, avoidY, coinRng);
+        }
+    }
+
+    /** Decorrelates the currency placement sub-stream from both the main seed and the bag sub-stream. */
+    private static final long CURRENCY_PLACEMENT_SALT = 0xC0FFEEL;
 
     /**
      * Build the region's enemies and scattered supplies, avoiding the
