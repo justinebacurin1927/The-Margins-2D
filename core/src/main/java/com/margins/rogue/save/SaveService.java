@@ -14,6 +14,7 @@ import com.margins.rogue.item.Inventory;
 import com.margins.rogue.item.Weapon;
 import com.margins.rogue.state.FlagStore;
 import com.margins.rogue.state.RunState;
+import com.margins.rogue.world.Trader;
 
 /**
  * Single-slot save/resume of the whole run (AD-6). {@link RunState} is the sole
@@ -37,6 +38,7 @@ public final class SaveService {
         json.setElementType(RunState.class, "floorItems", FloorItem.class);
         json.setElementType(RunState.class, "companions", Companion.class);
         json.setElementType(RunState.class, "weapons", Weapon.class); // Story 4.4: per-item durability round-trips
+        json.setElementType(RunState.class, "traders", Trader.class); // Story 6.4: the two mobile traders round-trip
         json.setElementType(Inventory.class, "storageBags", Bag.class); // Story 6.2: readied bags (durability + trap) round-trip
         // For a map field, setElementType registers the value type — FlagStore.flags
         // deserializes as Integer, not Double/String (AD-6).

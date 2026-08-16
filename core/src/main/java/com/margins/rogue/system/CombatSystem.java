@@ -6,7 +6,9 @@ import com.margins.rogue.Detection;
 import com.margins.rogue.RogueEnemy;
 import com.margins.rogue.RoguePlayer;
 import com.margins.rogue.item.Weapon;
+import com.margins.rogue.state.FlagStore;
 import com.margins.rogue.state.RunState;
+import com.margins.rogue.world.Trader;
 
 import java.util.ArrayList;
 import java.util.Comparator;
@@ -32,7 +34,17 @@ public final class CombatSystem {
             messages.add("Hit! " + target.getHp() + "/" + target.getMaxHp());
             if (!target.isAlive()) messages.add("Enemy defeated.");
         } else {
-            messages.add("Nothing there");
+            Trader trader = state.traderAt(tx, ty);
+            if (trader != null) {
+                trader.takeDamage(attackDamage(state)); // Story 6.4: the trader is a killable agent (AC-2)
+                messages.add("Hit! " + trader.getHp() + "/" + trader.getMaxHp());
+                if (!trader.isAlive() && trader.getKind() == Trader.Kind.BLACK_MARKET) {
+                    state.getFlagStore().set(FlagStore.KEY_BLACK_MARKET_DEAD, 1); // trade locked out forever
+                    messages.add("The Black Market Trader is dead. That trade is gone.");
+                }
+            } else {
+                messages.add("Nothing there");
+            }
         }
         state.emitNoise(player.getTileX(), player.getTileY(), ATTACK_NOISE_RADIUS); // the swing is loud (FR-5)
         decayWielded(state, messages); // Story 4.4 (AC-1): the swing wears the weapon, hit or miss

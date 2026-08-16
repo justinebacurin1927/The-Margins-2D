@@ -12,6 +12,7 @@ import com.margins.rogue.RoguePlayer;
 import com.margins.rogue.RogueTileMap;
 import com.margins.rogue.Weather;
 import com.margins.rogue.world.StructureTable;
+import com.margins.rogue.world.Trader;
 import com.margins.rogue.world.WorldSpine;
 import com.margins.rogue.item.FloorItem;
 import com.margins.rogue.item.Inventory;
@@ -66,6 +67,7 @@ public class RunState {
     private Inventory inventory = new Inventory();  // finite hybrid carry: 19 base main slots (bag-expandable) + Quick-Access gear/artifact (FR-9/FR-20, AD-12)
     private List<FloorItem> floorItems = new ArrayList<>(); // items lying on tiles; persisted so drops survive save/load (FR-10)
     private List<Companion> companions = new ArrayList<>(); // allied turn actors; single party slot (AD-10)
+    private List<Trader> traders = new ArrayList<>(); // Story 6.4: the two mobile traders (economy sinks, FR-21); field-initialized so a pre-6.4 save loads empty-but-non-null (AD-6)
     private IdentifyMap identifyMap;      // per-seed Supply→TrueIdentity binding (FR-11, AD-12); built at run start, persisted
     // Run-scoped narrative state (AD-7): flags + Galleon's Bond. Field-initialized
     // so a pre-4.3 save (no flagStore key) loads empty-but-non-null (AD-6), like inventory.
@@ -187,7 +189,70 @@ public class RunState {
         // sub-stream, so it perturbs neither the shared gameplay rng nor the bag sub-stream — every
         // pre-6.3 seed's entire layout stays byte-identical; the world holds a bounded amount of coin.
         placeCurrency(player.getTileX(), player.getTileY());
+        // Story 6.4 (D1/D5, AD-5): the two traders are placed LAST of all, from their OWN seed-derived
+        // sub-stream, so pre-6.4 seeds stay byte-identical. The Black Market's guards ARE enemies, so
+        // they append after every prior enemy draw (danger rises east).
+        placeTraders(result.spine, player.getTileX(), player.getTileY());
     }
+
+    /** Story 6.4 (FR-21, AD-17, D1/D5): place the two mobile traders — the Wanderer in the west/mid
+     *  (reachable by a coinless early player who can barter), the Black Market east and guarded (Gold
+     *  tier, danger rises east). Drawn from a seed-DERIVED sub-stream ({@code seed ^ salt}), distinct
+     *  from the bag AND currency sub-streams, so placement is reproducible yet perturbs NO existing
+     *  layout — every pre-6.4 seed stays byte-identical (AD-5). The Black Market's guards are appended
+     *  to {@code enemies} after all prior enemy draws (AD-5 append-last). */
+    private void placeTraders(WorldSpine spine, int avoidX, int avoidY) {
+        traders.clear();
+        Random traderRng = new Random(seed ^ TRADER_PLACEMENT_SALT);
+        int w = tileMap.getWidth(), h = tileMap.getHeight();
+        int[] west = walkableNear(w / 4, h / 2, avoidX, avoidY);
+        if (west != null) traders.add(new Trader(Trader.Kind.WANDERER, west[0], west[1]));
+        int[] east = walkableNear(w * 3 / 4, h / 2, avoidX, avoidY);
+        if (east != null) {
+            traders.add(new Trader(Trader.Kind.BLACK_MARKET, east[0], east[1]));
+            for (int g = 0; g < 3; g++) { // guarded (AC-2)
+                int gx = east[0] + traderRng.nextInt(5) - 2;
+                int gy = east[1] + traderRng.nextInt(5) - 2;
+                if (tileFree(gx, gy, avoidX, avoidY)) enemies.add(new RogueEnemy(gx, gy, tileMap));
+            }
+        }
+    }
+
+    /** The nearest tile to (cx,cy) that is free for an actor, by an outward ring scan, or null. */
+    private int[] walkableNear(int cx, int cy, int avoidX, int avoidY) {
+        for (int radius = 0; radius < 12; radius++) {
+            for (int dy = -radius; dy <= radius; dy++) {
+                for (int dx = -radius; dx <= radius; dx++) {
+                    int x = cx + dx, y = cy + dy;
+                    if (tileFree(x, y, avoidX, avoidY)) return new int[]{x, y};
+                }
+            }
+        }
+        return null;
+    }
+
+    /** Walkable, not the avoided (player) tile, and not already occupied by a living enemy or a placed
+     *  trader — so no two actors are ever stacked on one tile (a trader hidden under a guard is untradable). */
+    private boolean tileFree(int x, int y, int avoidX, int avoidY) {
+        if (!tileMap.isWalkable(x, y) || (x == avoidX && y == avoidY)) return false;
+        for (RogueEnemy e : enemies) if (e.isAlive() && e.getTileX() == x && e.getTileY() == y) return false;
+        for (Trader t : traders) if (t.getTileX() == x && t.getTileY() == y) return false;
+        return true;
+    }
+
+    /** Decorrelates the trader placement sub-stream from the main seed and the bag/currency streams. */
+    private static final long TRADER_PLACEMENT_SALT = 0x77AAD3L;
+
+    /** The living trader on the given tile, or null (Story 6.4 — the attack/trade target lookup). */
+    public Trader traderAt(int x, int y) {
+        for (Trader t : traders) {
+            if (t.isAlive() && t.getTileX() == x && t.getTileY() == y) return t;
+        }
+        return null;
+    }
+
+    /** The two mobile traders (Story 6.4). */
+    public List<Trader> getTraders() { return traders; }
 
     /** Story 6.2 (FR-20, D5): scatter the found storage bag(s) into a structure footprint. Drawn from a
      *  seed-DERIVED sub-stream ({@code seed ^ salt}) rather than the shared gameplay rng, so the placement

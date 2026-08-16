@@ -34,6 +34,7 @@ import com.margins.rogue.narrative.CorneoIntro;
 import com.margins.rogue.narrative.DialogController;
 import com.margins.rogue.narrative.IntroController;
 import com.margins.rogue.narrative.JournalController;
+import com.margins.rogue.narrative.TradeController;
 import com.margins.rogue.narrative.ParleyScene;
 import com.margins.rogue.narrative.TutorialController;
 import com.margins.rogue.save.SaveService;
@@ -46,7 +47,9 @@ import com.margins.rogue.system.PlayerAction;
 import com.margins.rogue.system.TorchSystem;
 import com.margins.rogue.system.TurnEngine;
 import com.margins.rogue.system.TurnResult;
+import com.margins.rogue.system.TradeSystem;
 import com.margins.rogue.world.StructureTable;
+import com.margins.rogue.world.Trader;
 import com.margins.rogue.world.WorldSpine;
 
 import java.util.ArrayList;
@@ -201,6 +204,9 @@ public class MarginScreen implements Screen {
      *  state (NOT on RunState — AD-6); while {@code isActive()} the turn loop is suspended (AD-14 —
      *  the quest log is a suspended text surface). Renders {@code journal.entries(state)} (AC-2). */
     private JournalController journal = new JournalController();
+    /** Story 6.4: the safe-pause trade surface with an adjacent trader (transient view state, AD-6;
+     *  while {@code isActive()} the turn loop is suspended, AD-14). Drives {@link TradeSystem}. */
+    private TradeController trade = new TradeController();
     /** Story 5.6: the act-gating quests — advances the act when Klein reaches the Copper Road
      *  corridor (1→2) or the road-head prison (2→3). Stateless one-shot over persisted flags; the
      *  screen calls {@code resolve} each committed turn beside {@link CaptureController} (AD-4/AD-5). */
@@ -582,6 +588,21 @@ public class MarginScreen implements Screen {
             journal.open();
             return;
         }
+        // Story 6.4 (FR-21, AD-14): the safe-pause trade surface with an adjacent living trader.
+        // Opening and trading commit no turn and tick no survival clock (the journal precedent).
+        if (trade.isActive()) {
+            handleTradeInput();
+            return;
+        }
+        // T opens the trade surface ONLY when a living trader is adjacent; with none it falls through
+        // to readAction so T keeps its original craft-torch binding (Story 1.6) — no regression.
+        if (down(Input.Keys.T)) {
+            Trader adj = TradeController.adjacentTrader(state);
+            if (adj != null) {
+                trade.open(adj);
+                return;
+            }
+        }
         if (down(Input.Keys.TAB)) {
             openInventory();
             return;
@@ -616,6 +637,38 @@ public class MarginScreen implements Screen {
 
         PlayerAction action = readAction(p.getFacing());
         if (action != null) submitPlayerAction(action);
+    }
+
+    /** Story 6.4 (AC-1/AC-2/AC-3): the minimal safe-pause trade panel input. Number keys buy the
+     *  trader's stock; [K] sells the selected backpack item; [B] barters it (Wanderer only); ESC/T
+     *  closes. Every branch drives {@link TradeSystem} (the single authority) — the screen decides
+     *  nothing (AD-1). No PlayerAction, so no turn ticks (AD-14). */
+    private void handleTradeInput() {
+        if (down(Input.Keys.ESCAPE) || down(Input.Keys.T)) { trade.close(); return; }
+        Trader t = trade.getTrader();
+        if (t == null || !t.isAlive()) { trade.close(); return; }
+        Supply[] stock = TradeSystem.stockFor(t.getKind());
+        List<String> msg = new ArrayList<>();
+        int[] numKeys = { Input.Keys.NUM_1, Input.Keys.NUM_2, Input.Keys.NUM_3, Input.Keys.NUM_4 };
+        for (int i = 0; i < stock.length && i < numKeys.length; i++) {
+            if (down(numKeys[i])) { TradeSystem.buy(state, t, stock[i], msg); break; }
+        }
+        Supply selected = selectedSlot >= 0
+                ? Supply.byOrdinal(state.getInventory().backpackType(selectedSlot)) : null;
+        if (down(Input.Keys.K) && selected != null) TradeSystem.sell(state, t, selected, msg);
+        if (down(Input.Keys.B) && selected != null && stock.length > 0) {
+            // Barter for the most valuable stock item the offered good can cover (stock is unsorted),
+            // so the player never trades a high-value item for the cheapest thing on offer.
+            Supply wanted = null;
+            for (Supply s : stock) {
+                if (TradeSystem.baseValue(selected) >= TradeSystem.baseValue(s)
+                        && (wanted == null || TradeSystem.baseValue(s) > TradeSystem.baseValue(wanted))) {
+                    wanted = s;
+                }
+            }
+            TradeSystem.barter(state, t, selected, wanted != null ? wanted : stock[0], msg);
+        }
+        if (!msg.isEmpty()) state.appendMessages(msg);
     }
 
     private void handleStartupMenuInput() {
@@ -1652,6 +1705,18 @@ public class MarginScreen implements Screen {
                 drawEnemyHealthBar(e, ex, ey);
             }
         }
+        // Story 6.4: the two mobile traders — a static amber/blue-tinted actor so they read as
+        // merchants and are findable on the map (a dedicated trader sprite is deferred polish).
+        for (Trader tr : state.getTraders()) {
+            if (!tr.isAlive() || !map.isVisible(tr.getTileX(), tr.getTileY())) continue;
+            float tx = animatedPixelX(null, tr.getTileX());
+            float ty = animatedPixelY(null, tr.getTileY());
+            float grounding = structureGrounding(map, null, tr.getTileX(), tr.getTileY());
+            batch.setColor(tr.getKind() == Trader.Kind.BLACK_MARKET
+                    ? new Color(0.85f, 0.72f, 0.35f, 1f) : new Color(0.55f, 0.80f, 0.95f, 1f));
+            drawAnimatedActor(ENEMY_CHARACTER, null, null, tx, ty, grounding);
+            batch.setColor(Color.WHITE);
+        }
         Companion comp = state.getActiveCompanion();
         if (comp != null && actorIsVisible(map, companionMotion, comp.getTileX(), comp.getTileY())) {
             float cx = animatedPixelX(companionMotion, comp.getTileX());
@@ -2583,6 +2648,8 @@ public class MarginScreen implements Screen {
             renderTextPage(dialog.getCurrent(), "");
         } else if (journal.isActive()) {
             renderJournalPage();
+        } else if (trade.isActive()) {
+            renderTradePanel();
         } else {
             renderMessagePanel();
         }
@@ -3973,6 +4040,41 @@ public class MarginScreen implements Screen {
             case COMPLETED -> "COMPLETED";
             case VOIDED    -> "VOIDED";
         };
+    }
+
+    /** Story 6.4: the minimal safe-pause trade panel — the trader's stock (buy by number), the wallet,
+     *  and the sell/barter/close keys. Mirrors {@link #renderJournalPage()}; the transaction rules are
+     *  all in {@link TradeSystem} (this only renders). */
+    private void renderTradePanel() {
+        fillRect(0, 0, hudWidth(), hudHeight(), new Color(0.01f, 0.015f, 0.012f, 0.58f));
+        int panelW = WW - 36, panelH = 210;
+        int panelX = (hudWidth() - panelW) / 2, panelY = 58;
+        drawPanel(panelX, panelY, panelW, panelH, UI_PANEL_STRONG);
+
+        Trader t = trade.getTrader();
+        String title = t != null && t.getKind() == Trader.Kind.BLACK_MARKET
+                ? "BLACK MARKET TRADER" : "TRAVELING WANDERER";
+        drawHeading(title, panelX + 10, panelY + panelH - 10, UI_ACCENT);
+        fillRect(panelX + 10, panelY + panelH - 17, panelW - 20, 1, UI_BORDER);
+
+        int y = panelY + panelH - 30;
+        drawText("Purse: " + state.getInventory().walletValueInCopper() + " copper", panelX + 12, y, UI_MUTED);
+        y -= UI_LINE;
+        if (t != null) {
+            Supply[] stock = TradeSystem.stockFor(t.getKind());
+            for (int i = 0; i < stock.length; i++) {
+                long price = TradeSystem.priceToBuy(TradeSystem.baseValue(stock[i]));
+                drawText("[" + (i + 1) + "] Buy " + stock[i].displayName() + " — " + price + " copper",
+                        panelX + 12, y, UI_TEXT);
+                y -= UI_LINE;
+            }
+        }
+        y -= UI_LINE;
+        drawText("[K] Sell selected item   " + (t != null && t.acceptsBarter() ? "[B] Barter selected" : "(coin only)"),
+                panelX + 12, y, UI_MUTED);
+
+        font.setColor(UI_MUTED);
+        font.draw(batch, "[T] CLOSE", panelX + 10, panelY + 10, panelW - 20, Align.right, false);
     }
 
     private void renderGameOverPanel() {

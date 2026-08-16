@@ -47,6 +47,12 @@ public class FlagStore {
      *  the screen renders the victory end-state. Unset → 0 (AD-6 — no migration, no ctor default). */
     public static final String KEY_WON = "won";
 
+    /** Flag: the Caravan Black Market Trader has been killed — his trade is permanently locked out
+     *  (Story 6.4, AC-2; mirrors Story 2.5 "killing a quest-giver voids that quest"). Set once by
+     *  {@code CombatSystem} on his death; {@code TradeSystem} refuses him forever after. Unset → 0
+     *  (AD-6 — no migration, no ctor default). */
+    public static final String KEY_BLACK_MARKET_DEAD = "trader.blackmarket.dead";
+
     /** Stable tag carried by an honest dialogue choice → Bond +1 (FR-15). */
     public static final String BOND_TAG_HONEST = "bond.honest";
     /** Stable tag carried by a dismissive dialogue choice → Bond −1 (FR-15). */

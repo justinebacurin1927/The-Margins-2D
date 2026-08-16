@@ -37,6 +37,7 @@ class RunStatePersistenceTest {
         json.setElementType(RunState.class, "enemies", RogueEnemy.class);
         json.setElementType(RunState.class, "floorItems", FloorItem.class);
         json.setElementType(RunState.class, "companions", Companion.class);
+        json.setElementType(RunState.class, "traders", com.margins.rogue.world.Trader.class); // Story 6.4
         json.setElementType(Inventory.class, "storageBags", Bag.class); // Story 6.2: readied bags round-trip
         json.setElementType(FlagStore.class, "flags", Integer.class);
         return json;
@@ -105,6 +106,35 @@ class RunStatePersistenceTest {
         assertEquals(itemCount, loaded.getInventory().count(0), "inventory count survives");
         assertTrue(loaded.getIdentifyMap().isIdentified(0), "identity reveal survives");
         assertTrue(loaded.isLastStandUsed(), "the spent Last-Stand survives (no free reprieve on reload)");
+    }
+
+    @Test
+    void tradersAndTheKillLockoutSurviveRoundTrip() {
+        // Story 6.4 (AD-6): the two traders + the Black Market kill-lockout flag are persisted state.
+        RunState s = new RunState(42L);
+        assertEquals(2, s.getTraders().size(), "a fresh run places both traders (reachable)");
+        s.getFlagStore().set(com.margins.rogue.state.FlagStore.KEY_BLACK_MARKET_DEAD, 1);
+
+        RunState loaded = json().fromJson(RunState.class, json().toJson(s));
+        loaded.restoreAfterLoad();
+
+        assertEquals(2, loaded.getTraders().size(), "traders round-trip");
+        assertEquals(s.getTraders().get(0).getKind(), loaded.getTraders().get(0).getKind(), "kind survives");
+        assertEquals(1, loaded.getFlagStore().get(com.margins.rogue.state.FlagStore.KEY_BLACK_MARKET_DEAD),
+                "the kill-lockout survives — no free re-trade on reload");
+    }
+
+    @Test
+    void placementIsDeterministicPerSeed() {
+        // AD-5: the two traders draw from a seed-derived sub-stream, so a seed reproduces them exactly.
+        RunState a = new RunState(7L);
+        RunState b = new RunState(7L);
+        assertEquals(a.getTraders().size(), b.getTraders().size());
+        for (int i = 0; i < a.getTraders().size(); i++) {
+            assertEquals(a.getTraders().get(i).getTileX(), b.getTraders().get(i).getTileX());
+            assertEquals(a.getTraders().get(i).getTileY(), b.getTraders().get(i).getTileY());
+            assertEquals(a.getTraders().get(i).getKind(), b.getTraders().get(i).getKind());
+        }
     }
 
     @Test

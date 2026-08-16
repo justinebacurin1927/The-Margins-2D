@@ -118,14 +118,16 @@ public enum Supply {
     }
 
     /** This coin's worth in Copper (the base unit), 0 for non-currency. The chain encodes the
-     *  epics' exchange rates: Silver = 25·Copper, Gold = 10·Silver, Royal Gold Plaque = 1000·Gold. */
-    public int copperValue() {
+     *  epics' exchange rates: Silver = 25·Copper, Gold = 10·Silver, Royal Gold Plaque = 1000·Gold.
+     *  {@code long} (Story 6.4): the Royal Gold Plaque circulates once traders give change, and a
+     *  trader's bulk price math must not overflow {@code int} at large plaque counts. */
+    public long copperValue() {
         switch (this) {
-            case COPPER:            return 1;
-            case SILVER:            return 25;               // 25:1
-            case GOLD:              return 25 * 10;          // 10:1 over Silver = 250
-            case ROYAL_GOLD_PLAQUE: return 25 * 10 * 1000;   // 1000:1 over Gold = 250_000
-            default:                return 0;
+            case COPPER:            return 1L;
+            case SILVER:            return 25L;               // 25:1
+            case GOLD:              return 25L * 10;          // 10:1 over Silver = 250
+            case ROYAL_GOLD_PLAQUE: return 25L * 10 * 1000;   // 1000:1 over Gold = 250_000
+            default:                return 0L;
         }
     }
 
