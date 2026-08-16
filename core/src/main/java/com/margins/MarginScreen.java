@@ -27,6 +27,8 @@ import com.margins.rogue.Weather;
 import com.margins.rogue.item.FloorItem;
 import com.margins.rogue.item.Inventory;
 import com.margins.rogue.item.Supply;
+import com.margins.rogue.narrative.ActGateController;
+import com.margins.rogue.narrative.BorderCrossingController;
 import com.margins.rogue.narrative.CaptureController;
 import com.margins.rogue.narrative.CorneoIntro;
 import com.margins.rogue.narrative.DialogController;
@@ -35,7 +37,9 @@ import com.margins.rogue.narrative.JournalController;
 import com.margins.rogue.narrative.ParleyScene;
 import com.margins.rogue.narrative.TutorialController;
 import com.margins.rogue.save.SaveService;
+import com.margins.rogue.state.FlagStore;
 import com.margins.rogue.state.RunState;
+import com.margins.rogue.system.BagSystem;
 import com.margins.rogue.system.DetectionSystem;
 import com.margins.rogue.system.FovSystem;
 import com.margins.rogue.system.PlayerAction;
@@ -74,6 +78,10 @@ public class MarginScreen implements Screen {
     private static final int INVENTORY_PANEL_W = 410;
     private static final int INVENTORY_PANEL_H = 260;
     private static final int INVENTORY_COLS = 4;
+    /** HUD quickbar strip is a fixed-width preview of the first stacks; the full main store (up to
+     *  {@link Inventory#mainSlotCapacity()}) lives in the inventory overlay grid (Story 6.1 defers
+     *  the bespoke Quick-Access layout). */
+    private static final int HUD_QUICKBAR_SLOTS = 8;
     private static final int INVENTORY_CELL = 46;
     private static final int INVENTORY_GAP = 5;
     private static final int LOG_PANEL_Y = 6;
@@ -193,6 +201,14 @@ public class MarginScreen implements Screen {
      *  state (NOT on RunState — AD-6); while {@code isActive()} the turn loop is suspended (AD-14 —
      *  the quest log is a suspended text surface). Renders {@code journal.entries(state)} (AC-2). */
     private JournalController journal = new JournalController();
+    /** Story 5.6: the act-gating quests — advances the act when Klein reaches the Copper Road
+     *  corridor (1→2) or the road-head prison (2→3). Stateless one-shot over persisted flags; the
+     *  screen calls {@code resolve} each committed turn beside {@link CaptureController} (AD-4/AD-5). */
+    private ActGateController actGate = new ActGateController();
+    /** Story 5.7: the border-crossing win — in Act 3, reaching the NW border ends the run as a
+     *  victory (KEY_WON + epilogue). Stateless one-shot; resolved each committed turn beside
+     *  {@link #actGate} (AD-4). */
+    private BorderCrossingController borderCrossing = new BorderCrossingController();
 
     private enum MenuPage { ROOT, PLAY, OPTIONS, HOW_TO_PLAY, CREDITS, JOURNAL }
     private enum CompendiumCategory {
@@ -208,6 +224,10 @@ public class MarginScreen implements Screen {
     private enum CraftRecipe { TORCH, CAMPFIRE, COOK_MEAT, FILTER_WATER, BOIL_WATER }
 
     private boolean gameOver = false;
+    /** Story 5.7: latched when the border-crossing win is first observed, mirroring {@link #gameOver}.
+     *  The core owns the win (FlagStore.KEY_WON + BorderCrossingController); this is the screen's
+     *  one-shot for the victory end-state (seed the prompt, clear the save, offer [R]). */
+    private boolean won = false;
     /** Frozen when true death is first observed so the event and death panel agree. */
     private String deathCauseLine;
     /** Startup/title surface; the world remains its animated in-game backdrop. */
@@ -233,6 +253,9 @@ public class MarginScreen implements Screen {
     private static final int LOG_LINES = 4; // Vision.png-style four-line lower-left message box
     /** Single source for the death line — the log seed and the overlay must never drift (review finding). */
     private static final String GAME_OVER_LINE = "You fell in the margins.   [R] begin again";
+    /** Story 5.7: the victory prompt seeded into the log when the border crossing is won (the
+     *  epilogue narrative itself is appended by BorderCrossingController). Mirrors GAME_OVER_LINE. */
+    private static final String WIN_LINE = "Klein is home.   [R] begin again";
     private static final String GAME_VERSION = "v1.0-SNAPSHOT";
 
     // Pixel Pack v2 character cells (row-major): 0 Klein, 1 Aldric, 6 Giliman foot soldier.
@@ -487,6 +510,20 @@ public class MarginScreen implements Screen {
             return;
         }
         RoguePlayer p = state.getPlayer();
+
+        // Story 5.7: the victory end-state — mirrors game-over, takes precedence over the death check
+        // (you cannot die on the turn you cross home). The epilogue is already in the log (appended by
+        // BorderCrossingController); seed the [R] prompt once, clear the save (no continuing a won run).
+        if (state.getFlagStore().get(FlagStore.KEY_WON) != 0) {
+            if (!won) {
+                won = true;
+                state.appendMessages(List.of(WIN_LINE));
+                SaveService.deleteSave();
+                hasContinue = false;
+            }
+            if (Gdx.input.isKeyJustPressed(Input.Keys.R)) restart();
+            return;
+        }
 
         if (!p.isAlive()) {
             // The game-over line is seeded into the log once — the log is the text surface (AC-1);
@@ -909,10 +946,13 @@ public class MarginScreen implements Screen {
         tutorial = new TutorialController();
         capture = new CaptureController();
         journal = new JournalController();
+        actGate = new ActGateController();
+        borderCrossing = new BorderCrossingController();
         intro.start(CorneoIntro.build());
         FovSystem.compute(state);
         clearAnimations();
         gameOver = false;
+        won = false;
         deathCauseLine = null;
         hasContinue = false;
         startupMenuOpen = false;
@@ -966,7 +1006,13 @@ public class MarginScreen implements Screen {
         // makes it a safe every-frame call; it fires once and never again). If the party were
         // somehow already empty, resolve() no-ops — nothing to capture.
         if (tutorial.isComplete()) capture.resolve(state);
-        if (committed && state.getPlayer().isAlive()) {
+        // Story 5.6: the act-gating quests fire on the reached position (before the save below, so a
+        // flip persists). Stateless one-shot — safe to call every turn (guards on act + quest flag).
+        actGate.resolve(state);
+        // Story 5.7: the border crossing wins the run if Klein has reached the NW border in Act 3.
+        borderCrossing.resolve(state);
+        // A won run is not saved (the victory end-state clears the save) — mirrors permadeath.
+        if (committed && state.getPlayer().isAlive() && state.getFlagStore().get(FlagStore.KEY_WON) == 0) {
             SaveService.save(state);
             hasContinue = true;
         }
@@ -1044,6 +1090,7 @@ public class MarginScreen implements Screen {
         FovSystem.compute(state);
         clearAnimations();
         gameOver = false;
+        won = false;
         deathCauseLine = null;
         menuOpen = false;
         inventoryOpen = false;
@@ -1153,7 +1200,7 @@ public class MarginScreen implements Screen {
 
     private void openInventory() {
         Inventory inv = state.getInventory();
-        if (selectedSlot < 0 || selectedSlot >= Inventory.BACKPACK_STACKS) {
+        if (selectedSlot < 0 || selectedSlot >= Inventory.MAIN_BASE_SLOTS) {
             selectedSlot = inv.nextOccupiedStack(-1);
         }
         if (selectedSlot < 0) selectedSlot = 0; // an empty pack still has a navigable first slot
@@ -1225,12 +1272,19 @@ public class MarginScreen implements Screen {
         int type = selectedType();
         Supply supply = Supply.byOrdinal(type);
         if (canReadyInLoadout(supply) && down(Input.Keys.Y)) {
-            if (state.getInventory().equip(type)) {
-                state.appendMessages(List.of("Readied " + supply.displayName() + "."));
-                if (state.getInventory().backpackType(selectedSlot) < 0) {
-                    int nextOccupied = state.getInventory().nextOccupiedStack(selectedSlot);
-                    selectedSlot = nextOccupied < 0 ? 0 : nextOccupied;
-                }
+            boolean readied;
+            if (supply.isStorage()) {
+                // Story 6.2: readying a found bag rolls its hidden trap (RNG lives in BagSystem).
+                List<String> readyMsgs = new ArrayList<>();
+                readied = BagSystem.ready(state, type, readyMsgs);
+                state.appendMessages(readyMsgs);
+            } else {
+                readied = state.getInventory().equip(type);
+                if (readied) state.appendMessages(List.of("Readied " + supply.displayName() + "."));
+            }
+            if (readied && state.getInventory().backpackType(selectedSlot) < 0) {
+                int nextOccupied = state.getInventory().nextOccupiedStack(selectedSlot);
+                selectedSlot = nextOccupied < 0 ? 0 : nextOccupied;
             }
             return;
         } else if (down(Input.Keys.T)) {
@@ -1260,10 +1314,10 @@ public class MarginScreen implements Screen {
     /** Body/loadout page: the two real equipped slots can be inspected and returned to the pack. */
     private void handleBodyInventoryInput() {
         if (down(Input.Keys.W) || down(Input.Keys.UP) || down(Input.Keys.A) || down(Input.Keys.LEFT)) {
-            selectedEquipmentSlot = Math.floorMod(selectedEquipmentSlot - 1, Inventory.EQUIPPED_SLOTS);
+            selectedEquipmentSlot = Math.floorMod(selectedEquipmentSlot - 1, Inventory.QUICK_GEAR_SLOTS);
         } else if (down(Input.Keys.S) || down(Input.Keys.DOWN)
                 || down(Input.Keys.D) || down(Input.Keys.RIGHT)) {
-            selectedEquipmentSlot = Math.floorMod(selectedEquipmentSlot + 1, Inventory.EQUIPPED_SLOTS);
+            selectedEquipmentSlot = Math.floorMod(selectedEquipmentSlot + 1, Inventory.QUICK_GEAR_SLOTS);
         }
         if (down(Input.Keys.X) || down(Input.Keys.E)) {
             int type = state.getInventory().equippedType(selectedEquipmentSlot);
@@ -1360,18 +1414,24 @@ public class MarginScreen implements Screen {
                 || supply == Supply.TORN_PAGE || supply == Supply.MAP_FRAGMENT);
     }
 
-    /** Existing utility materials that make sense in the two persisted ready slots. */
+    /** Items that ready into a Quick-Access band — gear/artifact/storage-bag (Story 6.1, category-driven). */
     static boolean canReadyInLoadout(Supply supply) {
-        return supply == Supply.FOLDED_CLOTH || supply == Supply.ROPE || supply == Supply.SMALL_TOOLS;
+        return supply != null && (supply.isQuickGear() || supply.isQuickArtifact() || supply.isStorage());
     }
 
-    /** Four-by-two cursor movement with SPD-like edge wrapping. Row zero is the visual top row. */
+    /** Rows the main-store grid needs for {@link Inventory#MAIN_BASE_SLOTS} at {@value #INVENTORY_COLS}
+     *  columns (ceil — the base count need not divide evenly). */
+    private static int mainGridRows() {
+        return (Inventory.MAIN_BASE_SLOTS + INVENTORY_COLS - 1) / INVENTORY_COLS;
+    }
+
+    /** Grid cursor movement with SPD-like edge wrapping over the main-store grid. Row zero is the top. */
     static int moveInventoryCursor(int slot, int colDelta, int rowDelta) {
-        int clamped = Math.max(0, Math.min(Inventory.BACKPACK_STACKS - 1, slot));
+        int clamped = Math.max(0, Math.min(Inventory.MAIN_BASE_SLOTS - 1, slot));
         int col = Math.floorMod(clamped % INVENTORY_COLS + colDelta, INVENTORY_COLS);
-        int rows = Inventory.BACKPACK_STACKS / INVENTORY_COLS;
+        int rows = mainGridRows();
         int row = Math.floorMod(clamped / INVENTORY_COLS + rowDelta, rows);
-        return row * INVENTORY_COLS + col;
+        return Math.min(Inventory.MAIN_BASE_SLOTS - 1, row * INVENTORY_COLS + col);
     }
 
     /** Click a quickbar slot to open the full backpack with that stack focused. */
@@ -1392,7 +1452,7 @@ public class MarginScreen implements Screen {
         int stride = 24;
         if (pointerHud.x < slotX || pointerHud.y < slotY || pointerHud.y >= slotY + 22) return -1;
         int slot = (int) ((pointerHud.x - slotX) / stride);
-        if (slot < 0 || slot >= Inventory.BACKPACK_STACKS) return -1;
+        if (slot < 0 || slot >= HUD_QUICKBAR_SLOTS) return -1;
         return pointerHud.x - (slotX + slot * stride) < 22 ? slot : -1;
     }
 
@@ -1402,11 +1462,12 @@ public class MarginScreen implements Screen {
         int panelY = (hudHeight() - INVENTORY_PANEL_H) / 2;
         int gridX = panelX + 14;
         int gridY = panelY + 99;
-        for (int slot = 0; slot < Inventory.BACKPACK_STACKS; slot++) {
+        int rows = mainGridRows();
+        for (int slot = 0; slot < Inventory.MAIN_BASE_SLOTS; slot++) {
             int row = slot / INVENTORY_COLS;
             int col = slot % INVENTORY_COLS;
             int sx = gridX + col * (INVENTORY_CELL + INVENTORY_GAP);
-            int sy = gridY + (1 - row) * (INVENTORY_CELL + INVENTORY_GAP);
+            int sy = gridY + (rows - 1 - row) * (INVENTORY_CELL + INVENTORY_GAP);
             if (pointerHud.x >= sx && pointerHud.x < sx + INVENTORY_CELL
                     && pointerHud.y >= sy && pointerHud.y < sy + INVENTORY_CELL) return slot;
         }
@@ -2527,6 +2588,7 @@ public class MarginScreen implements Screen {
         }
 
         if (gameOver) renderGameOverPanel();
+        if (won) renderVictoryPanel();
         else if (inventoryOpen) renderInventoryPanel();
         else if (menuOpen) renderMenuPanel();
 
@@ -2805,7 +2867,7 @@ public class MarginScreen implements Screen {
         batch.setColor(Color.WHITE);
         batch.draw(pixels.backpackIcon(), x + 7, y + 39, 17, 17);
         drawHeading("BACKPACK", x + 27, y + 53, INV_TEXT);
-        drawText(inv.backpackStackCount() + "/" + Inventory.BACKPACK_STACKS,
+        drawText(inv.backpackStackCount() + "/" + inv.mainSlotCapacity(),
                 x + PACK_PANEL_W - 27, y + 53, inv.isBackpackFull() ? INV_WARNING : INV_MUTED);
         String selected = "";
         if (selectedSlot >= 0 && inv.backpackType(selectedSlot) >= 0) {
@@ -2820,7 +2882,7 @@ public class MarginScreen implements Screen {
         int gap = 2;
         int sx = x + 8;
         int sy = y + 5;
-        for (int slot = 0; slot < Inventory.BACKPACK_STACKS; slot++) {
+        for (int slot = 0; slot < HUD_QUICKBAR_SLOTS; slot++) {
             int type = inv.backpackType(slot);
             boolean sel = slot == selectedSlot;
             int slotX = sx + slot * (slotSize + gap);
@@ -2865,7 +2927,7 @@ public class MarginScreen implements Screen {
                 batch.draw(pixels.backpackIcon(), x + 12, top - 27, 20, 20);
                 heading = "BACKPACK";
                 Inventory inv = state.getInventory();
-                meta = inv.backpackStackCount() + " / " + Inventory.BACKPACK_STACKS + " STACKS";
+                meta = inv.backpackStackCount() + " / " + inv.mainSlotCapacity() + " STACKS";
                 if (inv.isBackpackFull()) metaColor = INV_WARNING;
                 break;
         }
@@ -2886,11 +2948,12 @@ public class MarginScreen implements Screen {
         Inventory inv = state.getInventory();
         int gridX = x + 14;
         int gridY = y + 99;
-        for (int slot = 0; slot < Inventory.BACKPACK_STACKS; slot++) {
+        int rows = mainGridRows();
+        for (int slot = 0; slot < Inventory.MAIN_BASE_SLOTS; slot++) {
             int row = slot / INVENTORY_COLS;
             int col = slot % INVENTORY_COLS;
             int sx = gridX + col * (INVENTORY_CELL + INVENTORY_GAP);
-            int sy = gridY + (1 - row) * (INVENTORY_CELL + INVENTORY_GAP);
+            int sy = gridY + (rows - 1 - row) * (INVENTORY_CELL + INVENTORY_GAP);
             boolean selected = slot == selectedSlot;
             int type = inv.backpackType(slot);
 
@@ -3933,6 +3996,24 @@ public class MarginScreen implements Screen {
                 : "the margins claimed you.";
         font.setColor(EVENT_DEFEAT);
         font.draw(batch, summary, textX, y + 48, textW, Align.center, false);
+        font.setColor(UI_TEXT);
+        font.draw(batch, "[R] BEGIN AGAIN", textX, y + 24, textW, Align.center, false);
+    }
+
+    /** Story 5.7: the victory end-state panel — the homeward counterpart to the game-over panel.
+     *  Gold (dawn/home) accent instead of the defeat red; text-only (the epilogue rides the log). */
+    private void renderVictoryPanel() {
+        fillRect(0, 0, hudWidth(), hudHeight(), new Color(0.01f, 0.01f, 0.008f, 0.66f));
+        int w = 330, h = 96;
+        int x = (hudWidth() - w) / 2, y = (hudHeight() - h) / 2;
+        drawPanel(x, y, w, h, UI_PANEL_STRONG);
+        fillRect(x + 1, y + h - 3, w - 2, 2, EVENT_TIME);
+
+        int textX = x + 20, textW = w - 40;
+        headingFont.setColor(EVENT_TIME);
+        headingFont.draw(batch, "KLEIN REACHES NOVELBORNE", textX, y + 70, textW, Align.center, false);
+        font.setColor(EVENT_ROUTINE);
+        font.draw(batch, "He crosses the margin. Home.", textX, y + 48, textW, Align.center, false);
         font.setColor(UI_TEXT);
         font.draw(batch, "[R] BEGIN AGAIN", textX, y + 24, textW, Align.center, false);
     }

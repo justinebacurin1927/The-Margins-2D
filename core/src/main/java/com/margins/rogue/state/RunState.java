@@ -63,7 +63,7 @@ public class RunState {
     private RoguePlayer player;
     private List<RogueEnemy> enemies;
     // Field-initialized so it's non-null even when a save predating this field is loaded (Json skips the constructor).
-    private Inventory inventory = new Inventory();  // finite carry: 8 backpack stacks + 2 equipped slots (FR-9, AD-12)
+    private Inventory inventory = new Inventory();  // finite hybrid carry: 19 base main slots (bag-expandable) + Quick-Access gear/artifact (FR-9/FR-20, AD-12)
     private List<FloorItem> floorItems = new ArrayList<>(); // items lying on tiles; persisted so drops survive save/load (FR-10)
     private List<Companion> companions = new ArrayList<>(); // allied turn actors; single party slot (AD-10)
     private IdentifyMap identifyMap;      // per-seed Supply→TrueIdentity binding (FR-11, AD-12); built at run start, persisted
@@ -157,6 +157,7 @@ public class RunState {
         generateFloor();
         spawnStartingCompanion();
         seedStartingWeapons(); // Story 4.4: the authored starter set (unwielded — see the helper)
+        seedStartingBag(); // Story 6.1: Klein begins with his Traveler's Pack worn (readied) — AC-1 expansion live from turn 1
         rollWeather(); // cycle 0's weather, drawn LAST so layout/identity draws stay on the pre-1.3 stream
         seedMessageLog(); // the opening line, so the surface is never empty at first render
     }
@@ -176,7 +177,57 @@ public class RunState {
         // floor carries the authored loot, so the load-time backfill flag is set (review fix).
         placeStructureLoot(player.getTileX(), player.getTileY());
         structureLootPlaced = true;
+        // Story 5.7: the channel-b border cordon runs last so its seeded draws perturb no existing
+        // enemy/loot stream (AD-5) — every pre-5.7 seed layout is byte-identical; cordon foes append.
+        placeCordon(result.spine, player.getTileX(), player.getTileY());
+        // Story 6.2 (D5, AD-5): found bags are drawn LAST — after structure loot AND the cordon — so
+        // every prior seed's layout stays byte-identical; only the new bag draws append to the stream.
+        placeFoundBags(player.getTileX(), player.getTileY());
+        // Story 6.3 (D4, AD-5/AD-17): scarce currency is placed LAST, from its OWN seed-derived
+        // sub-stream, so it perturbs neither the shared gameplay rng nor the bag sub-stream — every
+        // pre-6.3 seed's entire layout stays byte-identical; the world holds a bounded amount of coin.
+        placeCurrency(player.getTileX(), player.getTileY());
     }
+
+    /** Story 6.2 (FR-20, D5): scatter the found storage bag(s) into a structure footprint. Drawn from a
+     *  seed-DERIVED sub-stream ({@code seed ^ salt}) rather than the shared gameplay rng, so the placement
+     *  is still reproducible from the seed yet perturbs NO existing layout — every pre-6.2 seed's structure
+     *  loot, cordon, weather, and runtime hazard rolls stay byte-identical (AD-5). A found bag may be
+     *  trapped; the trap is rolled when it is readied ({@code BagSystem}), so placement carries no trap state. */
+    private void placeFoundBags(int avoidX, int avoidY) {
+        Random bagRng = new Random(seed ^ BAG_PLACEMENT_SALT);
+        placeLootInFootprint(StructureTable.POACHERS_CAMP, StructureTable.FOUND_BAG_LOOT, avoidX, avoidY, bagRng);
+    }
+
+    /** Decorrelates the found-bag placement sub-stream from the main seed (Story 6.2). */
+    private static final long BAG_PLACEMENT_SALT = 0x6A6BADL;
+
+    /** Story 6.3 (FR-21, AD-17, D4): place the scarce currency set into the EASTERN structure
+     *  footprints — every structure whose footprint center sits at or east of the map midline (the
+     *  deeper eastern camps, where danger rises east). This is a pure GEOMETRIC east-gate, not a tier
+     *  selection: the western home-cluster and the near-mid structures (the Old House, the Graveyard,
+     *  and the Deep Cave threshold all fall west of mid) stay coinless, while the eastern Kitchen
+     *  Camp / Watchtower / Poacher's Camp / Sunken Well band carries the coin — so value rises east
+     *  (AD-17) and the loot-rises-east invariant holds. Drawn from a seed-DERIVED sub-stream
+     *  ({@code seed ^ salt}), distinct from both the shared gameplay rng AND the found-bag sub-stream,
+     *  so the placement is reproducible from the seed yet perturbs NO existing layout — every pre-6.3
+     *  seed's structure loot, cordon, weather, found bags, and runtime hazard rolls stay byte-identical
+     *  (AD-5). No coin is minted by any action; this bounded, one-shot-per-footprint placement is the
+     *  whole of the economy's supply (AC-2 no infinite-money loop). */
+    private void placeCurrency(int avoidX, int avoidY) {
+        Random coinRng = new Random(seed ^ CURRENCY_PLACEMENT_SALT);
+        int midX = tileMap.getWidth() / 2;
+        for (StructureTable.Structure st : StructureTable.all()) {
+            int[] box = structureFootprint(tileMap, st.structureType);
+            if (box == null) continue;
+            int centerX = (box[0] + box[2]) / 2;
+            if (centerX < midX) continue; // coin is scarce and eastern — value rises east (AD-17)
+            placeLootInFootprint(st, StructureTable.CURRENCY_LOOT, avoidX, avoidY, coinRng);
+        }
+    }
+
+    /** Decorrelates the currency placement sub-stream from both the main seed and the bag sub-stream. */
+    private static final long CURRENCY_PLACEMENT_SALT = 0xC0FFEEL;
 
     /**
      * Build the region's enemies and scattered supplies, avoiding the
@@ -233,6 +284,26 @@ public class RunState {
     }
 
     /**
+     * Story 5.7 (AD-11 channel b): the NW border cordon — a thinning-per-act Giliman presence
+     * guarding the homeward gate, scattered near the border landmark. Kept OUT of {@link #enemyCountFor}
+     * so channel a never touches it (AD-11 "do not merge"). Runs LAST in {@link #generateFloor} (after
+     * the generic scatter AND the authored structure loot) so its seeded draws never perturb any
+     * existing stream — every pre-5.7 seed's enemy and loot layout stays byte-identical (AD-5); only
+     * these cordon foes are appended. Seeded position draws only.
+     */
+    private void placeCordon(WorldSpine spine, int avoidX, int avoidY) {
+        int cordon = cordonCountFor(flagStore.getAct());
+        int bx = spine.borderX(), by = spine.borderY();
+        for (int e = 0; e < cordon; e++) {
+            int ex = bx + rng.nextInt(5) - 2;
+            int ey = by + rng.nextInt(5) - 2;
+            if (tileMap.isWalkable(ex, ey) && !(ex == avoidX && ey == avoidY)) {
+                enemies.add(new RogueEnemy(ex, ey, tileMap));
+            }
+        }
+    }
+
+    /**
      * Story 3.2 (FR-10, AC-2): scatter each structure's authored loot set inside its footprint —
      * structures are destinations, so their loot is authored content (StructureTable), not the
      * generic eastness scatter. Runs AFTER {@link #placeFloorActors}, so the generic pass's seeded
@@ -243,7 +314,7 @@ public class RunState {
      */
     private void placeStructureLoot(int avoidX, int avoidY) {
         for (StructureTable.Structure structure : StructureTable.all()) {
-            placeLootInFootprint(structure, structure.loot, avoidX, avoidY);
+            placeLootInFootprint(structure, structure.loot, avoidX, avoidY, rng);
         }
     }
 
@@ -252,7 +323,7 @@ public class RunState {
      *  generation-time authored pass ({@link #placeStructureLoot}) and Story 3.5's runtime cellar
      *  open ({@link #placeLockedCellarLoot}) — the same placement rule, one source. */
     private void placeLootInFootprint(StructureTable.Structure structure, StructureTable.LootEntry[] entries,
-                                      int avoidX, int avoidY) {
+                                      int avoidX, int avoidY, Random lootRng) {
         int[] box = structureFootprint(tileMap, structure.structureType);
         if (box == null) return; // every structure is stamped, but stay defensive
         List<int[]> cells = new ArrayList<>();
@@ -266,10 +337,10 @@ public class RunState {
         if (cells.isEmpty()) return;
         for (StructureTable.LootEntry entry : entries) {
             // Guaranteed entries skip the roll; chance entries draw exactly once (AD-5).
-            boolean hit = entry.chancePercent >= 100 || rng.nextInt(100) < entry.chancePercent;
+            boolean hit = entry.chancePercent >= 100 || lootRng.nextInt(100) < entry.chancePercent;
             if (!hit) continue;
             for (int k = 0; k < entry.count; k++) {
-                int[] c = cells.get(rng.nextInt(cells.size()));
+                int[] c = cells.get(lootRng.nextInt(cells.size()));
                 floorItems.add(new FloorItem(entry.supply.ordinal(), 1, c[0], c[1]));
             }
         }
@@ -282,7 +353,7 @@ public class RunState {
      *  stream (AD-5); the generation stream is untouched because this is a later event draw. */
     public void placeLockedCellarLoot(int avoidX, int avoidY) {
         StructureTable.Structure oldHouse = StructureTable.forType(RogueTileMap.STRUCTURE_OLD_HOUSE);
-        placeLootInFootprint(oldHouse, oldHouse.lockedLoot, avoidX, avoidY);
+        placeLootInFootprint(oldHouse, oldHouse.lockedLoot, avoidX, avoidY, rng); // runtime event on the live seeded stream
     }
 
     /** The bounding box of a structure's stamped footprint, or null if the type isn't on the map. */
@@ -350,6 +421,16 @@ public class RunState {
         return eastness < SAFE_TIER_EASTNESS && ny > CORDON_NY;
     }
 
+    /** Story 5.7 (AD-11 channel b): the NW border cordon THINS as the act advances — the dual of
+     *  channel a. Act 1 → 3 cordon foes, Act 2 → 2, Act 3 → 1, and 0 once the war has fully
+     *  consolidated east (act ≥ 4). The homeward gate loosens as the acts advance, so the Act-3
+     *  crossing is survivable with Act-3 readiness (AD-12) — never a boss, never a wall. Pure and
+     *  rng-free (AD-5); deliberately SEPARATE from {@link #enemyCountFor} so channel a can never
+     *  touch the win-gate cordon (AD-11 "do not merge"). */
+    static int cordonCountFor(int act) { // package-private: unit-tested (OccupationEscalationTest)
+        return Math.max(0, 4 - Math.max(1, act));
+    }
+
     /** Supply count per region: 0 in the safe west, 1 mid-map, 2 in the east — loot rises east
      *  with the danger (AC-2). Same inclusive 0.2f boundary as {@link #enemyCountFor}. Pure
      *  function of eastness (Decision 4). */
@@ -385,6 +466,7 @@ public class RunState {
         if (weather == null) weather = Weather.CLEAR;
         cycleNumber = clockTurns / CYCLE_LENGTH;
         if (identifyMap != null) identifyMap.reconcile(Supply.count()); // grow a pre-1.5 save's shorter binding
+        if (inventory != null) inventory.restoreAfterLoad(); // Story 6.1 (AD-6): grow a pre-6.1 save's main store + default the new Quick-Access/storage bands
         // Story 3.2 review fix: a pre-3.2 save (no structureLootPlaced key → false) restored the
         // structureTypes layer but never got the authored loot pass — structures + hazards, no loot
         // (AC-2 gap). Backfill ONCE: only when the typed structure layer exists (a legacy
@@ -503,6 +585,18 @@ public class RunState {
         weapons.add(Weapon.spearT1());
         weapons.add(Weapon.bladeT3());
         weapons.add(Weapon.bowT5());
+    }
+
+    /** Story 6.1 (review): Klein begins a run with his Traveler's Pack already worn (readied into a
+     *  storage slot), so the bag-expanded main store (AC-1, 19 → 23 usable stacks) and the STR/weight
+     *  carry are live in the actual game from the first turn — not a test-only mechanic. A traveler
+     *  fleeing the fall of Corneo would carry his pack. Deterministic (no RNG) so the seeded stream is
+     *  untouched (AD-5). Rides the persisted inventory across {@link #restart} (which does not clear it),
+     *  so no double-grant. Further bags are found in the world with Story 6.2. */
+    private void seedStartingBag() {
+        if (inventory.tryAdd(Supply.TRAVELERS_PACK.ordinal(), 1) == Inventory.AddResult.ADDED) {
+            inventory.equip(Supply.TRAVELERS_PACK.ordinal()); // ready it → expands the main store to 23
+        }
     }
 
     /** Walkable tile near (x,y): starts a couple tiles out (his rear-guard station distance), then

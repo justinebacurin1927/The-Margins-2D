@@ -26,6 +26,11 @@ import java.util.List;
  */
 public class TurnEngine {
 
+    /** Story 6.1 (AC-2, D4): the minimal encumbrance cost — an over-capacity step tires Klein faster
+     *  (this many extra hunger turns burned per encumbered MOVE), the smallest faithful "limits foray
+     *  range". Never blocks the move (drop-or-leave). The full foray-range tuning is deferred. */
+    static final int ENCUMBERED_MOVE_HUNGER_COST = 3;
+
     public TurnResult advance(RunState state, PlayerAction action) {
         TurnResult result = new TurnResult();
         RoguePlayer player = state.getPlayer();
@@ -38,6 +43,10 @@ public class TurnEngine {
         if (action.dir <= RoguePlayer.EAST) player.setFacing(action.dir);
 
         boolean acted = false;
+        // Story 6.1 (review): capture the pre-action tile so the encumbrance cost charges only on a
+        // real displacement — mirroring the hazard-step "did I actually move?" guard below.
+        int preMoveX = player.getTileX();
+        int preMoveY = player.getTileY();
         switch (action.kind) {
             case MOVE:
                 int tx = player.getTileX() + action.dx;
@@ -307,6 +316,20 @@ public class TurnEngine {
             // checkLastStand so lethal thirst/cold honors the Last-Stand reprieve (AD-5).
             HungerSystem.tick(player, result.messages);
             ThirstSystem.tick(player, result.messages);
+            // Story 6.1 (AC-2, D4): an encumbered step burns extra hunger — carrying past capacity
+            // shortens how far you can foray before you must turn back to eat. Charged only when the
+            // MOVE actually displaced Klein (a Bloated/Crippled stumble or a zero-delta MOVE spent the
+            // turn but advanced no tile, so it costs no extra range — mirrors the hazard-step guard).
+            // Runs before the DebuffSystem-delta capture so a tier crossing it causes is announced.
+            boolean displaced = player.getTileX() != preMoveX || player.getTileY() != preMoveY;
+            if (action.kind == PlayerAction.Kind.MOVE && displaced
+                    && state.getInventory().isEncumbered(player.getStr())) {
+                RoguePlayer.HungerStatus hBeforeEnc = player.getStatus();
+                player.starve(ENCUMBERED_MOVE_HUNGER_COST);
+                if (player.getStatus() != hBeforeEnc) {
+                    result.messages.add(HungerSystem.hungerTierLine(player.getStatus()));
+                }
+            }
             // Capture AFTER the direct ticks so Diarrhea's amplified drain (DebuffSystem) — which
             // runs after and can cross ANOTHER tier — still announces its drop (review finding).
             // The Systems' own observation already caught their ticks' crossing; this catches only

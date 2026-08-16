@@ -25,14 +25,20 @@ import java.util.List;
  * screen — nothing on {@code RunState}, nothing serialized (AD-6 by construction).
  * Opening/closing the Journal mutates nothing (AD-14: a quest log is a suspended text
  * surface); the screen swallows gameplay input while {@link #isActive()} and renders
- * {@link #entries}. The production catalog is exactly one quest — "The Road East", the
- * rescue-seed thread the Story 2.4 note opens (Decision 6); the NPC-line and
- * void-on-kill rules are proven with synthetic quests registered in tests.
+ * {@link #entries}. The production catalog holds the two act-gating quests (Story 5.6) —
+ * "Follow the Road" (the Act 1→2 push) and "The Road East", the rescue-seed thread the
+ * Story 2.4 note opens (Decision 6); the NPC-line and void-on-kill rules are proven with
+ * synthetic quests registered in tests.
  */
 public class JournalController {
 
-    /** Quest id for the rescue thread the 2.4 Torn Page opens (discovery-triggered). */
+    /** Quest id for the rescue thread the 2.4 Torn Page opens (discovery-triggered). Its completion
+     *  is Story 5.6's Act 2→3 gate ("The Rescue"). */
     public static final String QUEST_ROAD_EAST = "roadeast";
+
+    /** Quest id for the Act 1→2 push (Story 5.6): reach the Copper Road corridor, a Tier-2 push east.
+     *  Auto-started by {@link ActGateController} while in Act 1. */
+    public static final String QUEST_FOLLOW_THE_ROAD = "followroad";
 
     /** The SPD observation line appended when the Torn Page read starts the quest (Task 2 —
      *  the mutation is announced, observation discipline; tune phrasing in review). */
@@ -51,8 +57,11 @@ public class JournalController {
     private final List<QuestDefinition> catalog = new ArrayList<>();
     private boolean active = false;
 
-    /** Seed the production catalog — exactly "The Road East" (Decision 6). */
+    /** Seed the production catalog — the two act-gating quests (Story 5.6, Decision 6). */
     public JournalController() {
+        register(new QuestDefinition(QUEST_FOLLOW_THE_ROAD, "Follow the Road",
+                "Push east along the Copper Road, deeper toward the occupation.",
+                null));
         register(new QuestDefinition(QUEST_ROAD_EAST, "The Road East",
                 "Aldric was taken — prisoners to the road-head, east along the Copper Road. "
                         + "Follow the road east.",

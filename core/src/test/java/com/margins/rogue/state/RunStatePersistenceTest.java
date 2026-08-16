@@ -9,7 +9,9 @@ import com.margins.rogue.DayPhase;
 import com.margins.rogue.RogueEnemy;
 import com.margins.rogue.RoguePlayer;
 import com.margins.rogue.Weather;
+import com.margins.rogue.item.Bag;
 import com.margins.rogue.item.FloorItem;
+import com.margins.rogue.item.Inventory;
 import com.margins.rogue.item.Supply;
 import com.margins.rogue.item.TrueIdentity;
 import com.margins.rogue.system.DebuffSystem;
@@ -35,6 +37,7 @@ class RunStatePersistenceTest {
         json.setElementType(RunState.class, "enemies", RogueEnemy.class);
         json.setElementType(RunState.class, "floorItems", FloorItem.class);
         json.setElementType(RunState.class, "companions", Companion.class);
+        json.setElementType(Inventory.class, "storageBags", Bag.class); // Story 6.2: readied bags round-trip
         json.setElementType(FlagStore.class, "flags", Integer.class);
         return json;
     }
@@ -102,6 +105,26 @@ class RunStatePersistenceTest {
         assertEquals(itemCount, loaded.getInventory().count(0), "inventory count survives");
         assertTrue(loaded.getIdentifyMap().isIdentified(0), "identity reveal survives");
         assertTrue(loaded.isLastStandUsed(), "the spent Last-Stand survives (no free reprieve on reload)");
+    }
+
+    @Test
+    void aMixedCoinPurseSurvivesRoundTrip() {
+        // Story 6.3 (FR-21, AD-6): coin is ordinary Supply stacks in the main store, so it round-trips
+        // with no new element-type registration and no migration. A pre-6.3 save simply has no coin.
+        RunState s = new RunState(42L);
+        s.getInventory().tryAdd(Supply.COPPER.ordinal(), 3);
+        s.getInventory().tryAdd(Supply.SILVER.ordinal(), 2);
+        s.getInventory().tryAdd(Supply.GOLD.ordinal(), 1);
+        long wealth = s.getInventory().walletValueInCopper(); // 3 + 50 + 250 = 303
+
+        RunState loaded = json().fromJson(RunState.class, json().toJson(s));
+        loaded.restoreAfterLoad();
+
+        assertEquals(303L, wealth);
+        assertEquals(wealth, loaded.getInventory().walletValueInCopper(), "wealth survives the round-trip");
+        assertEquals(3, loaded.getInventory().count(Supply.COPPER.ordinal()));
+        assertEquals(2, loaded.getInventory().count(Supply.SILVER.ordinal()));
+        assertEquals(1, loaded.getInventory().count(Supply.GOLD.ordinal()));
     }
 
     @Test
@@ -435,6 +458,91 @@ class RunStatePersistenceTest {
         assertEquals(TrueIdentity.HERBAL_CURE_ID, fromOld.getIdentifyMap().identityOf(Supply.HERBAL_CURE.ordinal()));
         assertNotNull(fromOld.getIdentifyMap().identityOf(Supply.count() - 1),
                 "every ordinal through the new count is bound");
+    }
+
+    @Test
+    void hybridInventoryRoundTrips() {
+        // Story 6.1 (AC-1/AC-2, AD-6): the main store, the readied Quick-Access gear, a readied
+        // storage bag (and thus the expanded capacity + weight reads) are all persisted run state.
+        RunState s = new RunState(42L);
+        Inventory inv = s.getInventory();
+        inv.tryAdd(Supply.RAW_MEAT.ordinal(), 3);
+        inv.tryAdd(Supply.FOLDED_CLOTH.ordinal(), 1);
+        inv.equip(Supply.FOLDED_CLOTH.ordinal());            // → a Quick-Access gear slot
+        // Klein already wears his starting Traveler's Pack (readied storage), so capacity is expanded.
+        assertEquals(1, inv.storageItemCount(), "the worn starting bag is the one readied storage item");
+
+        int capacity = inv.mainSlotCapacity();
+        int weight = inv.totalWeight();
+        assertEquals(Inventory.MAIN_BASE_SLOTS + Supply.TRAVELERS_PACK.storageSlotBonus(), capacity);
+
+        RunState loaded = json().fromJson(RunState.class, json().toJson(s));
+        loaded.restoreAfterLoad();
+        Inventory li = loaded.getInventory();
+
+        assertEquals(3, li.count(Supply.RAW_MEAT.ordinal()), "main-store stack survives");
+        assertEquals(Supply.FOLDED_CLOTH.ordinal(), li.equippedType(0), "the readied gear survives");
+        assertEquals(1, li.storageItemCount(), "the readied bag survives");
+        assertEquals(capacity, li.mainSlotCapacity(), "the bag-expanded capacity survives");
+        assertEquals(weight, li.totalWeight(), "the derived total weight is stable across the load");
+    }
+
+    @Test
+    void pre61SaveLoadsMainItemsAndAnEmptyQuickAccessStructure() {
+        // AD-6 (Story 6.1, D1/Task 3.1): a pre-6.1 save has the shorter main arrays (types/counts of
+        // 8, equipped of 2) and NO quickArtifact/storageItems keys. Loading it keeps the old main
+        // items (grown into the 19-slot store) and defaults the new Quick-Access/storage bands empty.
+        RunState withData = new RunState(7L);
+        withData.getInventory().tryAdd(Supply.COAL.ordinal(), 2); // an old main-store item in a low slot
+        JsonValue root = new JsonReader().parse(json().toJson(withData));
+        JsonValue invJson = root.get("inventory");
+        truncateArray(invJson.get("types"), 8);
+        truncateArray(invJson.get("counts"), 8);
+        truncateArray(invJson.get("equipped"), 2);
+        invJson.remove("quickArtifact");
+        invJson.remove("storageBags"); // emulate a save written before the storage band existed
+
+        RunState fromOld = json().fromJson(RunState.class, root.toJson(JsonWriter.OutputType.json));
+        fromOld.restoreAfterLoad();
+        Inventory li = fromOld.getInventory();
+
+        assertEquals(2, li.count(Supply.COAL.ordinal()), "the old main-store item survives the grow");
+        assertEquals(Inventory.MAIN_BASE_SLOTS, li.mainSlotCapacity(), "no bag → base capacity, structure valid");
+        assertEquals(0, li.storageItemCount(), "the storage band defaults empty");
+        assertEquals(-1, li.equippedType(4), "the grown gear band is empty in the new slots");
+        assertEquals(-1, li.quickArtifactType(0), "the artifact band defaults empty");
+        // and the loaded inventory is fully usable (no stranded/undersized array).
+        assertEquals(Inventory.AddResult.ADDED, li.tryAdd(Supply.WOOD.ordinal(), 1), "the store still accepts items");
+    }
+
+    private static void truncateArray(JsonValue array, int keep) {
+        for (int i = array.size - 1; i >= keep; i--) array.remove(i);
+    }
+
+    @Test
+    void pre62SaveMigratesFlyweightStorageItemsToDurableBags() {
+        // AD-6 (Story 6.2): a pre-6.2 save serialized readied bags as an int[] storageItems of Supply
+        // ordinals (no storageBags list). On load, restoreAfterLoad migrates each into a full-durability
+        // untrapped Bag, so a 6.1 save's worn Traveler's Pack is not dropped on the upgrade.
+        RunState withData = new RunState(7L);
+        JsonValue root = new JsonReader().parse(json().toJson(withData));
+        JsonValue invJson = root.get("inventory");
+        invJson.remove("storageBags");                 // emulate the pre-6.2 format: no Bag list…
+        JsonValue legacy = new JsonValue(JsonValue.ValueType.array);
+        legacy.addChild(new JsonValue(Supply.TRAVELERS_PACK.ordinal())); // …just the flyweight ordinal
+        invJson.addChild("storageItems", legacy);
+
+        RunState fromOld = json().fromJson(RunState.class, root.toJson(JsonWriter.OutputType.json));
+        fromOld.restoreAfterLoad();
+        Inventory li = fromOld.getInventory();
+
+        assertEquals(1, li.storageItemCount(), "the legacy bag migrated into a Bag instance");
+        Bag migrated = li.getStorageBags().get(0);
+        assertEquals(Supply.TRAVELERS_PACK, migrated.getType(), "the bag type survives the migration");
+        assertEquals(Bag.MAX_DURABILITY, migrated.getDurability(), "a migrated bag is full durability");
+        assertFalse(migrated.isTrapped(), "a migrated bag is untrapped");
+        assertEquals(Inventory.MAIN_BASE_SLOTS + Supply.TRAVELERS_PACK.storageSlotBonus(),
+                li.mainSlotCapacity(), "the migrated bag still expands the store");
     }
 
     @Test

@@ -39,7 +39,7 @@ public final class SpoilageSystem {
         // Snapshot perishable stacks before any mutation, so a stack that advances this tick is
         // not advanced twice (a Raw that becomes Half-Rotten must not also become Spoiled now).
         List<int[]> advances = new ArrayList<>(); // {fromType, toType, count}
-        for (int slot = 0; slot < Inventory.BACKPACK_STACKS; slot++) {
+        for (int slot = 0; slot < Inventory.MAX_MAIN_SLOTS; slot++) {
             int type = inv.backpackType(slot);
             if (type < 0) continue;
             Supply s = Supply.byOrdinal(type);

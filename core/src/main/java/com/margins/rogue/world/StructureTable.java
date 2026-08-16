@@ -125,6 +125,25 @@ public final class StructureTable {
         return new LootEntry(supply, count, chancePercent);
     }
 
+    /** Story 6.2 (FR-20, D5): a found storage bag — placed by {@code RunState}'s LAST generation pass
+     *  (after structure loot AND the cordon) so every prior seed layout stays byte-identical (AD-5),
+     *  which is why it is a standalone entry rather than an item on any structure's authored loot set.
+     *  A found bag may be trapped — the trap is rolled when it is readied ({@code BagSystem}). */
+    public static final int FOUND_BAG_CHANCE = 45;
+    public static final LootEntry[] FOUND_BAG_LOOT = { loot(Supply.TRAVELERS_PACK, 1, FOUND_BAG_CHANCE) };
+
+    /** Story 6.3 (FR-21, AD-17): the scarce currency set placed by {@code RunState.placeCurrency}'s
+     *  LAST generation pass into the EASTERN structure footprints (footprint center at or east of the
+     *  map midline — value rises east, so coin never lands in the western home-cluster) — a standalone
+     *  entry (like {@link #FOUND_BAG_LOOT}) so it appends after every existing draw and no prior seed
+     *  layout shifts (AD-5). Deliberately scarce: one guaranteed Copper, an occasional Silver, a rare
+     *  Gold per eastern footprint; the top tier (Royal Gold Plaque) is never world-loot — it exists only
+     *  as the dense high-value tier a trader gives as change (6.4). No infinite source: this bounded,
+     *  one-shot-per-footprint placement is the whole of the world's coin (AC-2 no infinite-money loop). */
+    public static final LootEntry[] CURRENCY_LOOT = {
+            loot(Supply.COPPER, 1, 100), loot(Supply.SILVER, 1, 30), loot(Supply.GOLD, 1, 6)
+    };
+
     /** The authored content for one World-Structure type. Instances are static finals; the loot
      *  arrays are FINAL and injected through the constructor, so a caller can never reassign
      *  another structure's content (review fix — the old withLoot/withLockedCellar fluents left

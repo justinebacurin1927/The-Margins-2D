@@ -93,10 +93,11 @@ class DialogueEffectTest {
     @Test
     void giveItemWithAFullPackEmitsRefusalAndAddsNothing() {
         RunState s = run();
-        // Fill all 8 stacks with types that are NOT Coal (ordinal 5) so the gift has nowhere
-        // to stack or land.
-        int[] fillers = {0, 1, 2, 3, 4, 6, 7, 8};
-        for (int t : fillers) {
+        // Fill the whole main store to its current capacity (Story 6.1: 19 base + the worn starting
+        // Traveler's Pack's +4 = 23) with distinct types that are NOT Coal (ordinal 5), so the gift
+        // has nowhere to stack or land. Robust to the capacity rather than hardcoding it.
+        for (int t = 0; !s.getInventory().isBackpackFull(); t++) {
+            if (t == Supply.COAL.ordinal()) continue;
             assertEquals(Inventory.AddResult.ADDED, s.getInventory().tryAdd(t, 1), "each filler stack lands");
         }
         assertTrue(s.getInventory().isBackpackFull(), "the pack is full before the gift");

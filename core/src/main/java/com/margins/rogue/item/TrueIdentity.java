@@ -65,7 +65,18 @@ public enum TrueIdentity {
     ROPE_ID("Rope") { public void apply(RoguePlayer p) { /* craft material — inert on use (repairs are 4.5) */ } },
     SMALL_TOOLS_ID("Small tools") { public void apply(RoguePlayer p) { /* tool — inert on use */ } },
     MAP_FRAGMENT_ID("Map fragment") { public void apply(RoguePlayer p) { /* knowledge collectible — inert; query is 3.5 */ } },
-    PRESERVED_FOOD_ID("Preserved food") { public void apply(RoguePlayer p) { p.eat(50); } };
+    PRESERVED_FOOD_ID("Preserved food") { public void apply(RoguePlayer p) { p.eat(50); } },
+
+    // Story 6.1 (FR-20): the storage bag's self-evident single identity — inert on use (it is worn
+    // to expand the pack, not consumed; readying happens via Inventory.equip, not USE).
+    TRAVELERS_PACK_ID("Traveler's Pack") { public void apply(RoguePlayer p) { /* storage — inert on use */ } },
+
+    // Story 6.3 (FR-21): the four currency tiers' self-evident single identities — inert on use
+    // (coin is spent at a trader in 6.4, never consumed via USE; its worth is Supply.copperValue()).
+    COPPER_ID("Copper") { public void apply(RoguePlayer p) { /* currency — inert on use */ } },
+    SILVER_ID("Silver") { public void apply(RoguePlayer p) { /* currency — inert on use */ } },
+    GOLD_ID("Gold") { public void apply(RoguePlayer p) { /* currency — inert on use */ } },
+    ROYAL_GOLD_PLAQUE_ID("Royal Gold Plaque") { public void apply(RoguePlayer p) { /* currency — inert on use */ } };
 
     private final String displayName;
     private final String loreLine;
